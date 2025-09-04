@@ -1,6 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Header from "./components/Header";
 import ProductSlider from "./components/ProductSlider";
+import Product from "./components/Product";
+import BestSeller from "./components/BestSeller";
+
 
 function App() {
   return (
@@ -11,11 +14,16 @@ function App() {
           path="/"
           element={
             <div>
-              <ProductSlider /> 
+              <ProductSlider />
+              <BestSeller />
             </div>
           }
         />
-        <Route path="/thuc-don"/>
+        <Route path="/thuc-don" element = {
+          <div>
+            <Product />
+          </div>
+        }/>
         <Route path="/cua-hang"/>
         <Route path="/gioi-thieu"/>
         <Route path="/bai-viet"/>

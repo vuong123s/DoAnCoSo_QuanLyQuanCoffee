@@ -50,9 +50,9 @@ const ProductSlider = () => {
     >
       {slides.map((item, index) => (
         <SwiperSlide key={index}>
-          <div className="grid grid-cols-12 montserrat items-center gap-6 px-16 h-full">
+          <div className="grid grid-cols-12 montserrat items-center justify-center gap-6 px-16 h-full">
             {/* Left Text */}
-            <div className="col-span-5 flex flex-col space-y-4">
+            <div className="col-span-5 flex flex-col space-y-4 pl-20">
               <span className="px-4 py-1 bg-gray-100 text-sm rounded-full self-start">
                 {item.label}
               </span>
