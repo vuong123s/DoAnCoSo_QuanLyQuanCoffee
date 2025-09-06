@@ -25,7 +25,7 @@ const ProductSeller = ({img, title, top, quantity}) => {
                 <h3 className='text-[#27272f] bold-18 tracking-wide px-5 group-hover:text-[#91ad41]
                                 transition-all duration-700 ease-in-out
                 '>{title}</h3>
-                <div className='flexCenter my-5 px-16 text-[#5e5e5e]'>
+                <div className='flex justify-center my-5 px-16 text-[#5e5e5e]'>
                     <p className='mr-auto'>21/5/2021</p>
                     <p>{quantity} Đã bán</p>
                 </div>

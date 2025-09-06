@@ -6,8 +6,7 @@ const BestSeller = () => {
        <div className="flex justify-center" >
          <div className='flexCenter flex-col relative'>
             <div className='flex flex-col items-center '>
-                <div class="text-[#38351f] regular-24 tracking-wider capitalize my-3">Best Seller</div>
-                <h2 className='text-[#27272f] bold-52 leading-snug'>Thực đơn</h2>
+                <div class="text-[#38351f] text-5xl font-[700] tracking-wider capitalize my-3">Danh mục bán chạy</div>
                 <img className='my-3' src={Separate} alt="" />
             </div>
             {/* <img className=' absolute h-full left-0' src="https://preview.designtone.xyz/html/foodily/images/background/pattern-5.png" alt="" /> */}

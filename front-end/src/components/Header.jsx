@@ -11,7 +11,7 @@ const Header = () => {
   ];
 
   return (
-    <nav className="mt-6 mx-[90px] flex items-center justify-between h-20">
+    <nav className="mt-6 mx-[160px] flex items-center justify-between h-20">
       <Link to="/">
       <img className="w-[160px]" src="./src/assets/img/logo3.png" alt="logo" />
       </Link>

@@ -14,7 +14,12 @@ const Product = () => {
         {id:6, img:"./src/assets/products/product (3).jpg", title:"Cà phê đen đá", price:15, sold:300},
     ]
   return (
-      <div className='flex flex-wrap justify-center mt-20 mb-20'>
+      <div className='flex justify-center mt-10 mb-10'>
+        
+        <div className='w-[1024px] flex flex-col items-center'>
+            <h3 className='text-[#38351f] text-5xl font-[700] tracking-wider capitalize my-3'>Menu</h3>
+        <div className='flex flex-wrap justify-center  '>
+
             {products.map(({id, img, title, price, sold}) => (
                 <div key={id} className='group text-[#27272f] mx-5 my-5 relative'>
                     <div className=' rounded-lg overflow-hidden bg-[#beb996]'>
@@ -32,6 +37,8 @@ const Product = () => {
                     </div>
                 </div>  
             ))}
+        </div>
+      </div>
       </div>
     )
 }
