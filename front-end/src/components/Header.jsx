@@ -16,16 +16,16 @@ const Header = () => {
       <img className="w-[160px]" src="./src/assets/img/logo3.png" alt="logo" />
       </Link>
 
-      <ul className="flex space-x-4 px-[24px] py-[8px] text-sm montserrat-600 text-[#0F4026] rounded-full bg-[#EEEEEE] justify-between items-center">
+      <ul className="flex space-x-4 px-[16px] py-[8px] text-sm montserrat-600 text-[#0F4026] rounded-full bg-[#EEEEEE] justify-between items-center">
         {navItems.map((item) => (
           <li key={item.path}>
             <Link
               to={item.path}
-              className={`cursor-pointer transition-all duration-300 ease-in-out ${
-                location.pathname === item.path
-                  ? "px-[16px] py-[4px] bg-[#FEFEFE] rounded-full scale-105 shadow-md"
-                  : "px-[16px] py-[4px]"
-              }`}
+              className={`cursor-pointer transition-all duration-300 ease-in-out px-[16px] py-[4px] ${
+              location.pathname === item.path
+                ? "bg-[#FEFEFE] rounded-full shadow-md"
+                : ""
+            }`}
             >
               {item.label}
             </Link>
