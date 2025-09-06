@@ -15,6 +15,8 @@ function App() {
           element={
             <div>
               <ProductSlider />
+                
+              <Product />
               <BestSeller />
             </div>
           }
