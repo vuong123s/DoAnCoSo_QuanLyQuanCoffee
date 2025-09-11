@@ -51,7 +51,6 @@ const ProductSlider = () => {
       {slides.map((item, index) => (
         <SwiperSlide key={index}>
           <div className="grid grid-cols-12 montserrat items-center justify-center gap-6 px-16 h-full">
-            {/* Left Text */}
             <div className="col-span-5 flex flex-col space-y-4 pl-20">
               <span className="px-4 py-1 bg-gray-100 text-sm rounded-full self-start">
                 {item.label}
@@ -62,23 +61,19 @@ const ProductSlider = () => {
               <p className="text-gray-600">{item.desc}</p>
             </div>
 
-           {/* Center Image */}
             <div className="col-span-4 flex justify-center relative">
-            {/* Text Background */}
                 <div className="absolute text-[180px] font-extrabold tracking-[0.2em] select-none -z-10
                                 text-transparent stroke-text uppercase">
                     Trung Nguyên
                 </div>
 
-                {/* Product Image */}
                 <img
-                    src={item.image}    
+                    src={item.image}
                     alt={item.title}
                     className="h-[500px] object-contain drop-shadow-2xl relative z-10"
                 />
             </div>
 
-            {/* Right Review */}
             <div className="col-span-3 flex flex-col items-start space-y-4">
               <div className="bg-gray-100 p-4 rounded-xl flex items-center space-x-4 shadow">
                 <img
@@ -106,3 +101,5 @@ const ProductSlider = () => {
 };
 
 export default ProductSlider;
+
+

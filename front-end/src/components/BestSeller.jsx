@@ -1,6 +1,6 @@
-import React from 'react'
-import ProductSeller from '../components/ProductSeller'
-import Separate from "../assets/img/separate.png"
+import ProductSeller from "./ProductSeller";
+import Separate from "../assets/img/separate.png";
+
 const BestSeller = () => {
   return (
        <div className="flex justify-center" >
@@ -9,7 +9,6 @@ const BestSeller = () => {
                 <div class="text-[#38351f] text-5xl font-[700] tracking-wider capitalize my-3">Danh mục bán chạy</div>
                 <img className='my-3' src={Separate} alt="" />
             </div>
-            {/* <img className=' absolute h-full left-0' src="https://preview.designtone.xyz/html/foodily/images/background/pattern-5.png" alt="" /> */}
             <div className='max_padd_container flex '>
                 <ProductSeller img="https://preview.designtone.xyz/html/foodily/images/resource/news-1.jpg"
                                 title="Broad bean and goats’ cheese bruschetta"
@@ -33,3 +32,5 @@ const BestSeller = () => {
 }
 
 export default BestSeller
+
+

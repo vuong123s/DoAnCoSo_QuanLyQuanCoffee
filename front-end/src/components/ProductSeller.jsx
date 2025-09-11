@@ -1,11 +1,8 @@
-import React from 'react'
 import { MdPhotoLibrary } from "react-icons/md";
-
 
 const ProductSeller = ({img, title, top, quantity}) => {
   return (
     <div className='group px-5 py-10'>
-        
         <div className='group-hover:shadow-2xl transition-all duration-700 ease-in-out'>
             <div className='w-full h-full relative'>
                 <img className='w-full' src={img} alt="" />
@@ -36,3 +33,5 @@ const ProductSeller = ({img, title, top, quantity}) => {
 }
 
 export default ProductSeller
+
+

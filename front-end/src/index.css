@@ -377,3 +377,51 @@ template {
   display: none;
 }
 
+
+    /* ===== Admin layout basic styles ===== */
+.admin-container {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+  background: #f7f7f8;
+}
+
+.admin-sidebar {
+  background: #111827;
+  color: #e5e7eb;
+  padding: 16px;
+}
+
+.admin-logo {
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.admin-nav a {
+  display: block;
+  color: #9ca3af;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.admin-nav a.active, .admin-nav a:hover {
+  background: #1f2937;
+  color: #ffffff;
+}
+
+.admin-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 20px;
+}
+
+.admin-content {
+  padding: 20px;
+}
