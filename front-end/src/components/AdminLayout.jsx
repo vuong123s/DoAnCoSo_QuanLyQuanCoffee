@@ -65,7 +65,7 @@ function AdminLayout() {
               className={({ isActive }) =>
                 `flex items-center px-3 py-3 mb-1 text-sm font-medium rounded-lg transition-colors duration-200 ${
                   isActive
-                    ? 'bg-amber-600 text-white'
+                    ? 'text-amber-600'
                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`
               }

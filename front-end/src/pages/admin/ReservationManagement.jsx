@@ -1,0 +1,485 @@
+import React, { useState, useEffect } from 'react';
+import { reservationAPI, tableAPI } from '../../services/api';
+import { useForm } from 'react-hook-form';
+import { FiCalendar, FiClock, FiUser, FiPhone, FiEdit, FiTrash2, FiCheck, FiX, FiSearch, FiFilter } from 'react-icons/fi';
+import toast from 'react-hot-toast';
+
+const ReservationManagement = () => {
+  const [reservations, setReservations] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [filteredReservations, setFilteredReservations] = useState([]);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingReservation, setEditingReservation] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm();
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    filterReservations();
+  }, [reservations, statusFilter, dateFilter]);
+
+  const fetchData = async () => {
+    try {
+      const [reservationsResponse, tablesResponse] = await Promise.all([
+        reservationAPI.getReservations(),
+        tableAPI.getTables()
+      ]);
+      setReservations(reservationsResponse.data.reservations || []);
+      setTables(tablesResponse.data.tables || []);
+    } catch (error) {
+      toast.error('Lỗi khi tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterReservations = () => {
+    let filtered = reservations;
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(reservation => reservation.status === statusFilter);
+    }
+
+    if (dateFilter) {
+      filtered = filtered.filter(reservation => 
+        reservation.date === dateFilter
+      );
+    }
+
+    setFilteredReservations(filtered);
+  };
+
+  const handleEdit = (reservation) => {
+    setEditingReservation(reservation);
+    setValue('customerName', reservation.customerName);
+    setValue('customerPhone', reservation.customerPhone);
+    setValue('tableId', reservation.tableId);
+    setValue('date', reservation.date);
+    setValue('time', reservation.time);
+    setValue('partySize', reservation.partySize);
+    setValue('notes', reservation.notes);
+    setValue('status', reservation.status);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa đặt bàn này?')) {
+      try {
+        await reservationAPI.deleteReservation(id);
+        toast.success('Xóa đặt bàn thành công');
+        fetchData();
+      } catch (error) {
+        toast.error('Lỗi khi xóa đặt bàn');
+      }
+    }
+  };
+
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      await reservationAPI.updateReservation(id, { status: newStatus });
+      toast.success('Cập nhật trạng thái thành công');
+      fetchData();
+    } catch (error) {
+      toast.error('Lỗi khi cập nhật trạng thái');
+    }
+  };
+
+  const onSubmit = async (data) => {
+    try {
+      if (editingReservation) {
+        await reservationAPI.updateReservation(editingReservation.id, data);
+        toast.success('Cập nhật đặt bàn thành công');
+      } else {
+        await reservationAPI.createReservation(data);
+        toast.success('Thêm đặt bàn mới thành công');
+      }
+      setShowModal(false);
+      setEditingReservation(null);
+      reset();
+      fetchData();
+    } catch (error) {
+      toast.error('Có lỗi xảy ra');
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'confirmed':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'pending':
+        return 'Chờ xác nhận';
+      case 'confirmed':
+        return 'Đã xác nhận';
+      case 'cancelled':
+        return 'Đã hủy';
+      case 'completed':
+        return 'Hoàn thành';
+      default:
+        return status;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white p-6 rounded-lg shadow-sm animate-pulse">
+          <div className="bg-gray-300 h-8 w-48 rounded mb-4"></div>
+          <div className="bg-gray-300 h-10 w-full rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">Quản lý Đặt bàn</h1>
+        <button
+          onClick={() => {
+            setEditingReservation(null);
+            reset();
+            setShowModal(true);
+          }}
+          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center space-x-2"
+        >
+          <FiCalendar className="w-4 h-4" />
+          <span>Thêm đặt bàn</span>
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex items-center space-x-2">
+            <FiFilter className="text-gray-400 w-5 h-5" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="pending">Chờ xác nhận</option>
+              <option value="confirmed">Đã xác nhận</option>
+              <option value="cancelled">Đã hủy</option>
+              <option value="completed">Hoàn thành</option>
+            </select>
+          </div>
+          <div className="flex items-center space-x-2">
+            <FiCalendar className="text-gray-400 w-5 h-5" />
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Reservations Table */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Khách hàng
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Bàn
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ngày & Giờ
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Số người
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Trạng thái
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Thao tác
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredReservations.map((reservation) => (
+                <tr key={reservation.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="flex items-center">
+                        <FiUser className="w-4 h-4 text-gray-400 mr-2" />
+                        <div className="text-sm font-medium text-gray-900">{reservation.customerName}</div>
+                      </div>
+                      <div className="flex items-center mt-1">
+                        <FiPhone className="w-4 h-4 text-gray-400 mr-2" />
+                        <div className="text-sm text-gray-500">{reservation.customerPhone}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-900">
+                      Bàn {tables.find(table => table.id === reservation.tableId)?.number || 'N/A'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <FiCalendar className="w-4 h-4 text-gray-400 mr-2" />
+                      <div className="text-sm text-gray-900">
+                        {new Date(reservation.date).toLocaleDateString('vi-VN')}
+                      </div>
+                    </div>
+                    <div className="flex items-center mt-1">
+                      <FiClock className="w-4 h-4 text-gray-400 mr-2" />
+                      <div className="text-sm text-gray-500">{reservation.time}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-900">{reservation.partySize} người</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(reservation.status)}`}>
+                      {getStatusText(reservation.status)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex space-x-2">
+                      {reservation.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleStatusChange(reservation.id, 'confirmed')}
+                            className="text-green-600 hover:text-green-900"
+                            title="Xác nhận"
+                          >
+                            <FiCheck className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleStatusChange(reservation.id, 'cancelled')}
+                            className="text-red-600 hover:text-red-900"
+                            title="Hủy"
+                          >
+                            <FiX className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => handleEdit(reservation)}
+                        className="text-amber-600 hover:text-amber-900"
+                        title="Chỉnh sửa"
+                      >
+                        <FiEdit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(reservation.id)}
+                        className="text-red-600 hover:text-red-900"
+                        title="Xóa"
+                      >
+                        <FiTrash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredReservations.length === 0 && (
+          <div className="text-center py-12">
+            <FiSearch className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Không tìm thấy đặt bàn nào</h3>
+            <p className="text-gray-600">Thử thay đổi bộ lọc hoặc thêm đặt bàn mới</p>
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              {editingReservation ? 'Chỉnh sửa đặt bàn' : 'Thêm đặt bàn mới'}
+            </h2>
+            
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tên khách hàng *
+                </label>
+                <input
+                  {...register('customerName', { required: 'Tên khách hàng là bắt buộc' })}
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+                {errors.customerName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.customerName.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Số điện thoại *
+                </label>
+                <input
+                  {...register('customerPhone', { required: 'Số điện thoại là bắt buộc' })}
+                  type="tel"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+                {errors.customerPhone && (
+                  <p className="mt-1 text-sm text-red-600">{errors.customerPhone.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bàn *
+                </label>
+                <select
+                  {...register('tableId', { required: 'Bàn là bắt buộc' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                >
+                  <option value="">Chọn bàn</option>
+                  {tables.filter(table => table.status === 'available').map((table) => (
+                    <option key={table.id} value={table.id}>
+                      Bàn {table.number} ({table.capacity} người)
+                    </option>
+                  ))}
+                </select>
+                {errors.tableId && (
+                  <p className="mt-1 text-sm text-red-600">{errors.tableId.message}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày *
+                  </label>
+                  <input
+                    {...register('date', { required: 'Ngày là bắt buộc' })}
+                    type="date"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                  {errors.date && (
+                    <p className="mt-1 text-sm text-red-600">{errors.date.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Giờ *
+                  </label>
+                  <input
+                    {...register('time', { required: 'Giờ là bắt buộc' })}
+                    type="time"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                  {errors.time && (
+                    <p className="mt-1 text-sm text-red-600">{errors.time.message}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Số người *
+                </label>
+                <input
+                  {...register('partySize', { 
+                    required: 'Số người là bắt buộc',
+                    min: { value: 1, message: 'Số người phải ít nhất 1' }
+                  })}
+                  type="number"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+                {errors.partySize && (
+                  <p className="mt-1 text-sm text-red-600">{errors.partySize.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ghi chú
+                </label>
+                <textarea
+                  {...register('notes')}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  placeholder="Yêu cầu đặc biệt..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Trạng thái *
+                </label>
+                <select
+                  {...register('status', { required: 'Trạng thái là bắt buộc' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                >
+                  <option value="">Chọn trạng thái</option>
+                  <option value="pending">Chờ xác nhận</option>
+                  <option value="confirmed">Đã xác nhận</option>
+                  <option value="cancelled">Đã hủy</option>
+                  <option value="completed">Hoàn thành</option>
+                </select>
+                {errors.status && (
+                  <p className="mt-1 text-sm text-red-600">{errors.status.message}</p>
+                )}
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingReservation(null);
+                    reset();
+                  }}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Đang lưu...' : (editingReservation ? 'Cập nhật' : 'Thêm mới')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ReservationManagement;

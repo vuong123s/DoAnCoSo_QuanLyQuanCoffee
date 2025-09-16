@@ -1,53 +1,130 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Header from "./components/Header";
-import ProductSlider from "./components/ProductSlider";
-import Menu from "./pages/Menu";
-import BestSeller from "./components/BestSeller";
-import AdminLayout from "./components/AdminLayout";
-import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
-import Orders from "./pages/Orders";
-import Inventory from "./pages/Inventory";
-import Users from "./pages/Users";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+import { useAuthStore } from "./stores/authStore";
 
+// Layouts
+import MainLayout from "./layouts/MainLayout";
+import AdminLayout from "./layouts/AdminLayout";
+import AuthLayout from "./layouts/AuthLayout";
+
+// Public Pages
+import Home from "./pages/public/Home";
+import Menu from "./pages/public/Menu";
+import About from "./pages/public/About";
+import Contact from "./pages/public/Contact";
+import Reservations from "./pages/public/Reservations";
+
+// Auth Pages
+import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
+
+// Customer Pages
+import Profile from "./pages/customer/Profile";
+import OrderHistory from "./pages/customer/OrderHistory";
+import Cart from "./pages/customer/Cart";
+
+// Admin Pages
+import Dashboard from "./pages/admin/Dashboard";
+import MenuManagement from "./pages/admin/MenuManagement";
+import CategoryManagement from "./pages/admin/CategoryManagement";
+import TableManagement from "./pages/admin/TableManagement";
+import ReservationManagement from "./pages/admin/ReservationManagement";
+import OrderManagement from "./pages/admin/OrderManagement";
+import UserManagement from "./pages/admin/UserManagement";
+import BillingManagement from "./pages/admin/BillingManagement";
+import Analytics from "./pages/admin/Analytics";
+
+// Components
+import ProtectedRoute from "./components/ProtectedRoute";
+import LoadingSpinner from "./components/LoadingSpinner";
 
 function App() {
+  const { isLoading, user } = useAuthStore();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <Router>
-     
-      <Routes>
-        
-        <Route
-          path="/"
-          element={
-            <div>
-              <Header />
-              <div>
-                <ProductSlider />
-                <Menu />
-                <BestSeller />
+      <div className="min-h-screen bg-gray-50">
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={<Home />} />
+            <Route path="menu" element={<Menu />} />
+            <Route path="about" element={<About />} />
+            <Route path="contact" element={<Contact />} />
+            <Route path="reservations" element={<Reservations />} />
+          </Route>
+
+          {/* Auth Routes */}
+          <Route path="/auth" element={<AuthLayout />}>
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+          </Route>
+
+          {/* Customer Routes */}
+          <Route path="/customer" element={
+            <ProtectedRoute allowedRoles={['customer', 'staff', 'manager', 'admin']}>
+              <MainLayout />
+            </ProtectedRoute>
+          }>
+            <Route path="profile" element={<Profile />} />
+            <Route path="orders" element={<OrderHistory />} />
+            <Route path="cart" element={<Cart />} />
+          </Route>
+
+          {/* Admin Routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute allowedRoles={['staff', 'manager', 'admin']}>
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Dashboard />} />
+            <Route path="menu" element={<MenuManagement />} />
+            <Route path="categories" element={<CategoryManagement />} />
+            <Route path="tables" element={<TableManagement />} />
+            <Route path="reservations" element={<ReservationManagement />} />
+            <Route path="orders" element={<OrderManagement />} />
+            <Route path="billing" element={<BillingManagement />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="users" element={
+              <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                <UserManagement />
+              </ProtectedRoute>
+            } />
+          </Route>
+
+          {/* Redirects */}
+          <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+          <Route path="/register" element={<Navigate to="/auth/register" replace />} />
+          
+          {/* 404 */}
+          <Route path="*" element={
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
+                <p className="text-gray-600 mb-8">Trang không tồn tại</p>
+                <a href="/" className="bg-amber-600 text-white px-6 py-2 rounded-lg hover:bg-amber-700">
+                  Về trang chủ
+                </a>
               </div>
             </div>
-          }
+          } />
+        </Routes>
+
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+            },
+          }}
         />
-        <Route path="/thuc-don" element = {<Menu />}/>
-        <Route path="/cua-hang"/>
-        <Route path="/gioi-thieu"/>
-        <Route path="/bai-viet"/>
-        {/* <Route path="/wishlist"/> */}
-        <Route path="/gio-hang"/>
-        <Route path="/dang-nhap"/>
-      </Routes>
-      {/* Admin routes */}
-      <Routes>
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="products" element={<Products />} />
-          <Route path="orders" element={<Orders />} />
-          <Route path="inventory" element={<Inventory />} />
-          <Route path="users" element={<Users />} />
-        </Route>
-      </Routes>
+      </div>
     </Router>
   );
 }
