@@ -7,6 +7,7 @@ const {
   updateReservation,
   updateReservationStatus,
   cancelReservation,
+  deleteReservation,
   getTodayReservations,
   getAvailableTables,
   getReservationStats
@@ -62,5 +63,8 @@ router.put('/:id/trang-thai', updateReservationStatus); // Vietnamese route
 
 // Cancel reservation
 router.patch('/:id/cancel', cancelReservation);
+
+// Delete reservation
+router.delete('/:id', deleteReservation);
 
 module.exports = router;

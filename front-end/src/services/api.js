@@ -71,25 +71,26 @@ export const menuAPI = {
 
 // Table API - Using Vietnamese schema
 export const tableAPI = {
-  getTables: () => api.get('/api/ban'),
-  getTable: (id) => api.get(`/api/ban/${id}`),
-  createTable: (tableData) => api.post('/api/ban', tableData),
-  updateTable: (id, tableData) => api.put(`/api/ban/${id}`, tableData),
-  deleteTable: (id) => api.delete(`/api/ban/${id}`),
-  checkAvailability: (params) => api.get('/api/ban/kiem-tra', { params }),
+  getTables: () => api.get('/api/tables'),
+  getTable: (id) => api.get(`/api/tables/${id}`),
+  createTable: (tableData) => api.post('/api/tables', tableData),
+  updateTable: (id, tableData) => api.put(`/api/tables/${id}`, tableData),
+  deleteTable: (id) => api.delete(`/api/tables/${id}`),
+  checkAvailability: (params) => api.get('/api/tables/availability', { params }),
 };
 
 // Reservation API - Using Vietnamese schema
 export const reservationAPI = {
-  getReservations: (params) => api.get('/api/dat-ban', { params }),
-  getReservation: (id) => api.get(`/api/dat-ban/${id}`),
-  createReservation: (reservationData) => api.post('/api/dat-ban', reservationData),
-  updateReservation: (id, reservationData) => api.put(`/api/dat-ban/${id}`, reservationData),
-  updateReservationStatus: (id, statusData) => api.put(`/api/dat-ban/${id}/trang-thai`, statusData),
-  cancelReservation: (id) => api.delete(`/api/dat-ban/${id}`),
-  getAvailableTables: (params) => api.get('/api/dat-ban/ban-trong', { params }),
-  getTodayReservations: (params) => api.get('/api/dat-ban/hom-nay', { params }),
-  getReservationStats: (params) => api.get('/api/dat-ban/thong-ke', { params }),
+  getReservations: (params) => api.get('/api/reservations', { params }),
+  getReservation: (id) => api.get(`/api/reservations/${id}`),
+  createReservation: (reservationData) => api.post('/api/reservations', reservationData),
+  updateReservation: (id, reservationData) => api.put(`/api/reservations/${id}`, reservationData),
+  updateReservationStatus: (id, statusData) => api.put(`/api/reservations/${id}/status`, statusData),
+  deleteReservation: (id) => api.delete(`/api/reservations/${id}`),
+  cancelReservation: (id) => api.patch(`/api/reservations/${id}/cancel`),
+  getAvailableTables: (params) => api.get('/api/reservations/available-tables', { params }),
+  getTodayReservations: (params) => api.get('/api/reservations/today', { params }),
+  getReservationStats: (params) => api.get('/api/reservations/stats', { params }),
 };
 
 // User API

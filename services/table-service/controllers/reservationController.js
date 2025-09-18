@@ -1,5 +1,6 @@
 const { DatBan, Ban } = require('../models');
-const { Op, sequelize } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
+const { sequelize } = require('../config/database');
 
 // Lấy tất cả đặt bàn với bộ lọc
 const getReservations = async (req, res) => {
@@ -419,6 +420,62 @@ const cancelReservation = async (req, res) => {
   }
 };
 
+// Xóa đặt bàn hoàn toàn
+const deleteReservation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const reservation = await DatBan.findByPk(id, {
+      include: [{
+        model: Ban,
+        as: 'ban'
+      }]
+    });
+
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Không tìm thấy đặt bàn'
+      });
+    }
+
+    // Cập nhật trạng thái bàn nếu bàn đang được đặt cho reservation này
+    const table = await Ban.findByPk(reservation.MaBan);
+    if (table && table.TrangThai === 'Đã đặt') {
+      // Kiểm tra xem có reservation khác cho bàn này không
+      const otherReservations = await DatBan.findOne({
+        where: {
+          MaBan: reservation.MaBan,
+          MaDat: { [Op.ne]: id },
+          TrangThai: ['Đã đặt', 'Đã xác nhận'],
+          NgayDat: new Date().toISOString().split('T')[0]
+        }
+      });
+
+      // Chỉ cập nhật trạng thái bàn nếu không có reservation khác
+      if (!otherReservations) {
+        await table.update({ TrangThai: 'Trống' });
+      }
+    }
+
+    // Xóa đặt bàn khỏi database
+    await reservation.destroy();
+
+    res.json({
+      success: true,
+      message: 'Xóa đặt bàn thành công'
+    });
+
+  } catch (error) {
+    console.error('Error deleting reservation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Không thể xóa đặt bàn',
+      message: error.message
+    });
+  }
+};
+
 // Lấy đặt bàn hôm nay
 const getTodayReservations = async (req, res) => {
   try {
@@ -573,6 +630,7 @@ module.exports = {
   updateReservation,
   updateReservationStatus,
   cancelReservation,
+  deleteReservation,
   getTodayReservations,
   getAvailableTables,
   getReservationStats

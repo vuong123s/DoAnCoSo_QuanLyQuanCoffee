@@ -11,8 +11,11 @@ const ReservationManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingReservation, setEditingReservation] = useState(null);
+  const [deletingReservation, setDeletingReservation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   const {
     register,
@@ -97,16 +100,32 @@ const ReservationManagement = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa đặt bàn này?')) {
-      try {
-        await reservationAPI.deleteReservation(id);
-        toast.success('Xóa đặt bàn thành công');
-        fetchData();
-      } catch (error) {
-        toast.error('Lỗi khi xóa đặt bàn');
-      }
+  const handleDeleteClick = (reservation) => {
+    setDeletingReservation(reservation);
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingReservation) return;
+    
+    setDeleting(true);
+    try {
+      await reservationAPI.deleteReservation(deletingReservation.MaDat || deletingReservation.id);
+      toast.success('Xóa đặt bàn thành công');
+      setShowDeleteModal(false);
+      setDeletingReservation(null);
+      fetchData();
+    } catch (error) {
+      toast.error('Lỗi khi xóa đặt bàn');
+      console.error('Error deleting reservation:', error);
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeletingReservation(null);
   };
 
   const handleStatusChange = async (id, newStatus) => {
@@ -319,15 +338,15 @@ const ReservationManagement = () => {
                         <>
                           <button
                             onClick={() => handleStatusChange(reservation.MaDat || reservation.id, 'Đã xác nhận')}
-                            className="text-green-600 hover:text-green-900"
-                            title="Xác nhận"
+                            className="text-green-600 hover:text-green-900 p-1 rounded-full hover:bg-green-50 transition-colors"
+                            title="Xác nhận đặt bàn"
                           >
                             <FiCheck className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleStatusChange(reservation.MaDat || reservation.id, 'Đã hủy')}
-                            className="text-red-600 hover:text-red-900"
-                            title="Hủy"
+                            className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition-colors"
+                            title="Hủy đặt bàn"
                           >
                             <FiX className="w-4 h-4" />
                           </button>
@@ -335,15 +354,15 @@ const ReservationManagement = () => {
                       )}
                       <button
                         onClick={() => handleEdit(reservation)}
-                        className="text-amber-600 hover:text-amber-900"
-                        title="Chỉnh sửa"
+                        className="text-amber-600 hover:text-amber-900 p-1 rounded-full hover:bg-amber-50 transition-colors"
+                        title="Chỉnh sửa đặt bàn"
                       >
                         <FiEdit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(reservation.MaDat || reservation.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Xóa"
+                        onClick={() => handleDeleteClick(reservation)}
+                        className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition-colors"
+                        title="Xóa đặt bàn"
                       >
                         <FiTrash2 className="w-4 h-4" />
                       </button>
@@ -520,6 +539,105 @@ const ReservationManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deletingReservation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="text-center">
+              {/* Warning Icon */}
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                <FiTrash2 className="h-8 w-8 text-red-600" />
+              </div>
+              
+              {/* Title */}
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Xác nhận xóa đặt bàn
+              </h3>
+              
+              {/* Content */}
+              <div className="mb-6">
+                <p className="text-gray-600 mb-4">
+                  Bạn có chắc chắn muốn xóa đặt bàn này không? Hành động này không thể hoàn tác.
+                </p>
+                
+                {/* Reservation Details */}
+                <div className="bg-gray-50 rounded-lg p-4 text-left">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Khách hàng:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {deletingReservation.TenKhach || deletingReservation.customerName}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Số điện thoại:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {deletingReservation.SoDienThoai || deletingReservation.customerPhone}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Bàn:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        Bàn {tables.find(table => (table.MaBan || table.id) === (deletingReservation.MaBan || deletingReservation.tableId))?.SoBan || 
+                             tables.find(table => (table.MaBan || table.id) === (deletingReservation.MaBan || deletingReservation.tableId))?.number || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Ngày giờ:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {new Date(deletingReservation.NgayDat || deletingReservation.date).toLocaleDateString('vi-VN')} - {deletingReservation.GioDat || deletingReservation.time}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Số người:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {deletingReservation.SoNguoi || deletingReservation.partySize} người
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Trạng thái:</span>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(deletingReservation.TrangThai || deletingReservation.status)}`}>
+                        {getStatusText(deletingReservation.TrangThai || deletingReservation.status)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={handleCancelDelete}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-3 text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  {deleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <span>Đang xóa...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiTrash2 className="w-4 h-4" />
+                      <span>Xóa đặt bàn</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
