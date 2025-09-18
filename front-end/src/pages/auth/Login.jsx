@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../../stores/authStore';
@@ -6,11 +6,22 @@ import { FiEye, FiEyeOff, FiMail, FiLock } from 'react-icons/fi';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading } = useAuthStore();
+  const [redirected, setRedirected] = useState(false);
+  const { login, isLoading, isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   
   const from = location.state?.from?.pathname || '/';
+
+  // No automatic redirects - just log for debugging
+  useEffect(() => {
+    console.log('Login mounted:', { 
+      isAuthenticated, 
+      userId: user?.id, 
+      isLoading, 
+      currentPath: location.pathname 
+    });
+  }, [isAuthenticated, user?.id, isLoading, location.pathname]);
 
   const {
     register,
@@ -21,7 +32,8 @@ const Login = () => {
   const onSubmit = async (data) => {
     const result = await login(data);
     if (result.success) {
-      navigate(from, { replace: true });
+      console.log('Login successful, no automatic redirect');
+      // User can manually navigate where they want
     }
   };
 
@@ -133,9 +145,8 @@ const Login = () => {
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
           <h3 className="text-sm font-medium text-gray-700 mb-2">Tài khoản demo:</h3>
           <div className="text-xs text-gray-600 space-y-1">
-            <p><strong>Admin:</strong> admin@coffeeshop.com / password</p>
-            <p><strong>Manager:</strong> manager@coffeeshop.com / password</p>
-            <p><strong>Staff:</strong> staff@coffeeshop.com / password</p>
+            <p><strong>Admin:</strong> admin@coffee.com / admin123</p>
+            <p><strong>Khách hàng:</strong> Đăng ký tài khoản mới</p>
           </div>
         </div>
 

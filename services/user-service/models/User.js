@@ -80,6 +80,7 @@ const NhanVien = sequelize.define('NhanVien', {
 
 // Instance methods
 NhanVien.prototype.comparePassword = async function(candidatePassword) {
+  if (!this.MatKhau) return false;
   return await bcrypt.compare(candidatePassword, this.MatKhau);
 };
 
@@ -115,11 +116,7 @@ const KhachHang = sequelize.define('KhachHang', {
   },
   MatKhau: {
     type: DataTypes.STRING(255),
-    allowNull: true,
-    validate: {
-      len: [6, 255],
-      notEmpty: true
-    }
+    allowNull: true
   },
   DiemTichLuy: {
     type: DataTypes.INTEGER,

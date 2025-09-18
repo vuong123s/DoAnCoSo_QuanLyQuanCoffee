@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../../stores/authStore';
@@ -7,8 +7,20 @@ import { FiEye, FiEyeOff, FiMail, FiLock, FiUser, FiPhone } from 'react-icons/fi
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const { register: registerUser, isLoading } = useAuthStore();
+  const { register: registerUser, isLoading, isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const userRole = user.ChucVu;
+      if (userRole === 'Quản lý' || userRole === 'Nhân viên') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const {
     register,
@@ -23,7 +35,13 @@ const Register = () => {
     const { confirmPassword, ...userData } = data;
     const result = await registerUser(userData);
     if (result.success) {
-      navigate('/');
+      // Chuyển hướng dựa trên role của user
+      const userRole = result.user?.role;
+      if (userRole === 'admin' || userRole === 'manager' || userRole === 'staff') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     }
   };
 

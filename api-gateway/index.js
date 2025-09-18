@@ -1,206 +1,176 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+const morgan = require('morgan');
 
-const { createProxyMiddleware } = require('http-proxy-middleware');
-const authMiddleware = require('./middleware/auth');
 const serviceRegistry = require('./config/serviceRegistry');
 const healthCheck = require('./routes/health');
+const authMiddleware = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security middleware
-app.use(helmet());
+// Security middleware - disable CSP for development
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:5173'],
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Request logging
-app.use(morgan('combined'));
+app.use(morgan('dev'));
+
+// Debug middleware - log all requests
+app.use((req, res, next) => {
+  console.log(`\n📥 [REQUEST] ${req.method} ${req.originalUrl}`);
+  console.log(`   Headers: ${JSON.stringify(req.headers, null, 2)}`);
+  next();
+});
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.RATE_LIMIT_MAX || 100, // limit each IP to 100 requests per windowMs
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.use('/api', limiter);
-
-// Health check routes
+// Health check routes (before rate limiting)
 app.use('/health', healthCheck);
 
-// Service proxy configurations
+// Rate limiting (after health check)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests from this IP, please try again later.'
+  }
+});
+
+// Apply rate limiting only to specific routes, not all /api
+app.use('/api/auth', limiter);
+app.use('/api/users', limiter);
+
+// Get services
 const services = serviceRegistry.getServices();
 
-// User Service Routes
-app.use('/api/auth', createProxyMiddleware({
-  target: services.userService.url,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/auth': '/api/auth'
-  },
-  onError: (err, req, res) => {
-    console.error('User Service Proxy Error:', err.message);
-    res.status(503).json({
-      error: 'User service unavailable',
-      message: 'Please try again later'
-    });
-  }
-}));
-
-app.use('/api/users', authMiddleware.authenticateToken, createProxyMiddleware({
-  target: services.userService.url,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/users': '/api/users'
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    // Forward user information to the service
-    if (req.user) {
-      proxyReq.setHeader('X-User-Id', req.user.id);
-      proxyReq.setHeader('X-User-Role', req.user.role);
+// Optimized proxy function
+const createServiceProxy = (serviceName, port, requireAuth = false) => {
+  return async (req, res, next) => {
+    console.log(`🎯 ${serviceName} route matched: ${req.method} ${req.originalUrl}`);
+    
+    try {
+      const axios = require('axios');
+      const targetUrl = `http://localhost:${port}${req.originalUrl}`;
+      console.log(`🔄 [${serviceName}] Proxy: ${req.method} ${targetUrl}`);
+      
+      const headers = {
+        ...req.headers,
+        host: `localhost:${port}`
+      };
+      
+      // Add user context for authenticated routes
+      if (requireAuth && req.user) {
+        headers['X-User-Id'] = req.user.id;
+        headers['X-User-Role'] = req.user.role;
+      }
+      
+      const response = await axios({
+        method: req.method,
+        url: targetUrl,
+        data: req.body,
+        params: req.query,
+        headers,
+        timeout: 10000,
+        validateStatus: (status) => status >= 200 && status < 500
+      });
+      
+      console.log(`✅ [${serviceName}] Response: ${response.status}`);
+      
+      // Handle 304 Not Modified
+      if (response.status === 304) {
+        return res.status(304).end();
+      }
+      
+      // Forward response headers
+      Object.keys(response.headers).forEach(key => {
+        if (key !== 'content-encoding' && key !== 'transfer-encoding') {
+          res.setHeader(key, response.headers[key]);
+        }
+      });
+      
+      res.status(response.status).json(response.data);
+      
+    } catch (error) {
+      console.error(`❌ [${serviceName}] Error:`, error.message);
+      if (error.response && error.response.status < 500) {
+        res.status(error.response.status).json(error.response.data || { error: 'Client error' });
+      } else {
+        res.status(503).json({
+          error: `${serviceName} unavailable`,
+          message: error.message
+        });
+      }
     }
-  },
-  onError: (err, req, res) => {
-    console.error('User Service Proxy Error:', err.message);
-    res.status(503).json({
-      error: 'User service unavailable',
-      message: 'Please try again later'
-    });
-  }
-}));
+  };
+};
 
-// Menu Service Routes
-app.use('/api/menu', createProxyMiddleware({
-  target: services.menuService.url,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/menu': '/api/menu'
-  },
-  onError: (err, req, res) => {
-    console.error('Menu Service Proxy Error:', err.message);
-    res.status(503).json({
-      error: 'Menu service unavailable',
-      message: 'Please try again later'
-    });
-  }
-}));
+// ======================= PROXY ROUTES =======================
 
-app.use('/api/categories', createProxyMiddleware({
-  target: services.menuService.url,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/categories': '/api/categories'
-  },
-  onError: (err, req, res) => {
-    console.error('Menu Service Proxy Error:', err.message);
-    res.status(503).json({
-      error: 'Menu service unavailable',
-      message: 'Please try again later'
-    });
-  }
-}));
+console.log('🔧 Setting up proxy routes...');
 
-// Table Service Routes
-app.use('/api/tables', createProxyMiddleware({
-  target: services.tableService.url,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/tables': '/api/tables'
-  },
-  onError: (err, req, res) => {
-    console.error('Table Service Proxy Error:', err.message);
-    res.status(503).json({
-      error: 'Table service unavailable',
-      message: 'Please try again later'
-    });
-  }
-}));
+// Menu Service
+console.log('🔧 Setting up Menu Service proxy...');
+app.use('/api/menu', createServiceProxy('Menu Service', 3002));
+app.use('/api/categories', createServiceProxy('Menu Service', 3002));
 
-app.use('/api/reservations', createProxyMiddleware({
-  target: services.tableService.url,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/reservations': '/api/reservations'
-  },
-  onError: (err, req, res) => {
-    console.error('Table Service Proxy Error:', err.message);
-    res.status(503).json({
-      error: 'Table service unavailable',
-      message: 'Please try again later'
-    });
-  }
-}));
+// User Service
+console.log('🔧 Setting up User Service proxy...');
+app.use('/api/auth', createServiceProxy('User Service', 3001));
+app.use('/api/users', authMiddleware.authenticateToken, createServiceProxy('User Service', 3001, true));
 
-// Billing Service Routes
-app.use('/api/billing', authMiddleware.requireStaff, createProxyMiddleware({
-  target: services.billingService.url,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/billing': '/api/billing'
-  },
-  onProxyReq: (proxyReq, req, res) => {
-    // Forward user information to the service
-    if (req.user) {
-      proxyReq.setHeader('X-User-Id', req.user.id);
-      proxyReq.setHeader('X-User-Role', req.user.role);
-    }
-  },
-  onError: (err, req, res) => {
-    console.error('Billing Service Proxy Error:', err.message);
-    res.status(503).json({
-      error: 'Billing service unavailable',
-      message: 'Please try again later'
-    });
-  }
-}));
+// Table Service
+console.log('🔧 Setting up Table Service proxy...');
+app.use('/api/tables', createServiceProxy('Table Service', 3003));
+app.use('/api/ban', createServiceProxy('Table Service', 3003)); // Vietnamese route for tables
+app.use('/api/reservations', createServiceProxy('Table Service', 3003));
+app.use('/api/dat-ban', createServiceProxy('Table Service', 3003)); // Vietnamese route for reservations
 
-// API Documentation route
+// Billing Service
+console.log('🔧 Setting up Billing Service proxy...');
+app.use('/api/billing', authMiddleware.requireStaff, createServiceProxy('Billing Service', 3004, true));
+
+console.log('✅ All proxy routes configured!');
+
+// ======================= OTHER ROUTES =======================
+
+// Test route
+app.get('/test', (req, res) => {
+  res.json({ 
+    message: 'API Gateway is working!', 
+    timestamp: new Date(),
+    services: Object.keys(services).map(key => ({
+      name: services[key].name,
+      url: services[key].url
+    }))
+  });
+});
+
+
+// API Documentation
 app.get('/api', (req, res) => {
   res.json({
     name: 'Coffee Shop API Gateway',
     version: '1.0.0',
-    description: 'API Gateway for Coffee Shop Microservices',
     services: {
-      userService: {
-        baseUrl: '/api/auth, /api/users',
-        description: 'User authentication and management'
-      },
-      menuService: {
-        baseUrl: '/api/menu, /api/categories',
-        description: 'Menu items and categories management'
-      },
-      tableService: {
-        baseUrl: '/api/tables, /api/reservations',
-        description: 'Table and reservation management'
-      },
-      billingService: {
-        baseUrl: '/api/billing',
-        description: 'Billing and payment management'
-      }
-    },
-    endpoints: {
-      health: '/health',
-      documentation: '/api'
+      userService: { url: services.userService.url, routes: ['/api/auth', '/api/users'] },
+      menuService: { url: services.menuService.url, routes: ['/api/menu', '/api/categories'] },
+      tableService: { url: services.tableService.url, routes: ['/api/tables', '/api/ban', '/api/reservations', '/api/dat-ban'] },
+      billingService: { url: services.billingService.url, routes: ['/api/billing'] }
     }
   });
 });
@@ -210,12 +180,13 @@ app.use((err, req, res, next) => {
   console.error('Gateway Error:', err.stack);
   res.status(500).json({
     error: 'Internal server error',
-    message: 'Something went wrong in the API Gateway'
+    message: err.message
   });
 });
 
-// 404 handler
+// 404 handler - MUST BE LAST
 app.use((req, res) => {
+  console.log(`❌ 404: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     error: 'Route not found',
     message: `The requested endpoint ${req.originalUrl} does not exist`
@@ -225,15 +196,16 @@ app.use((req, res) => {
 // Start server
 const startServer = async () => {
   try {
-    // Check service health before starting
-    await serviceRegistry.checkServicesHealth();
+    console.log('🚀 Starting API Gateway...');
     
     app.listen(PORT, () => {
-      console.log(`API Gateway is running on port ${PORT}`);
-      console.log(`API Documentation available at http://localhost:${PORT}/api`);
+      console.log(`✅ API Gateway running on port ${PORT}`);
+      console.log(`📖 Documentation: http://localhost:${PORT}/api`);
+      console.log(`🔍 Test endpoint: http://localhost:${PORT}/test`);
+      console.log(`💚 Health check: http://localhost:${PORT}/health`);
     });
   } catch (error) {
-    console.error('Failed to start API Gateway:', error);
+    console.error('❌ Failed to start API Gateway:', error);
     process.exit(1);
   }
 };

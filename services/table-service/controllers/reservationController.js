@@ -1,552 +1,566 @@
-const { TableReservation, Table } = require('../models');
-const { Op } = require('sequelize');
+const { DatBan, Ban } = require('../models');
+const { Op, sequelize } = require('sequelize');
 
-// Get all reservations with optional filters
+// Lấy tất cả đặt bàn với bộ lọc
 const getReservations = async (req, res) => {
   try {
     const { 
       page = 1, 
       limit = 10, 
-      table_id,
-      status,
-      date,
+      MaBan,
+      TrangThai,
+      NgayDat,
       start_date,
-      end_date,
-      customer_phone,
-      customer_name
+      end_date
     } = req.query;
 
     const offset = (page - 1) * limit;
     const whereClause = {};
 
-    // Apply filters
-    if (table_id) whereClause.table_id = table_id;
-    if (status) whereClause.status = status;
-    if (customer_phone) whereClause.customer_phone = { [Op.like]: `%${customer_phone}%` };
-    if (customer_name) whereClause.customer_name = { [Op.like]: `%${customer_name}%` };
+    // Áp dụng bộ lọc
+    if (MaBan) whereClause.MaBan = MaBan;
+    if (TrangThai) whereClause.TrangThai = TrangThai;
     
-    if (date) {
-      whereClause.reservation_date = date;
+    if (NgayDat) {
+      whereClause.NgayDat = NgayDat;
     } else if (start_date || end_date) {
-      whereClause.reservation_date = {};
-      if (start_date) whereClause.reservation_date[Op.gte] = start_date;
-      if (end_date) whereClause.reservation_date[Op.lte] = end_date;
+      whereClause.NgayDat = {};
+      if (start_date) whereClause.NgayDat[Op.gte] = start_date;
+      if (end_date) whereClause.NgayDat[Op.lte] = end_date;
     }
 
-    const { count, rows } = await TableReservation.findAndCountAll({
+    const { count, rows } = await DatBan.findAndCountAll({
       where: whereClause,
       include: [{
-        model: Table,
-        as: 'table',
-        attributes: ['id', 'table_number', 'capacity', 'location']
+        model: Ban,
+        as: 'ban',
+        attributes: ['MaBan', 'TenBan', 'SoCho', 'TrangThai']
       }],
-      order: [['reservation_date', 'DESC'], ['reservation_time', 'DESC']],
+      order: [['NgayDat', 'DESC'], ['GioDat', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
 
     res.json({
-      reservations: rows,
-      pagination: {
-        current_page: parseInt(page),
-        total_pages: Math.ceil(count / limit),
-        total_items: count,
-        items_per_page: parseInt(limit)
+      success: true,
+      data: {
+        reservations: rows,
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: Math.ceil(count / limit),
+          total_items: count,
+          items_per_page: parseInt(limit)
+        }
       }
     });
 
   } catch (error) {
     console.error('Error fetching reservations:', error);
     res.status(500).json({
-      error: 'Failed to fetch reservations',
+      success: false,
+      error: 'Không thể lấy danh sách đặt bàn',
       message: error.message
     });
   }
 };
 
-// Get reservation by ID
+// Lấy đặt bàn theo ID
 const getReservationById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const reservation = await TableReservation.findByPk(id, {
+    const reservation = await DatBan.findByPk(id, {
       include: [{
-        model: Table,
-        as: 'table',
-        attributes: ['id', 'table_number', 'capacity', 'location', 'features']
+        model: Ban,
+        as: 'ban',
+        attributes: ['MaBan', 'TenBan', 'SoCho', 'TrangThai']
       }]
     });
 
     if (!reservation) {
       return res.status(404).json({
-        error: 'Reservation not found'
+        success: false,
+        error: 'Không tìm thấy đặt bàn'
       });
     }
 
-    res.json({ reservation });
+    res.json({
+      success: true,
+      data: { reservation }
+    });
 
   } catch (error) {
     console.error('Error fetching reservation:', error);
     res.status(500).json({
-      error: 'Failed to fetch reservation',
+      success: false,
+      error: 'Không thể lấy thông tin đặt bàn',
       message: error.message
     });
   }
 };
 
-// Create new reservation
+// Tạo đặt bàn mới
 const createReservation = async (req, res) => {
   try {
+    console.log('📝 Creating reservation with data:', req.body);
+    
     const {
-      table_id,
-      user_id,
-      customer_name,
-      customer_phone,
-      customer_email,
-      party_size,
-      reservation_date,
-      reservation_time,
-      duration_minutes = 120,
-      special_requests,
-      notes
+      MaKH,
+      MaBan,
+      NgayDat,
+      GioDat,
+      SoNguoi,
+      TenKhach,
+      SoDienThoai,
+      GhiChu
     } = req.body;
 
-    if (!table_id || !customer_name || !customer_phone || !party_size || !reservation_date || !reservation_time) {
+    // Kiểm tra các trường bắt buộc
+    if (!MaBan || !NgayDat || !GioDat || !SoNguoi || !TenKhach || !SoDienThoai) {
       return res.status(400).json({
-        error: 'Missing required fields: table_id, customer_name, customer_phone, party_size, reservation_date, reservation_time'
+        success: false,
+        error: 'Thiếu thông tin bắt buộc: MaBan, NgayDat, GioDat, SoNguoi, TenKhach, SoDienThoai'
       });
     }
 
-    // Check if table exists and is active
-    const table = await Table.findByPk(table_id);
+    // Kiểm tra bàn có tồn tại không
+    console.log('🔍 Looking for table with ID:', MaBan);
+    const table = await Ban.findByPk(MaBan);
+    console.log('📋 Found table:', table ? table.toJSON() : 'null');
+    
     if (!table) {
       return res.status(400).json({
-        error: 'Table not found'
+        success: false,
+        error: 'Không tìm thấy bàn'
       });
     }
 
-    if (!table.is_active) {
+    // Kiểm tra số người có vượt quá sức chứa không
+    if (SoNguoi > table.SoCho) {
       return res.status(400).json({
-        error: 'Table is not active'
+        success: false,
+        error: `Số người (${SoNguoi}) vượt quá sức chứa của bàn (${table.SoCho})`
       });
     }
 
-    // Check if party size exceeds table capacity
-    if (party_size > table.capacity) {
-      return res.status(400).json({
-        error: `Party size (${party_size}) exceeds table capacity (${table.capacity})`
-      });
-    }
-
-    // Check for conflicting reservations
-    const requestedStart = new Date(`${reservation_date} ${reservation_time}`);
-    const requestedEnd = new Date(requestedStart.getTime() + parseInt(duration_minutes) * 60000);
-
-    const conflictingReservation = await TableReservation.findOne({
+    // Kiểm tra xung đột thời gian đặt bàn
+    const conflictingReservation = await DatBan.findOne({
       where: {
-        table_id,
-        reservation_date,
-        status: ['confirmed', 'checked_in'],
-        [Op.or]: [
-          {
-            // Existing reservation starts before requested time but ends after requested start
-            reservation_time: { [Op.lt]: reservation_time },
-            [Op.and]: [
-              sequelize.literal(`TIME_ADD(reservation_time, INTERVAL duration_minutes MINUTE) > '${reservation_time}'`)
-            ]
-          },
-          {
-            // Existing reservation starts during requested time period
-            reservation_time: {
-              [Op.between]: [reservation_time, requestedEnd.toTimeString().split(' ')[0]]
-            }
-          }
-        ]
+        MaBan,
+        NgayDat,
+        GioDat,
+        TrangThai: ['Đã đặt', 'Đã xác nhận']
       }
     });
 
     if (conflictingReservation) {
       return res.status(400).json({
-        error: 'Table is already reserved for the requested time slot',
+        success: false,
+        error: 'Bàn đã được đặt trong thời gian này',
         conflicting_reservation: {
-          id: conflictingReservation.id,
-          time: conflictingReservation.reservation_time,
-          duration: conflictingReservation.duration_minutes
+          MaDat: conflictingReservation.MaDat,
+          GioDat: conflictingReservation.GioDat
         }
       });
     }
 
-    // Create reservation
-    const reservation = await TableReservation.create({
-      table_id,
-      user_id: user_id || null,
-      customer_name: customer_name.trim(),
-      customer_phone: customer_phone.trim(),
-      customer_email: customer_email ? customer_email.trim() : null,
-      party_size: parseInt(party_size),
-      reservation_date,
-      reservation_time,
-      duration_minutes: parseInt(duration_minutes),
-      special_requests,
-      notes
-    });
+    // Tạo đặt bàn
+    console.log('🔄 Creating reservation in database...');
+    const reservationData = {
+      MaKH: MaKH || null,
+      MaBan,
+      NgayDat,
+      GioDat,
+      SoNguoi: parseInt(SoNguoi),
+      TrangThai: 'Đã đặt',
+      TenKhach: TenKhach ? TenKhach.trim() : '',
+      SoDienThoai: SoDienThoai ? SoDienThoai.trim() : '',
+      GhiChu: GhiChu ? GhiChu.trim() : null
+    };
+    
+    console.log('📋 Reservation data to create:', reservationData);
+    const reservation = await DatBan.create(reservationData);
+    console.log('✅ Reservation created with ID:', reservation.MaDat);
 
-    // Update table status to reserved if reservation is for today
+    // Cập nhật trạng thái bàn nếu đặt cho hôm nay
     const today = new Date().toISOString().split('T')[0];
-    if (reservation_date === today) {
-      await table.update({ status: 'reserved' });
+    if (NgayDat === today) {
+      await table.update({ TrangThai: 'Đã đặt' });
     }
 
-    const createdReservation = await TableReservation.findByPk(reservation.id, {
+    const createdReservation = await DatBan.findByPk(reservation.MaDat, {
       include: [{
-        model: Table,
-        as: 'table',
-        attributes: ['id', 'table_number', 'capacity', 'location']
+        model: Ban,
+        as: 'ban',
+        attributes: ['MaBan', 'TenBan', 'SoCho', 'TrangThai']
       }]
     });
 
     res.status(201).json({
-      message: 'Reservation created successfully',
-      reservation: createdReservation
+      success: true,
+      message: 'Đặt bàn thành công',
+      data: { reservation: createdReservation }
     });
 
   } catch (error) {
     console.error('Error creating reservation:', error);
     res.status(500).json({
-      error: 'Failed to create reservation',
+      success: false,
+      error: 'Không thể tạo đặt bàn',
       message: error.message
     });
   }
 };
 
-// Update reservation
+// Cập nhật đặt bàn
 const updateReservation = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
 
-    const reservation = await TableReservation.findByPk(id);
+    const reservation = await DatBan.findByPk(id);
     if (!reservation) {
       return res.status(404).json({
-        error: 'Reservation not found'
+        success: false,
+        error: 'Không tìm thấy đặt bàn'
       });
     }
 
-    // Don't allow updates to completed or cancelled reservations
-    if (['completed', 'cancelled', 'no_show'].includes(reservation.status)) {
+    // Không cho phép cập nhật đặt bàn đã hoàn thành hoặc đã hủy
+    if (['Hoàn thành', 'Đã hủy'].includes(reservation.TrangThai)) {
       return res.status(400).json({
-        error: `Cannot update ${reservation.status} reservation`
+        success: false,
+        error: `Không thể cập nhật đặt bàn đã ${reservation.TrangThai}`
       });
     }
 
-    // If updating table_id, check if new table exists
-    if (updateData.table_id && updateData.table_id !== reservation.table_id) {
-      const newTable = await Table.findByPk(updateData.table_id);
-      if (!newTable || !newTable.is_active) {
+    // Nếu cập nhật MaBan, kiểm tra bàn mới
+    if (updateData.MaBan && updateData.MaBan !== reservation.MaBan) {
+      const newTable = await Ban.findByPk(updateData.MaBan);
+      if (!newTable) {
         return res.status(400).json({
-          error: 'New table not found or not active'
+          success: false,
+          error: 'Không tìm thấy bàn mới'
         });
       }
 
-      // Check party size against new table capacity
-      const partySize = updateData.party_size || reservation.party_size;
-      if (partySize > newTable.capacity) {
+      // Kiểm tra số người với sức chứa bàn mới
+      const soNguoi = updateData.SoNguoi || reservation.SoNguoi;
+      if (soNguoi > newTable.SoCho) {
         return res.status(400).json({
-          error: `Party size (${partySize}) exceeds new table capacity (${newTable.capacity})`
-        });
-      }
-    }
-
-    // If updating time/date, check for conflicts
-    if (updateData.reservation_date || updateData.reservation_time || updateData.duration_minutes) {
-      const tableId = updateData.table_id || reservation.table_id;
-      const date = updateData.reservation_date || reservation.reservation_date;
-      const time = updateData.reservation_time || reservation.reservation_time;
-      const duration = updateData.duration_minutes || reservation.duration_minutes;
-
-      const requestedStart = new Date(`${date} ${time}`);
-      const requestedEnd = new Date(requestedStart.getTime() + parseInt(duration) * 60000);
-
-      const conflictingReservation = await TableReservation.findOne({
-        where: {
-          table_id: tableId,
-          reservation_date: date,
-          status: ['confirmed', 'checked_in'],
-          id: { [Op.ne]: id }, // Exclude current reservation
-          [Op.or]: [
-            {
-              reservation_time: { [Op.lt]: time },
-              [Op.and]: [
-                sequelize.literal(`TIME_ADD(reservation_time, INTERVAL duration_minutes MINUTE) > '${time}'`)
-              ]
-            },
-            {
-              reservation_time: {
-                [Op.between]: [time, requestedEnd.toTimeString().split(' ')[0]]
-              }
-            }
-          ]
-        }
-      });
-
-      if (conflictingReservation) {
-        return res.status(400).json({
-          error: 'Table is already reserved for the requested time slot'
+          success: false,
+          error: `Số người (${soNguoi}) vượt quá sức chứa bàn mới (${newTable.SoCho})`
         });
       }
     }
 
     await reservation.update(updateData);
 
-    const updatedReservation = await TableReservation.findByPk(id, {
+    const updatedReservation = await DatBan.findByPk(id, {
       include: [{
-        model: Table,
-        as: 'table',
-        attributes: ['id', 'table_number', 'capacity', 'location']
+        model: Ban,
+        as: 'ban',
+        attributes: ['MaBan', 'TenBan', 'SoCho', 'TrangThai']
       }]
     });
 
     res.json({
-      message: 'Reservation updated successfully',
-      reservation: updatedReservation
+      success: true,
+      message: 'Cập nhật đặt bàn thành công',
+      data: { reservation: updatedReservation }
     });
 
   } catch (error) {
     console.error('Error updating reservation:', error);
     res.status(500).json({
-      error: 'Failed to update reservation',
+      success: false,
+      error: 'Không thể cập nhật đặt bàn',
       message: error.message
     });
   }
 };
 
-// Update reservation status
+// Cập nhật trạng thái đặt bàn
 const updateReservationStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes, cancellation_reason } = req.body;
+    const { TrangThai, GhiChu } = req.body;
 
-    if (!status) {
+    if (!TrangThai) {
       return res.status(400).json({
-        error: 'Status is required'
+        success: false,
+        error: 'Trạng thái là bắt buộc'
       });
     }
 
-    const validStatuses = ['pending', 'confirmed', 'checked_in', 'completed', 'cancelled', 'no_show'];
-    if (!validStatuses.includes(status)) {
+    const validStatuses = ['Đã đặt', 'Đã xác nhận', 'Đã hủy', 'Hoàn thành'];
+    if (!validStatuses.includes(TrangThai)) {
       return res.status(400).json({
-        error: 'Invalid status'
+        success: false,
+        error: 'Trạng thái không hợp lệ'
       });
     }
 
-    const reservation = await TableReservation.findByPk(id, {
+    const reservation = await DatBan.findByPk(id, {
       include: [{
-        model: Table,
-        as: 'table'
+        model: Ban,
+        as: 'ban'
       }]
     });
 
     if (!reservation) {
       return res.status(404).json({
-        error: 'Reservation not found'
+        success: false,
+        error: 'Không tìm thấy đặt bàn'
       });
     }
 
-    const updateData = { status };
-    if (notes) updateData.notes = notes;
+    const updateData = { TrangThai };
+    if (GhiChu) updateData.GhiChu = GhiChu;
 
-    // Set timestamp based on status
-    switch (status) {
-      case 'confirmed':
-        updateData.confirmed_at = new Date();
-        // Update table status if reservation is for today
+    // Cập nhật trạng thái bàn dựa trên trạng thái đặt bàn
+    const table = await Ban.findByPk(reservation.MaBan);
+    switch (TrangThai) {
+      case 'Đã xác nhận':
+        // Cập nhật trạng thái bàn nếu đặt cho hôm nay
         const today = new Date().toISOString().split('T')[0];
-        if (reservation.reservation_date === today) {
-          await reservation.table.update({ status: 'reserved' });
+        if (reservation.NgayDat === today) {
+          await table.update({ TrangThai: 'Đã đặt' });
         }
         break;
-      case 'checked_in':
-        updateData.checked_in_at = new Date();
-        await reservation.table.update({ status: 'occupied' });
+      case 'Hoàn thành':
+        await table.update({ TrangThai: 'Trống' });
         break;
-      case 'completed':
-        updateData.completed_at = new Date();
-        await reservation.table.update({ status: 'available' });
-        break;
-      case 'cancelled':
-        updateData.cancelled_at = new Date();
-        if (cancellation_reason) updateData.cancellation_reason = cancellation_reason;
-        // Only update table status if it was reserved for this reservation
-        if (reservation.table.status === 'reserved') {
-          await reservation.table.update({ status: 'available' });
-        }
-        break;
-      case 'no_show':
-        // Only update table status if it was reserved for this reservation
-        if (reservation.table.status === 'reserved') {
-          await reservation.table.update({ status: 'available' });
+      case 'Đã hủy':
+        // Chỉ cập nhật trạng thái bàn nếu bàn đang được đặt cho reservation này
+        if (table.TrangThai === 'Đã đặt') {
+          await table.update({ TrangThai: 'Trống' });
         }
         break;
     }
 
     await reservation.update(updateData);
 
-    const updatedReservation = await TableReservation.findByPk(id, {
+    const updatedReservation = await DatBan.findByPk(id, {
       include: [{
-        model: Table,
-        as: 'table',
-        attributes: ['id', 'table_number', 'capacity', 'location']
+        model: Ban,
+        as: 'ban',
+        attributes: ['MaBan', 'TenBan', 'SoCho', 'TrangThai']
       }]
     });
 
     res.json({
-      message: `Reservation status updated to ${status}`,
-      reservation: updatedReservation
+      success: true,
+      message: `Cập nhật trạng thái đặt bàn thành ${TrangThai}`,
+      data: { reservation: updatedReservation }
     });
 
   } catch (error) {
     console.error('Error updating reservation status:', error);
     res.status(500).json({
-      error: 'Failed to update reservation status',
+      success: false,
+      error: 'Không thể cập nhật trạng thái đặt bàn',
       message: error.message
     });
   }
 };
 
-// Cancel reservation
+// Hủy đặt bàn
 const cancelReservation = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cancellation_reason, notes } = req.body;
+    const { GhiChu } = req.body;
 
-    const reservation = await TableReservation.findByPk(id, {
+    const reservation = await DatBan.findByPk(id, {
       include: [{
-        model: Table,
-        as: 'table'
+        model: Ban,
+        as: 'ban'
       }]
     });
 
     if (!reservation) {
       return res.status(404).json({
-        error: 'Reservation not found'
+        success: false,
+        error: 'Không tìm thấy đặt bàn'
       });
     }
 
-    if (['completed', 'cancelled', 'no_show'].includes(reservation.status)) {
+    if (['Hoàn thành', 'Đã hủy'].includes(reservation.TrangThai)) {
       return res.status(400).json({
-        error: `Cannot cancel ${reservation.status} reservation`
+        success: false,
+        error: `Không thể hủy đặt bàn đã ${reservation.TrangThai}`
       });
     }
 
     await reservation.update({
-      status: 'cancelled',
-      cancelled_at: new Date(),
-      cancellation_reason,
-      notes: notes || reservation.notes
+      TrangThai: 'Đã hủy',
+      GhiChu: GhiChu || reservation.GhiChu
     });
 
-    // Update table status if it was reserved for this reservation
-    if (reservation.table.status === 'reserved') {
-      await reservation.table.update({ status: 'available' });
+    // Cập nhật trạng thái bàn nếu bàn đang được đặt
+    const table = await Ban.findByPk(reservation.MaBan);
+    if (table.TrangThai === 'Đã đặt') {
+      await table.update({ TrangThai: 'Trống' });
     }
 
     res.json({
-      message: 'Reservation cancelled successfully',
-      reservation
+      success: true,
+      message: 'Hủy đặt bàn thành công',
+      data: { reservation }
     });
 
   } catch (error) {
     console.error('Error cancelling reservation:', error);
     res.status(500).json({
-      error: 'Failed to cancel reservation',
+      success: false,
+      error: 'Không thể hủy đặt bàn',
       message: error.message
     });
   }
 };
 
-// Get reservations for today
+// Lấy đặt bàn hôm nay
 const getTodayReservations = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const { status } = req.query;
+    const { TrangThai } = req.query;
 
     const whereClause = {
-      reservation_date: today
+      NgayDat: today
     };
 
-    if (status) {
-      whereClause.status = status;
+    if (TrangThai) {
+      whereClause.TrangThai = TrangThai;
     }
 
-    const reservations = await TableReservation.findAll({
+    const reservations = await DatBan.findAll({
       where: whereClause,
       include: [{
-        model: Table,
-        as: 'table',
-        attributes: ['id', 'table_number', 'capacity', 'location']
+        model: Ban,
+        as: 'ban',
+        attributes: ['MaBan', 'TenBan', 'SoCho', 'TrangThai']
       }],
-      order: [['reservation_time', 'ASC']]
+      order: [['GioDat', 'ASC']]
     });
 
     res.json({
-      date: today,
-      reservations
+      success: true,
+      data: {
+        date: today,
+        reservations
+      }
     });
 
   } catch (error) {
     console.error('Error fetching today reservations:', error);
     res.status(500).json({
-      error: 'Failed to fetch today reservations',
+      success: false,
+      error: 'Không thể lấy danh sách đặt bàn hôm nay',
       message: error.message
     });
   }
 };
 
-// Get reservation statistics
+// Lấy bàn trống theo thời gian
+const getAvailableTables = async (req, res) => {
+  try {
+    const { NgayDat, GioDat, SoNguoi } = req.query;
+
+    if (!NgayDat || !GioDat || !SoNguoi) {
+      return res.status(400).json({
+        success: false,
+        error: 'Thiếu thông tin: NgayDat, GioDat, SoNguoi'
+      });
+    }
+
+    // Lấy tất cả bàn có sức chứa phù hợp
+    const allTables = await Ban.findAll({
+      where: {
+        SoCho: { [Op.gte]: parseInt(SoNguoi) },
+        TrangThai: { [Op.ne]: 'Bảo trì' }
+      }
+    });
+
+    // Lấy các bàn đã được đặt trong thời gian này
+    const reservedTables = await DatBan.findAll({
+      where: {
+        NgayDat,
+        GioDat,
+        TrangThai: ['Đã đặt', 'Đã xác nhận']
+      },
+      attributes: ['MaBan']
+    });
+
+    const reservedTableIds = reservedTables.map(r => r.MaBan);
+    const availableTables = allTables.filter(table => !reservedTableIds.includes(table.MaBan));
+
+    res.json({
+      success: true,
+      data: {
+        available_tables: availableTables,
+        total_available: availableTables.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching available tables:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Không thể lấy danh sách bàn trống',
+      message: error.message
+    });
+  }
+};
+
+// Thống kê đặt bàn
 const getReservationStats = async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     const whereClause = {};
 
     if (start_date || end_date) {
-      whereClause.reservation_date = {};
-      if (start_date) whereClause.reservation_date[Op.gte] = start_date;
-      if (end_date) whereClause.reservation_date[Op.lte] = end_date;
+      whereClause.NgayDat = {};
+      if (start_date) whereClause.NgayDat[Op.gte] = start_date;
+      if (end_date) whereClause.NgayDat[Op.lte] = end_date;
     }
 
-    const totalReservations = await TableReservation.count({ where: whereClause });
+    const totalReservations = await DatBan.count({ where: whereClause });
     
-    const statusCounts = await TableReservation.findAll({
+    const statusCounts = await DatBan.findAll({
       where: whereClause,
       attributes: [
-        'status',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+        'TrangThai',
+        [sequelize.fn('COUNT', sequelize.col('MaDat')), 'count']
       ],
-      group: ['status']
+      group: ['TrangThai']
     });
 
-    const averagePartySize = await TableReservation.findAll({
-      where: { ...whereClause, status: { [Op.ne]: 'cancelled' } },
+    const averagePartySize = await DatBan.findAll({
+      where: { ...whereClause, TrangThai: { [Op.ne]: 'Đã hủy' } },
       attributes: [
-        [sequelize.fn('AVG', sequelize.col('party_size')), 'average']
+        [sequelize.fn('AVG', sequelize.col('SoNguoi')), 'average']
       ]
     });
 
     res.json({
-      stats: {
-        total_reservations: totalReservations,
-        status_breakdown: statusCounts.map(s => ({
-          status: s.status,
-          count: parseInt(s.dataValues.count)
-        })),
-        average_party_size: averagePartySize[0]?.dataValues?.average || 0
+      success: true,
+      data: {
+        stats: {
+          total_reservations: totalReservations,
+          status_breakdown: statusCounts.map(s => ({
+            status: s.TrangThai,
+            count: parseInt(s.dataValues.count)
+          })),
+          average_party_size: parseFloat(averagePartySize[0]?.dataValues?.average || 0).toFixed(1)
+        }
       }
     });
 
   } catch (error) {
     console.error('Error fetching reservation stats:', error);
     res.status(500).json({
-      error: 'Failed to fetch reservation statistics',
+      success: false,
+      error: 'Không thể lấy thống kê đặt bàn',
       message: error.message
     });
   }
@@ -560,5 +574,6 @@ module.exports = {
   updateReservationStatus,
   cancelReservation,
   getTodayReservations,
+  getAvailableTables,
   getReservationStats
 };

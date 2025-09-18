@@ -111,7 +111,10 @@ CREATE TABLE DatBan (
     NgayDat DATE,
     GioDat TIME,
     SoNguoi INT,
-    TrangThai VARCHAR(20),       -- Đã đặt, Đã hủy, Hoàn thành
+    TrangThai VARCHAR(20),       -- Đã đặt, Đã xác nhận, Đã hủy, Hoàn thành
+    TenKhach VARCHAR(100),       -- Tên khách hàng đặt bàn
+    SoDienThoai VARCHAR(15),     -- Số điện thoại khách hàng
+    GhiChu TEXT,                 -- Ghi chú đặt bàn
     FOREIGN KEY (MaKH) REFERENCES KhachHang(MaKH),
     FOREIGN KEY (MaBan) REFERENCES Ban(MaBan)
 );

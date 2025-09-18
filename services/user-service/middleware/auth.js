@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { NhanVien, KhachHang } = require('../models');
 
 // Verify JWT token
 const authenticateToken = async (req, res, next) => {
@@ -15,27 +15,34 @@ const authenticateToken = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
     
-    // Get user from database
-    const user = await User.findByPk(decoded.userId);
+    // Get user from database - check both employee and customer tables
+    let user = null;
+    let userType = null;
+
+    if (decoded.userType === 'employee') {
+      user = await NhanVien.findByPk(decoded.userId);
+      userType = 'employee';
+    } else if (decoded.userType === 'customer') {
+      user = await KhachHang.findByPk(decoded.userId);
+      userType = 'customer';
+    }
+
     if (!user) {
       return res.status(401).json({
         error: 'Invalid token - user not found'
       });
     }
 
-    if (!user.is_active) {
-      return res.status(401).json({
-        error: 'Account is deactivated'
-      });
-    }
-
-    if (user.isLocked()) {
-      return res.status(401).json({
-        error: 'Account is temporarily locked'
-      });
-    }
-
-    req.user = user;
+    // Add user info to request
+    req.user = {
+      id: decoded.userId,
+      type: userType,
+      role: decoded.role || (userType === 'employee' ? user.ChucVu : 'customer'),
+      chucVu: userType === 'employee' ? user.ChucVu : null,
+      email: user.Email,
+      name: user.HoTen,
+      data: user
+    };
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -97,10 +104,27 @@ const optionalAuth = async (req, res, next) => {
 
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-      const user = await User.findByPk(decoded.userId);
       
-      if (user && user.is_active && !user.isLocked()) {
-        req.user = user;
+      let user = null;
+      let userType = null;
+
+      if (decoded.userType === 'employee') {
+        user = await NhanVien.findByPk(decoded.userId);
+        userType = 'employee';
+      } else if (decoded.userType === 'customer') {
+        user = await KhachHang.findByPk(decoded.userId);
+        userType = 'customer';
+      }
+      
+      if (user) {
+        req.user = {
+          id: decoded.userId,
+          type: userType,
+          role: decoded.role || (userType === 'employee' ? user.ChucVu : 'customer'),
+          email: user.Email,
+          name: user.HoTen,
+          data: user
+        };
       }
     }
     

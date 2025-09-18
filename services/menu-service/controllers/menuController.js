@@ -1,58 +1,66 @@
-const { MenuItem, Category } = require('../models');
+const { Mon, LoaiMon } = require('../models');
 const { Op } = require('sequelize');
 
-// Get all menu items with optional filters
+// Get all menu items with optional filters (Vietnamese schema)
 const getMenuItems = async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      category_id, 
+    const {
+      page = 1,
+      limit = 10,
+      category_id,
       is_available,
-      is_featured,
       search,
-      sort_by = 'sort_order',
+      sort_by = 'name',
       sort_order = 'ASC'
     } = req.query;
 
-    const offset = (page - 1) * limit;
+    // Parse query parameters to integers
+    const parsedPage = parseInt(page) || 1;
+    const parsedLimit = parseInt(limit) || 10;
+    const offset = (parsedPage - 1) * parsedLimit;
+
+    console.log(`📊 Menu query params: page=${parsedPage}, limit=${parsedLimit}, offset=${offset}`);
     const whereClause = {};
 
-    // Apply filters
-    if (category_id) whereClause.category_id = category_id;
-    if (is_available !== undefined) whereClause.is_available = is_available === 'true';
-    if (is_featured !== undefined) whereClause.is_featured = is_featured === 'true';
-    
+    // Filters mapping to Vietnamese fields
+    if (category_id) whereClause.MaLoai = category_id;
+    if (is_available !== undefined) whereClause.TrangThai = is_available === 'true' ? 'Còn bán' : 'Hết hàng';
     if (search) {
       whereClause[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { description: { [Op.like]: `%${search}%` } }
+        { TenMon: { [Op.like]: `%${search}%` } },
+        { MoTa: { [Op.like]: `%${search}%` } }
       ];
     }
 
-    const validSortFields = ['name', 'price', 'sort_order', 'created_at'];
-    const sortField = validSortFields.includes(sort_by) ? sort_by : 'sort_order';
-    const sortDirection = sort_order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    // Sorting mapping
+    const sortFieldMap = {
+      name: 'TenMon',
+      price: 'DonGia',
+      sort_order: 'MaMon',
+      created_at: 'MaMon'
+    };
+    const mappedSortField = sortFieldMap[sort_by] || 'TenMon';
+    const sortDirection = String(sort_order).toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    const { count, rows } = await MenuItem.findAndCountAll({
+    const { count, rows } = await Mon.findAndCountAll({
       where: whereClause,
       include: [{
-        model: Category,
-        as: 'category',
-        attributes: ['id', 'name', 'description']
+        model: LoaiMon,
+        as: 'loaimon',
+        attributes: ['MaLoai', 'TenLoai']
       }],
-      order: [[sortField, sortDirection]],
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      order: [[mappedSortField, sortDirection]],
+      limit: parsedLimit,
+      offset: offset
     });
 
     res.json({
       menu_items: rows,
       pagination: {
-        current_page: parseInt(page),
-        total_pages: Math.ceil(count / limit),
+        current_page: parsedPage,
+        total_pages: Math.ceil(count / parsedLimit),
         total_items: count,
-        items_per_page: parseInt(limit)
+        items_per_page: parsedLimit
       }
     });
 
@@ -65,16 +73,16 @@ const getMenuItems = async (req, res) => {
   }
 };
 
-// Get menu item by ID
+// Get menu item by ID (Vietnamese schema)
 const getMenuItemById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const menuItem = await MenuItem.findByPk(id, {
+    const menuItem = await Mon.findByPk(id, {
       include: [{
-        model: Category,
-        as: 'category',
-        attributes: ['id', 'name', 'description']
+        model: LoaiMon,
+        as: 'loaimon',
+        attributes: ['MaLoai', 'TenLoai']
       }]
     });
 
@@ -316,17 +324,20 @@ const toggleAvailability = async (req, res) => {
 // Get featured menu items
 const getFeaturedItems = async (req, res) => {
   try {
-    const featuredItems = await MenuItem.findAll({
+    // In Vietnamese schema, there's no explicit "featured" flag.
+    // We will return items that are currently available (TrangThai = 'Còn bán')
+    // and limit to top 8 as featured items.
+    const featuredItems = await Mon.findAll({
       where: {
-        is_featured: true,
-        is_available: true
+        TrangThai: 'Còn bán'
       },
       include: [{
-        model: Category,
-        as: 'category',
-        attributes: ['id', 'name', 'description']
+        model: LoaiMon,
+        as: 'loaimon',
+        attributes: ['MaLoai', 'TenLoai']
       }],
-      order: [['sort_order', 'ASC']]
+      order: [['MaMon', 'ASC']],
+      limit: 8
     });
 
     res.json({

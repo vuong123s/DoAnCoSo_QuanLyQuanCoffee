@@ -1,5 +1,6 @@
-const { Table, TableReservation } = require('../models');
+const { Ban, DatBan } = require('../models');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 
 // Get all tables with optional filters
 const getTables = async (req, res) => {
@@ -19,36 +20,35 @@ const getTables = async (req, res) => {
     const whereClause = {};
 
     // Apply filters
-    if (status) whereClause.status = status;
-    if (location) whereClause.location = location;
-    if (is_active !== undefined) whereClause.is_active = is_active === 'true';
+    if (status) whereClause.TrangThai = status;
+    // Note: Vietnamese schema doesn't have location or is_active fields
     
     if (capacity_min || capacity_max) {
-      whereClause.capacity = {};
-      if (capacity_min) whereClause.capacity[Op.gte] = parseInt(capacity_min);
-      if (capacity_max) whereClause.capacity[Op.lte] = parseInt(capacity_max);
+      whereClause.SoCho = {};
+      if (capacity_min) whereClause.SoCho[Op.gte] = parseInt(capacity_min);
+      if (capacity_max) whereClause.SoCho[Op.lte] = parseInt(capacity_max);
     }
 
     const includeOptions = [];
     if (include_reservations === 'true') {
       includeOptions.push({
-        model: TableReservation,
-        as: 'reservations',
+        model: DatBan,
+        as: 'datban',
         where: {
-          status: ['confirmed', 'checked_in'],
-          reservation_date: {
+          TrangThai: ['Đã đặt', 'Hoàn thành'],
+          NgayDat: {
             [Op.gte]: new Date().toISOString().split('T')[0]
           }
         },
         required: false,
-        order: [['reservation_date', 'ASC'], ['reservation_time', 'ASC']]
+        order: [['NgayDat', 'ASC'], ['GioDat', 'ASC']]
       });
     }
 
-    const { count, rows } = await Table.findAndCountAll({
+    const { count, rows } = await Ban.findAndCountAll({
       where: whereClause,
       include: includeOptions,
-      order: [['table_number', 'ASC']],
+      order: [['TenBan', 'ASC']],
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
@@ -81,13 +81,13 @@ const getTableById = async (req, res) => {
     const includeOptions = [];
     if (include_reservations === 'true') {
       includeOptions.push({
-        model: TableReservation,
-        as: 'reservations',
-        order: [['reservation_date', 'DESC'], ['reservation_time', 'DESC']]
+        model: DatBan,
+        as: 'datban',
+        order: [['NgayDat', 'DESC'], ['GioDat', 'DESC']]
       });
     }
 
-    const table = await Table.findByPk(id, {
+    const table = await Ban.findByPk(id, {
       include: includeOptions
     });
 
@@ -128,8 +128,8 @@ const createTable = async (req, res) => {
     }
 
     // Check if table number already exists
-    const existingTable = await Table.findOne({
-      where: { table_number: table_number.trim() }
+    const existingTable = await Ban.findOne({
+      where: { TenBan: table_number.trim() }
     });
 
     if (existingTable) {
@@ -150,14 +150,10 @@ const createTable = async (req, res) => {
       }
     }
 
-    const table = await Table.create({
-      table_number: table_number.trim(),
-      capacity: parseInt(capacity),
-      location,
-      description,
-      features: parsedFeatures,
-      position_x: position_x ? parseFloat(position_x) : null,
-      position_y: position_y ? parseFloat(position_y) : null
+    const table = await Ban.create({
+      TenBan: table_number.trim(),
+      SoCho: parseInt(capacity),
+      TrangThai: 'Trống'
     });
 
     res.status(201).json({
@@ -180,7 +176,7 @@ const updateTable = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    const table = await Table.findByPk(id);
+    const table = await Ban.findByPk(id);
     if (!table) {
       return res.status(404).json({
         error: 'Table not found'
@@ -188,11 +184,11 @@ const updateTable = async (req, res) => {
     }
 
     // If table_number is being updated, check for duplicates
-    if (updateData.table_number && updateData.table_number.trim() !== table.table_number) {
-      const existingTable = await Table.findOne({
+    if (updateData.table_number && updateData.table_number.trim() !== table.TenBan) {
+      const existingTable = await Ban.findOne({
         where: { 
-          table_number: updateData.table_number.trim(),
-          id: { [Op.ne]: id }
+          TenBan: updateData.table_number.trim(),
+          MaBan: { [Op.ne]: id }
         }
       });
 
@@ -202,12 +198,20 @@ const updateTable = async (req, res) => {
         });
       }
 
-      updateData.table_number = updateData.table_number.trim();
+      updateData.TenBan = updateData.table_number.trim();
+      delete updateData.table_number;
     }
 
-    // Handle features JSON field
-    if (updateData.features && typeof updateData.features !== 'string') {
-      updateData.features = JSON.stringify(updateData.features);
+    // Map capacity field
+    if (updateData.capacity) {
+      updateData.SoCho = parseInt(updateData.capacity);
+      delete updateData.capacity;
+    }
+
+    // Map status field
+    if (updateData.status) {
+      updateData.TrangThai = updateData.status;
+      delete updateData.status;
     }
 
     await table.update(updateData);
@@ -238,23 +242,21 @@ const updateTableStatus = async (req, res) => {
       });
     }
 
-    const validStatuses = ['available', 'occupied', 'reserved', 'maintenance'];
+    const validStatuses = ['Trống', 'Đã đặt', 'Đang phục vụ'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
-        error: 'Invalid status'
+        error: 'Invalid status. Valid values: Trống, Đã đặt, Đang phục vụ'
       });
     }
 
-    const table = await Table.findByPk(id);
+    const table = await Ban.findByPk(id);
     if (!table) {
       return res.status(404).json({
         error: 'Table not found'
       });
     }
 
-    const updateData = { status };
-    if (notes) updateData.description = notes;
-    if (status === 'maintenance') updateData.last_cleaned = new Date();
+    const updateData = { TrangThai: status };
 
     await table.update(updateData);
 
@@ -277,7 +279,7 @@ const deleteTable = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const table = await Table.findByPk(id);
+    const table = await Ban.findByPk(id);
     if (!table) {
       return res.status(404).json({
         error: 'Table not found'
@@ -285,11 +287,11 @@ const deleteTable = async (req, res) => {
     }
 
     // Check if table has active reservations
-    const activeReservations = await TableReservation.count({
+    const activeReservations = await DatBan.count({
       where: {
-        table_id: id,
-        status: ['confirmed', 'checked_in'],
-        reservation_date: {
+        MaBan: id,
+        TrangThai: ['Đã đặt', 'Hoàn thành'],
+        NgayDat: {
           [Op.gte]: new Date().toISOString().split('T')[0]
         }
       }
@@ -335,56 +337,41 @@ const getAvailableTables = async (req, res) => {
     }
 
     const whereClause = {
-      is_active: true,
-      status: ['available', 'occupied'] // occupied tables might become available
+      TrangThai: ['Trống', 'Đang phục vụ'] // Available and occupied tables
     };
 
     if (party_size) {
-      whereClause.capacity = { [Op.gte]: parseInt(party_size) };
+      whereClause.SoCho = { [Op.gte]: parseInt(party_size) };
     }
 
-    if (location) {
-      whereClause.location = location;
-    }
+    // Note: Vietnamese schema doesn't have location field
 
     // Calculate time range for conflict checking
     const requestedStart = new Date(`${date} ${time}`);
     const requestedEnd = new Date(requestedStart.getTime() + parseInt(duration) * 60000);
 
     // Find tables with conflicting reservations
-    const conflictingReservations = await TableReservation.findAll({
+    const conflictingReservations = await DatBan.findAll({
       where: {
-        reservation_date: date,
-        status: ['confirmed', 'checked_in'],
-        [Op.or]: [
-          {
-            // Reservation starts before requested time but ends after requested start
-            reservation_time: { [Op.lt]: time },
-            [Op.and]: [
-              sequelize.literal(`TIME_ADD(reservation_time, INTERVAL duration_minutes MINUTE) > '${time}'`)
-            ]
-          },
-          {
-            // Reservation starts during requested time period
-            reservation_time: {
-              [Op.between]: [time, requestedEnd.toTimeString().split(' ')[0]]
-            }
-          }
-        ]
+        NgayDat: date,
+        TrangThai: ['Đã đặt', 'Hoàn thành'],
+        GioDat: {
+          [Op.between]: [time, requestedEnd.toTimeString().split(' ')[0]]
+        }
       },
-      attributes: ['table_id']
+      attributes: ['MaBan']
     });
 
-    const conflictingTableIds = conflictingReservations.map(r => r.table_id);
+    const conflictingTableIds = conflictingReservations.map(r => r.MaBan);
 
     // Add conflicting tables to where clause
     if (conflictingTableIds.length > 0) {
-      whereClause.id = { [Op.notIn]: conflictingTableIds };
+      whereClause.MaBan = { [Op.notIn]: conflictingTableIds };
     }
 
-    const availableTables = await Table.findAll({
+    const availableTables = await Ban.findAll({
       where: whereClause,
-      order: [['capacity', 'ASC'], ['table_number', 'ASC']]
+      order: [['SoCho', 'ASC'], ['TenBan', 'ASC']]
     });
 
     res.json({
@@ -410,33 +397,22 @@ const getAvailableTables = async (req, res) => {
 // Get table statistics
 const getTableStats = async (req, res) => {
   try {
-    const totalTables = await Table.count({ where: { is_active: true } });
+    const totalTables = await Ban.count();
     
-    const statusCounts = await Table.findAll({
-      where: { is_active: true },
+    const statusCounts = await Ban.findAll({
       attributes: [
-        'status',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+        'TrangThai',
+        [sequelize.fn('COUNT', sequelize.col('MaBan')), 'count']
       ],
-      group: ['status']
+      group: ['TrangThai']
     });
 
-    const locationCounts = await Table.findAll({
-      where: { is_active: true },
+    const capacityStats = await Ban.findAll({
       attributes: [
-        'location',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
-      group: ['location']
-    });
-
-    const capacityStats = await Table.findAll({
-      where: { is_active: true },
-      attributes: [
-        [sequelize.fn('MIN', sequelize.col('capacity')), 'min_capacity'],
-        [sequelize.fn('MAX', sequelize.col('capacity')), 'max_capacity'],
-        [sequelize.fn('AVG', sequelize.col('capacity')), 'avg_capacity'],
-        [sequelize.fn('SUM', sequelize.col('capacity')), 'total_capacity']
+        [sequelize.fn('MIN', sequelize.col('SoCho')), 'min_capacity'],
+        [sequelize.fn('MAX', sequelize.col('SoCho')), 'max_capacity'],
+        [sequelize.fn('AVG', sequelize.col('SoCho')), 'avg_capacity'],
+        [sequelize.fn('SUM', sequelize.col('SoCho')), 'total_capacity']
       ]
     });
 
@@ -444,12 +420,8 @@ const getTableStats = async (req, res) => {
       stats: {
         total_tables: totalTables,
         status_breakdown: statusCounts.map(s => ({
-          status: s.status,
+          status: s.TrangThai,
           count: parseInt(s.dataValues.count)
-        })),
-        location_breakdown: locationCounts.map(l => ({
-          location: l.location,
-          count: parseInt(l.dataValues.count)
         })),
         capacity_stats: capacityStats[0]?.dataValues || {}
       }

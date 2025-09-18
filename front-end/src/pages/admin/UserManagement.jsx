@@ -32,8 +32,35 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     try {
       const response = await userAPI.getUsers();
-      setUsers(response.data.users || []);
+      
+      // Combine employees and customers into a single array
+      const employees = (response.data.employees || []).map(emp => ({
+        id: emp.MaNV,
+        name: emp.HoTen,
+        email: emp.Email,
+        phone: emp.SDT,
+        role: emp.ChucVu?.toLowerCase() || 'staff',
+        type: 'employee',
+        active: true,
+        createdAt: emp.NgayVaoLam || new Date(),
+        salary: emp.Luong
+      }));
+
+      const customers = (response.data.customers || []).map(cust => ({
+        id: cust.MaKH,
+        name: cust.HoTen,
+        email: cust.Email,
+        phone: cust.SDT,
+        role: 'customer',
+        type: 'customer',
+        active: true,
+        createdAt: new Date(),
+        points: cust.DiemTichLuy
+      }));
+
+      setUsers([...employees, ...customers]);
     } catch (error) {
+      console.error('Fetch users error:', error);
       toast.error('Lỗi khi tải danh sách người dùng');
     } finally {
       setLoading(false);
@@ -68,14 +95,44 @@ const UserManagement = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (user) => {
     if (window.confirm('Bạn có chắc chắn muốn xóa người dùng này?')) {
       try {
-        await userAPI.deleteUser(id);
+        await userAPI.deleteUser(user.type, user.id);
         toast.success('Xóa người dùng thành công');
         fetchUsers();
       } catch (error) {
         toast.error('Lỗi khi xóa người dùng');
+      }
+    }
+  };
+
+  const handlePromoteToEmployee = async (customer) => {
+    const chucVu = prompt('Nhập chức vụ (Nhân viên, Quản lý, Admin):', 'Nhân viên');
+    const luong = prompt('Nhập lương:', '8000000');
+    
+    if (chucVu && luong) {
+      try {
+        await userAPI.promoteToEmployee(customer.id, { chucVu, luong: parseInt(luong) });
+        toast.success('Thăng chức thành công');
+        fetchUsers();
+      } catch (error) {
+        toast.error('Lỗi khi thăng chức');
+      }
+    }
+  };
+
+  const handleUpdateRole = async (employee) => {
+    const chucVu = prompt('Nhập chức vụ mới:', employee.role || '');
+    const luong = prompt('Nhập lương mới:', (employee.salary ? employee.salary.toString() : '8000000'));
+    
+    if (chucVu && luong) {
+      try {
+        await userAPI.updateUserRole(employee.id, { chucVu, luong: parseInt(luong) });
+        toast.success('Cập nhật vai trò thành công');
+        fetchUsers();
+      } catch (error) {
+        toast.error('Lỗi khi cập nhật vai trò');
       }
     }
   };
@@ -263,15 +320,26 @@ const UserManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
+                      {user.type === 'customer' && (
+                        <button
+                          onClick={() => handlePromoteToEmployee(user)}
+                          className="text-green-600 hover:text-green-900"
+                          title="Thăng chức thành nhân viên"
+                        >
+                          <FiShield className="w-4 h-4" />
+                        </button>
+                      )}
+                      {user.type === 'employee' && (
+                        <button
+                          onClick={() => handleUpdateRole(user)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Cập nhật vai trò"
+                        >
+                          <FiEdit className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
-                        onClick={() => handleEdit(user)}
-                        className="text-amber-600 hover:text-amber-900"
-                        title="Chỉnh sửa"
-                      >
-                        <FiEdit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(user.id)}
+                        onClick={() => handleDelete(user)}
                         className="text-red-600 hover:text-red-900"
                         title="Xóa"
                       >

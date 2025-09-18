@@ -27,7 +27,9 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/api/tables', tableRoutes);
+app.use('/api/ban', tableRoutes); // Vietnamese route for tables
 app.use('/api/reservations', reservationRoutes);
+app.use('/api/dat-ban', reservationRoutes); // Vietnamese route for reservations
 
 // Error handling middleware
 app.use((err, req, res, next) => {

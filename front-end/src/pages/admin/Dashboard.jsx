@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { billingAPI, healthAPI } from '../../services/api';
+import { useAuthStore } from '../../stores/authStore';
 import { FiTrendingUp, FiUsers, FiShoppingCart, FiDollarSign, FiCoffee, FiCalendar, FiActivity, FiAlertCircle } from 'react-icons/fi';
 
 const Dashboard = () => {
+  const { isAuthenticated, user, isLoading } = useAuthStore();
   const [stats, setStats] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -12,13 +14,28 @@ const Dashboard = () => {
   const [recentOrders, setRecentOrders] = useState([]);
   const [systemHealth, setSystemHealth] = useState({});
   const [loading, setLoading] = useState(true);
+  const [dataFetched, setDataFetched] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      // Wait for auth to be ready and avoid re-fetching
+      if (isLoading || dataFetched) return;
+      
+      // Check authentication before making API calls
+      if (!isAuthenticated || !user?.id) {
+        setLoading(false);
+        return;
+      }
       try {
         const [billingResponse, healthResponse] = await Promise.all([
-          billingAPI.getBillingStats().catch(() => ({ data: {} })),
-          healthAPI.getServicesHealth().catch(() => ({ data: {} }))
+          billingAPI.getBillingStats().catch((err) => {
+            console.warn('Billing API error:', err.message);
+            return { data: {} };
+          }),
+          healthAPI.getServicesHealth().catch((err) => {
+            console.warn('Health API error:', err.message);
+            return { data: {} };
+          })
         ]);
 
         setStats(billingResponse.data.stats || {
@@ -42,37 +59,38 @@ const Dashboard = () => {
         console.error('Error fetching dashboard data:', error);
       } finally {
         setLoading(false);
+        setDataFetched(true);
       }
     };
 
     fetchDashboardData();
-  }, []);
+  }, [isLoading, isAuthenticated, user?.id]); // Wait for auth state to be ready
 
   const statCards = [
     {
       title: 'Doanh thu hôm nay',
-      value: stats.totalRevenue?.toLocaleString('vi-VN') + 'đ' || '0đ',
+      value: (stats?.totalRevenue ? stats.totalRevenue.toLocaleString('vi-VN') + 'đ' : '0đ'),
       icon: FiDollarSign,
       color: 'bg-green-500',
       change: '+12.5%'
     },
     {
       title: 'Đơn hàng',
-      value: stats.totalOrders?.toString() || '0',
+      value: (stats?.totalOrders ? stats.totalOrders.toString() : '0'),
       icon: FiShoppingCart,
       color: 'bg-blue-500',
       change: '+8.2%'
     },
     {
       title: 'Khách hàng',
-      value: stats.totalCustomers?.toString() || '0',
+      value: (stats?.totalCustomers ? stats.totalCustomers.toString() : '0'),
       icon: FiUsers,
       color: 'bg-purple-500',
       change: '+15.3%'
     },
     {
       title: 'Giá trị TB/đơn',
-      value: stats.averageOrderValue?.toLocaleString('vi-VN') + 'đ' || '0đ',
+      value: (stats?.averageOrderValue ? stats.averageOrderValue.toLocaleString('vi-VN') + 'đ' : '0đ'),
       icon: FiTrendingUp,
       color: 'bg-amber-500',
       change: '+5.7%'

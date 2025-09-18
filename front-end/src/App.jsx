@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { useEffect } from "react";
 import { useAuthStore } from "./stores/authStore";
 
 // Layouts
@@ -9,7 +10,8 @@ import AuthLayout from "./layouts/AuthLayout";
 
 // Public Pages
 import Home from "./pages/public/Home";
-import Menu from "./pages/public/Menu";
+// Use the unified Menu page that fetches from API and supports Vietnamese schema
+import Menu from "./pages/Menu";
 import About from "./pages/public/About";
 import Contact from "./pages/public/Contact";
 import Reservations from "./pages/public/Reservations";
@@ -22,6 +24,7 @@ import Register from "./pages/auth/Register";
 import Profile from "./pages/customer/Profile";
 import OrderHistory from "./pages/customer/OrderHistory";
 import Cart from "./pages/customer/Cart";
+import BookTable from "./pages/customer/BookTable";
 
 // Admin Pages
 import Dashboard from "./pages/admin/Dashboard";
@@ -39,9 +42,14 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import LoadingSpinner from "./components/LoadingSpinner";
 
 function App() {
-  const { isLoading, user } = useAuthStore();
+  const { isLoading, user, isAuthenticated } = useAuthStore();
+
+  console.log('App render:', { isLoading, isAuthenticated, hasUser: !!user });
+
+  // No need to initialize - Zustand persist handles this automatically
 
   if (isLoading) {
+    console.log('App showing loading spinner');
     return <LoadingSpinner />;
   }
 
@@ -56,6 +64,7 @@ function App() {
             <Route path="about" element={<About />} />
             <Route path="contact" element={<Contact />} />
             <Route path="reservations" element={<Reservations />} />
+            <Route path="book-table" element={<BookTable />} />
           </Route>
 
           {/* Auth Routes */}
@@ -76,11 +85,7 @@ function App() {
           </Route>
 
           {/* Admin Routes */}
-          <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['staff', 'manager', 'admin']}>
-              <AdminLayout />
-            </ProtectedRoute>
-          }>
+          <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="menu" element={<MenuManagement />} />
             <Route path="categories" element={<CategoryManagement />} />
@@ -89,11 +94,7 @@ function App() {
             <Route path="orders" element={<OrderManagement />} />
             <Route path="billing" element={<BillingManagement />} />
             <Route path="analytics" element={<Analytics />} />
-            <Route path="users" element={
-              <ProtectedRoute allowedRoles={['manager', 'admin']}>
-                <UserManagement />
-              </ProtectedRoute>
-            } />
+            <Route path="users" element={<UserManagement />} />
           </Route>
 
           {/* Redirects */}

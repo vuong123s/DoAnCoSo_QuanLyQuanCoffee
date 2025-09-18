@@ -18,7 +18,7 @@ const Navbar = () => {
   const navLinks = [
     { to: '/', label: 'Trang chủ' },
     { to: '/menu', label: 'Thực đơn' },
-    { to: '/reservations', label: 'Đặt bàn' },
+    { to: '/book-table', label: 'Đặt bàn' },
     { to: '/about', label: 'Giới thiệu' },
     { to: '/contact', label: 'Liên hệ' },
   ];
@@ -84,7 +84,7 @@ const Navbar = () => {
                       <FiShoppingCart className="mr-3 w-4 h-4" />
                       Lịch sử đơn hàng
                     </Link>
-                    {user?.role && ['staff', 'manager', 'admin'].includes(user.role) && (
+                    {user && (
                       <Link
                         to="/admin"
                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

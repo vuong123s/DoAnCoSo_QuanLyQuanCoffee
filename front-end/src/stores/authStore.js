@@ -8,33 +8,9 @@ export const useAuthStore = create(
     (set, get) => ({
       user: null,
       token: null,
-      isLoading: false,
+      isLoading: true, // Start with true until rehydration completes
       isAuthenticated: false,
 
-      // Initialize auth state
-      initialize: async () => {
-        const token = localStorage.getItem('token');
-        if (token) {
-          try {
-            set({ isLoading: true });
-            const response = await authAPI.getProfile();
-            set({
-              user: response.data.user,
-              token,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-          } catch (error) {
-            localStorage.removeItem('token');
-            set({
-              user: null,
-              token: null,
-              isAuthenticated: false,
-              isLoading: false,
-            });
-          }
-        }
-      },
 
       // Login
       login: async (credentials) => {
@@ -52,10 +28,10 @@ export const useAuthStore = create(
           });
           
           toast.success(`Chào mừng ${user.name}!`);
-          return { success: true };
+          return { success: true, user };
         } catch (error) {
           set({ isLoading: false });
-          const message = error.response?.data?.message || 'Đăng nhập thất bại';
+          const message = error.response?.data?.error || error.response?.data?.message || 'Đăng nhập thất bại';
           toast.error(message);
           return { success: false, error: message };
         }
@@ -77,7 +53,7 @@ export const useAuthStore = create(
           });
           
           toast.success('Đăng ký thành công!');
-          return { success: true };
+          return { success: true, user };
         } catch (error) {
           set({ isLoading: false });
           const message = error.response?.data?.message || 'Đăng ký thất bại';
@@ -160,10 +136,31 @@ export const useAuthStore = create(
     {
       name: 'auth-storage',
       partialize: (state) => ({
-        token: state.token,
         user: state.user,
+        token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        console.log('🔄 Zustand rehydrating:', state ? {
+          hasUser: !!state.user,
+          hasToken: !!state.token,
+          isAuthenticated: state.isAuthenticated,
+          userName: state.user?.name
+        } : 'No state');
+        
+        if (state && state.user && state.token) {
+          // Auto-authenticate from localStorage
+          console.log('✅ Auto-authenticating from localStorage');
+          state.isAuthenticated = true;
+          state.isLoading = false; // Rehydration complete
+          localStorage.setItem('token', state.token);
+        } else {
+          console.log('❌ No valid auth data in localStorage');
+          if (state) {
+            state.isLoading = false; // Rehydration complete, no auth data
+          }
+        }
+      },
     }
   )
 );

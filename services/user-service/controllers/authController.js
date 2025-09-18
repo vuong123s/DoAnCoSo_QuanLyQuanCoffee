@@ -34,14 +34,20 @@ const register = async (req, res) => {
       });
     }
 
-    // Check if customer already exists
+    // Check if email already exists in both tables
     const existingCustomer = await KhachHang.findOne({
       where: {
         Email: email.toLowerCase().trim()
       }
     });
 
-    if (existingCustomer) {
+    const existingEmployee = await NhanVien.findOne({
+      where: {
+        Email: email.toLowerCase().trim()
+      }
+    });
+
+    if (existingCustomer || existingEmployee) {
       return res.status(400).json({
         error: 'Email already exists'
       });
@@ -57,14 +63,15 @@ const register = async (req, res) => {
     });
 
     // Generate tokens for customer
-    const tokens = generateTokens(customer.MaKH, 'customer');
+    const tokens = generateTokens(customer.MaKH, null);
 
     // Prepare user data for frontend
     const userData = {
       id: customer.MaKH,
       name: customer.HoTen,
       email: customer.Email,
-      role: 'customer',
+      role: 'customer', // Tự động là khách hàng
+      chucVu: null, // Khách hàng không có chức vụ
       phone: customer.SDT,
       points: customer.DiemTichLuy
     };
@@ -88,6 +95,7 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt:', { email, password: '***' });
 
     if (!email || !password) {
       return res.status(400).json({
@@ -102,32 +110,33 @@ const login = async (req, res) => {
       }
     });
 
+    console.log('Found employee:', nhanvien ? 'Yes' : 'No');
+
     if (nhanvien) {
+      console.log('Employee data:', { id: nhanvien.MaNV, email: nhanvien.Email, hasPassword: !!nhanvien.MatKhau });
+      
       // Verify employee password
       const isPasswordValid = await nhanvien.comparePassword(password);
+      console.log('Password valid:', isPasswordValid);
+      
       if (!isPasswordValid) {
+        console.log(`Login failed - Invalid password for employee: ${email}`);
         return res.status(401).json({
-          error: 'Invalid credentials'
+          error: 'Mật khẩu không đúng'
         });
       }
 
-      // Map role based on ChucVu
-      let role = 'staff';
-      if (nhanvien.ChucVu === 'Quản lý') {
-        role = nhanvien.Email.includes('admin') ? 'admin' : 'manager';
-      }
-
-      // Generate tokens
-      const tokens = generateTokens(nhanvien.MaNV, role);
+      // Generate tokens with ChucVu as role
+      const tokens = generateTokens(nhanvien.MaNV, nhanvien.ChucVu);
 
       // Prepare user data for frontend
       const userData = {
         id: nhanvien.MaNV,
         name: nhanvien.HoTen,
         email: nhanvien.Email,
-        role: role,
-        phone: nhanvien.SDT,
-        position: nhanvien.ChucVu
+        role: nhanvien.ChucVu === 'Quản lý' ? 'admin' : nhanvien.ChucVu === 'Nhân viên' ? 'staff' : 'manager',
+        chucVu: nhanvien.ChucVu,
+        phone: nhanvien.SDT
       };
 
       return res.json({
@@ -148,20 +157,22 @@ const login = async (req, res) => {
       // Verify customer password
       const isPasswordValid = await khachhang.comparePassword(password);
       if (!isPasswordValid) {
+        console.log(`Login failed - Invalid password for customer: ${email}`);
         return res.status(401).json({
-          error: 'Invalid credentials'
+          error: 'Mật khẩu không đúng'
         });
       }
       
-      // Generate tokens for customer
-      const tokens = generateTokens(khachhang.MaKH, 'customer');
+      // Generate tokens for customer (no ChucVu)
+      const tokens = generateTokens(khachhang.MaKH, null);
 
       // Prepare user data for frontend
       const userData = {
         id: khachhang.MaKH,
         name: khachhang.HoTen,
         email: khachhang.Email,
-        role: 'customer',
+        role: 'customer', // Khách hàng
+        chucVu: null, // Khách hàng không có chức vụ
         phone: khachhang.SDT,
         points: khachhang.DiemTichLuy
       };
@@ -174,8 +185,9 @@ const login = async (req, res) => {
     }
 
     // No user found
+    console.log(`Login failed - No account found for email: ${email}`);
     return res.status(401).json({
-      error: 'Invalid credentials'
+      error: 'Không tìm thấy tài khoản với email này'
     });
 
   } catch (error) {
@@ -263,7 +275,7 @@ const getProfile = async (req, res) => {
         id: khachhang.MaKH,
         name: khachhang.HoTen,
         email: khachhang.Email,
-        role: 'customer',
+        chucVu: null, // Khách hàng không có chức vụ
         phone: khachhang.SDT,
         points: khachhang.DiemTichLuy
       };
@@ -281,19 +293,12 @@ const getProfile = async (req, res) => {
         });
       }
 
-      // Map role based on ChucVu
-      let userRole = 'staff';
-      if (nhanvien.ChucVu === 'Quản lý') {
-        userRole = nhanvien.Email.includes('admin') ? 'admin' : 'manager';
-      }
-
       const userData = {
         id: nhanvien.MaNV,
         name: nhanvien.HoTen,
         email: nhanvien.Email,
-        role: userRole,
-        phone: nhanvien.SDT,
-        position: nhanvien.ChucVu
+        chucVu: nhanvien.ChucVu,
+        phone: nhanvien.SDT
       };
 
       return res.json({
@@ -413,6 +418,156 @@ const logout = async (req, res) => {
   }
 };
 
+// Admin functions for user management
+const getAllUsers = async (req, res) => {
+  try {
+    // Get all employees
+    const nhanvien = await NhanVien.findAll({
+      attributes: ['MaNV', 'HoTen', 'Email', 'ChucVu', 'SDT', 'NgayVaoLam']
+    });
+
+    // Get all customers
+    const khachhang = await KhachHang.findAll({
+      attributes: ['MaKH', 'HoTen', 'Email', 'SDT', 'DiemTichLuy']
+    });
+
+    res.json({
+      employees: nhanvien,
+      customers: khachhang,
+      total: {
+        employees: nhanvien.length,
+        customers: khachhang.length
+      }
+    });
+  } catch (error) {
+    console.error('Get all users error:', error);
+    res.status(500).json({
+      error: 'Failed to get users',
+      message: error.message
+    });
+  }
+};
+
+const promoteToEmployee = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { chucVu, luong } = req.body;
+
+    // Find customer
+    const customer = await KhachHang.findByPk(customerId);
+    if (!customer) {
+      return res.status(404).json({
+        error: 'Customer not found'
+      });
+    }
+
+    // Create employee record
+    const employee = await NhanVien.create({
+      HoTen: customer.HoTen,
+      Email: customer.Email,
+      SDT: customer.SDT,
+      MatKhau: customer.MatKhau,
+      ChucVu: chucVu || 'Nhân viên',
+      Luong: luong || 8000000,
+      NgayVaoLam: new Date(),
+      GioiTinh: 'Nam' // Default, can be updated later
+    });
+
+    // Delete customer record
+    await customer.destroy();
+
+    res.json({
+      message: 'Customer promoted to employee successfully',
+      employee: {
+        id: employee.MaNV,
+        name: employee.HoTen,
+        email: employee.Email,
+        role: employee.ChucVu
+      }
+    });
+  } catch (error) {
+    console.error('Promote to employee error:', error);
+    res.status(500).json({
+      error: 'Failed to promote customer',
+      message: error.message
+    });
+  }
+};
+
+const updateUserRole = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { chucVu, luong } = req.body;
+
+    const employee = await NhanVien.findByPk(employeeId);
+    if (!employee) {
+      return res.status(404).json({
+        error: 'Employee not found'
+      });
+    }
+
+    await employee.update({
+      ChucVu: chucVu,
+      Luong: luong || employee.Luong
+    });
+
+    res.json({
+      message: 'Employee role updated successfully',
+      employee: {
+        id: employee.MaNV,
+        name: employee.HoTen,
+        email: employee.Email,
+        role: employee.ChucVu,
+        salary: employee.Luong
+      }
+    });
+  } catch (error) {
+    console.error('Update user role error:', error);
+    res.status(500).json({
+      error: 'Failed to update user role',
+      message: error.message
+    });
+  }
+};
+
+const deleteUser = async (req, res) => {
+  try {
+    const { userType, userId } = req.params;
+
+    if (userType === 'employee') {
+      const employee = await NhanVien.findByPk(userId);
+      if (!employee) {
+        return res.status(404).json({
+          error: 'Employee not found'
+        });
+      }
+      await employee.destroy();
+    } else if (userType === 'customer') {
+      const customer = await KhachHang.findByPk(userId);
+      if (!customer) {
+        return res.status(404).json({
+          error: 'Customer not found'
+        });
+      }
+      await customer.destroy();
+    } else {
+      return res.status(400).json({
+        error: 'Invalid user type'
+      });
+    }
+
+    res.json({
+      message: `${userType} deleted successfully`
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({
+      error: 'Failed to delete user',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -420,5 +575,9 @@ module.exports = {
   getProfile,
   updateProfile,
   changePassword,
-  logout
+  logout,
+  getAllUsers,
+  promoteToEmployee,
+  updateUserRole,
+  deleteUser
 };

@@ -13,11 +13,17 @@ const AdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Always render admin layout - no authentication checks
+
   const handleLogout = () => {
     logout();
     navigate('/');
   };
 
+  // Menu items - tất cả user đều thấy tất cả menu
+  const userChucVu = user?.chucVu;
+  const isAdminOrManager = true; // Bỏ giới hạn - ai cũng thấy User Management
+  
   const menuItems = [
     { path: '/admin', icon: FiHome, label: 'Dashboard', exact: true },
     { path: '/admin/menu', icon: FiMenu, label: 'Quản lý Menu' },
@@ -27,8 +33,9 @@ const AdminLayout = () => {
     { path: '/admin/orders', icon: FiShoppingCart, label: 'Đơn hàng' },
     { path: '/admin/billing', icon: FiDollarSign, label: 'Thanh toán' },
     { path: '/admin/analytics', icon: FiBarChart2, label: 'Thống kê' },
-    ...(user?.role === 'admin' || user?.role === 'manager' ? [
-      { path: '/admin/users', icon: FiUsers, label: 'Quản lý User' }
+    // Only admin and managers can access user management
+    ...(isAdminOrManager ? [
+      { path: '/admin/users', icon: FiUsers, label: 'Quản lý Nhân viên' }
     ] : [])
   ];
 
@@ -79,8 +86,8 @@ const AdminLayout = () => {
           <div className="p-4">
             {!sidebarCollapsed && (
               <div className="mb-3">
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.HoTen || user?.name}</p>
+                <p className="text-xs text-gray-500">{user?.ChucVu || user?.role}</p>
               </div>
             )}
             <button
@@ -126,7 +133,7 @@ const AdminLayout = () => {
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-amber-600 rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">
-                    {user?.name?.charAt(0).toUpperCase()}
+                    {(user?.HoTen || user?.name)?.charAt(0).toUpperCase()}
                   </span>
                 </div>
               </div>

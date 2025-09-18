@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 5000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -30,12 +30,18 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/auth/login';
+      const currentPath = window.location.pathname;
+      // Avoid redirect loop if already on auth pages
+      if (!currentPath.startsWith('/auth')) {
+        localStorage.removeItem('token');
+        // No automatic redirect - let user stay on current page
+        console.log('Token expired, but staying on current page');
+      }
     }
     return Promise.reject(error);
   }
 );
+
 
 // Auth API
 export const authAPI = {
@@ -59,36 +65,39 @@ export const menuAPI = {
   createMenuItem: (itemData) => api.post('/api/menu', itemData),
   updateMenuItem: (id, itemData) => api.put(`/api/menu/${id}`, itemData),
   deleteMenuItem: (id) => api.delete(`/api/menu/${id}`),
-  getFeaturedItems: () => api.get('/api/menu/featured'),
+  // Fallback featured items using filters (aligns with Vietnamese schema)
+  getFeaturedItems: () => api.get('/api/menu', { params: { is_available: true, limit: 8 } }),
 };
 
-// Table API
+// Table API - Using Vietnamese schema
 export const tableAPI = {
-  getTables: () => api.get('/api/tables'),
-  getTable: (id) => api.get(`/api/tables/${id}`),
-  createTable: (tableData) => api.post('/api/tables', tableData),
-  updateTable: (id, tableData) => api.put(`/api/tables/${id}`, tableData),
-  deleteTable: (id) => api.delete(`/api/tables/${id}`),
-  checkAvailability: (params) => api.get('/api/tables/available', { params }),
+  getTables: () => api.get('/api/ban'),
+  getTable: (id) => api.get(`/api/ban/${id}`),
+  createTable: (tableData) => api.post('/api/ban', tableData),
+  updateTable: (id, tableData) => api.put(`/api/ban/${id}`, tableData),
+  deleteTable: (id) => api.delete(`/api/ban/${id}`),
+  checkAvailability: (params) => api.get('/api/ban/kiem-tra', { params }),
 };
 
-// Reservation API
+// Reservation API - Using Vietnamese schema
 export const reservationAPI = {
-  getReservations: (params) => api.get('/api/reservations', { params }),
-  getReservation: (id) => api.get(`/api/reservations/${id}`),
-  createReservation: (reservationData) => api.post('/api/reservations', reservationData),
-  updateReservation: (id, reservationData) => api.put(`/api/reservations/${id}`, reservationData),
-  cancelReservation: (id) => api.delete(`/api/reservations/${id}`),
+  getReservations: (params) => api.get('/api/dat-ban', { params }),
+  getReservation: (id) => api.get(`/api/dat-ban/${id}`),
+  createReservation: (reservationData) => api.post('/api/dat-ban', reservationData),
+  updateReservation: (id, reservationData) => api.put(`/api/dat-ban/${id}`, reservationData),
+  updateReservationStatus: (id, statusData) => api.put(`/api/dat-ban/${id}/trang-thai`, statusData),
+  cancelReservation: (id) => api.delete(`/api/dat-ban/${id}`),
+  getAvailableTables: (params) => api.get('/api/dat-ban/ban-trong', { params }),
+  getTodayReservations: (params) => api.get('/api/dat-ban/hom-nay', { params }),
+  getReservationStats: (params) => api.get('/api/dat-ban/thong-ke', { params }),
 };
 
 // User API
 export const userAPI = {
-  getUsers: (params) => api.get('/api/users', { params }),
-  getUser: (id) => api.get(`/api/users/${id}`),
-  updateUser: (id, userData) => api.put(`/api/users/${id}`, userData),
-  deleteUser: (id) => api.delete(`/api/users/${id}`),
-  toggleUserStatus: (id) => api.put(`/api/users/${id}/status`),
-  resetPassword: (id) => api.post(`/api/users/${id}/reset-password`),
+  getUsers: () => api.get('/api/auth/users'),
+  promoteToEmployee: (customerId, data) => api.post(`/api/auth/promote/${customerId}`, data),
+  updateUserRole: (employeeId, data) => api.put(`/api/auth/role/${employeeId}`, data),
+  deleteUser: (userType, userId) => api.delete(`/api/auth/${userType}/${userId}`),
 };
 
 // Billing API

@@ -1,7 +1,7 @@
-const { Category, MenuItem } = require('../models');
+const { LoaiMon, Mon } = require('../models');
 const { Op } = require('sequelize');
 
-// Get all categories with optional filters
+// Get all categories with optional filters (Vietnamese schema)
 const getCategories = async (req, res) => {
   try {
     const { 
@@ -12,45 +12,48 @@ const getCategories = async (req, res) => {
       search 
     } = req.query;
 
-    const offset = (page - 1) * limit;
+    // Parse query parameters to integers
+    const parsedPage = parseInt(page) || 1;
+    const parsedLimit = parseInt(limit) || 10;
+    const offset = (parsedPage - 1) * parsedLimit;
+
+    console.log(`📊 Categories query params: page=${parsedPage}, limit=${parsedLimit}, offset=${offset}`);
     const whereClause = {};
 
-    // Apply filters
-    if (is_active !== undefined) whereClause.is_active = is_active === 'true';
+    // Apply filters (map to Vietnamese fields)
+    // Note: LoaiMon doesn't have is_active field in Vietnamese schema, skip this filter
     
     if (search) {
       whereClause[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { description: { [Op.like]: `%${search}%` } }
+        { TenLoai: { [Op.like]: `%${search}%` } }
       ];
     }
 
-    const includeOptions = [];
+    // Include menu items if requested
+    let includeOptions = [];
     if (include_items === 'true') {
       includeOptions.push({
-        model: MenuItem,
-        as: 'menu_items',
-        where: { is_available: true },
-        required: false,
-        attributes: ['id', 'name', 'price', 'image_url', 'is_featured']
+        model: Mon,
+        as: 'mons',
+        attributes: ['MaMon', 'TenMon', 'DonGia', 'HinhAnh', 'TrangThai']
       });
     }
 
-    const { count, rows } = await Category.findAndCountAll({
+    const { count, rows } = await LoaiMon.findAndCountAll({
       where: whereClause,
       include: includeOptions,
-      order: [['sort_order', 'ASC'], ['name', 'ASC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      order: [['TenLoai', 'ASC']],
+      limit: parsedLimit,
+      offset: offset
     });
 
     res.json({
       categories: rows,
       pagination: {
-        current_page: parseInt(page),
-        total_pages: Math.ceil(count / limit),
+        current_page: parsedPage,
+        total_pages: Math.ceil(count / parsedLimit),
         total_items: count,
-        items_per_page: parseInt(limit)
+        items_per_page: parsedLimit
       }
     });
 
@@ -63,7 +66,7 @@ const getCategories = async (req, res) => {
   }
 };
 
-// Get category by ID
+// Get category by ID (Vietnamese schema)
 const getCategoryById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -72,13 +75,14 @@ const getCategoryById = async (req, res) => {
     const includeOptions = [];
     if (include_items === 'true') {
       includeOptions.push({
-        model: MenuItem,
-        as: 'menu_items',
-        order: [['sort_order', 'ASC']]
+        model: Mon,
+        as: 'mons',
+        attributes: ['MaMon', 'TenMon', 'DonGia', 'HinhAnh', 'TrangThai'],
+        order: [['TenMon', 'ASC']]
       });
     }
 
-    const category = await Category.findByPk(id, {
+    const category = await LoaiMon.findByPk(id, {
       include: includeOptions
     });
 
@@ -99,26 +103,25 @@ const getCategoryById = async (req, res) => {
   }
 };
 
-// Create new category
+// Create new category (Vietnamese schema)
 const createCategory = async (req, res) => {
   try {
     const {
-      name,
-      description,
-      image_url,
-      is_active = true,
-      sort_order = 0
+      TenLoai,
+      name // fallback for English API compatibility
     } = req.body;
 
-    if (!name) {
+    const categoryName = TenLoai || name;
+
+    if (!categoryName) {
       return res.status(400).json({
-        error: 'Category name is required'
+        error: 'Category name (TenLoai) is required'
       });
     }
 
     // Check if category name already exists
-    const existingCategory = await Category.findOne({
-      where: { name: name.trim() }
+    const existingCategory = await LoaiMon.findOne({
+      where: { TenLoai: categoryName.trim() }
     });
 
     if (existingCategory) {
@@ -127,12 +130,8 @@ const createCategory = async (req, res) => {
       });
     }
 
-    const category = await Category.create({
-      name: name.trim(),
-      description,
-      image_url,
-      is_active,
-      sort_order: parseInt(sort_order)
+    const category = await LoaiMon.create({
+      TenLoai: categoryName.trim()
     });
 
     res.status(201).json({
@@ -149,13 +148,15 @@ const createCategory = async (req, res) => {
   }
 };
 
-// Update category
+// Update category (Vietnamese schema)
 const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const { TenLoai, name } = req.body;
+    
+    const categoryName = TenLoai || name;
 
-    const category = await Category.findByPk(id);
+    const category = await LoaiMon.findByPk(id);
     if (!category) {
       return res.status(404).json({
         error: 'Category not found'
@@ -163,11 +164,11 @@ const updateCategory = async (req, res) => {
     }
 
     // If name is being updated, check for duplicates
-    if (updateData.name && updateData.name.trim() !== category.name) {
-      const existingCategory = await Category.findOne({
+    if (categoryName && categoryName.trim() !== category.TenLoai) {
+      const existingCategory = await LoaiMon.findOne({
         where: { 
-          name: updateData.name.trim(),
-          id: { [Op.ne]: id }
+          TenLoai: categoryName.trim(),
+          MaLoai: { [Op.ne]: id }
         }
       });
 
@@ -176,9 +177,10 @@ const updateCategory = async (req, res) => {
           error: 'Category name already exists'
         });
       }
-
-      updateData.name = updateData.name.trim();
     }
+
+    const updateData = {};
+    if (categoryName) updateData.TenLoai = categoryName.trim();
 
     await category.update(updateData);
 
@@ -196,12 +198,12 @@ const updateCategory = async (req, res) => {
   }
 };
 
-// Delete category
+// Delete category (Vietnamese schema)
 const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const category = await Category.findByPk(id);
+    const category = await LoaiMon.findByPk(id);
     if (!category) {
       return res.status(404).json({
         error: 'Category not found'
@@ -209,8 +211,8 @@ const deleteCategory = async (req, res) => {
     }
 
     // Check if category has menu items
-    const menuItemsCount = await MenuItem.count({
-      where: { category_id: id }
+    const menuItemsCount = await Mon.count({
+      where: { MaLoai: id }
     });
 
     if (menuItemsCount > 0) {
@@ -235,32 +237,22 @@ const deleteCategory = async (req, res) => {
   }
 };
 
-// Toggle category status
+// Toggle category status (Vietnamese schema - simplified, no status field)
 const toggleCategoryStatus = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const category = await Category.findByPk(id);
+    const category = await LoaiMon.findByPk(id);
     if (!category) {
       return res.status(404).json({
         error: 'Category not found'
       });
     }
 
-    await category.update({
-      is_active: !category.is_active
-    });
-
-    // If deactivating category, also deactivate all menu items in this category
-    if (!category.is_active) {
-      await MenuItem.update(
-        { is_available: false },
-        { where: { category_id: id } }
-      );
-    }
-
+    // Vietnamese schema doesn't have is_active field for categories
+    // This function is kept for API compatibility but doesn't do anything
     res.json({
-      message: `Category ${category.is_active ? 'activated' : 'deactivated'} successfully`,
+      message: 'Category status toggle not supported in Vietnamese schema',
       category
     });
 
@@ -273,7 +265,7 @@ const toggleCategoryStatus = async (req, res) => {
   }
 };
 
-// Get menu items by category
+// Get menu items by category (Vietnamese schema)
 const getMenuItemsByCategory = async (req, res) => {
   try {
     const { id } = req.params;
@@ -281,47 +273,54 @@ const getMenuItemsByCategory = async (req, res) => {
       page = 1, 
       limit = 10, 
       is_available,
-      sort_by = 'sort_order',
+      sort_by = 'name',
       sort_order = 'ASC'
     } = req.query;
 
-    const category = await Category.findByPk(id);
+    const category = await LoaiMon.findByPk(id);
     if (!category) {
       return res.status(404).json({
         error: 'Category not found'
       });
     }
 
-    const offset = (page - 1) * limit;
-    const whereClause = { category_id: id };
+    // Parse query parameters to integers
+    const parsedPage = parseInt(page) || 1;
+    const parsedLimit = parseInt(limit) || 10;
+    const offset = (parsedPage - 1) * parsedLimit;
+    
+    const whereClause = { MaLoai: id };
 
     if (is_available !== undefined) {
-      whereClause.is_available = is_available === 'true';
+      whereClause.TrangThai = is_available === 'true' ? 'Còn bán' : 'Hết hàng';
     }
 
-    const validSortFields = ['name', 'price', 'sort_order', 'created_at'];
-    const sortField = validSortFields.includes(sort_by) ? sort_by : 'sort_order';
-    const sortDirection = sort_order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    // Sorting mapping
+    const sortFieldMap = {
+      name: 'TenMon',
+      price: 'DonGia'
+    };
+    const mappedSortField = sortFieldMap[sort_by] || 'TenMon';
+    const sortDirection = String(sort_order).toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    const { count, rows } = await MenuItem.findAndCountAll({
+    const { count, rows } = await Mon.findAndCountAll({
       where: whereClause,
-      order: [[sortField, sortDirection]],
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      order: [[mappedSortField, sortDirection]],
+      limit: parsedLimit,
+      offset: offset
     });
 
     res.json({
       category: {
-        id: category.id,
-        name: category.name,
-        description: category.description
+        MaLoai: category.MaLoai,
+        TenLoai: category.TenLoai
       },
       menu_items: rows,
       pagination: {
-        current_page: parseInt(page),
-        total_pages: Math.ceil(count / limit),
+        current_page: parsedPage,
+        total_pages: Math.ceil(count / parsedLimit),
         total_items: count,
-        items_per_page: parseInt(limit)
+        items_per_page: parsedLimit
       }
     });
 

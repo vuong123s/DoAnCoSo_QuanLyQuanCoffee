@@ -5,25 +5,30 @@ class ServiceRegistry {
     this.services = {
       userService: {
         name: 'User Service',
-        url: process.env.USER_SERVICE_URL || 'http://localhost:3001',
+        url: 'http://localhost:3001',
         healthPath: '/health'
       },
       menuService: {
         name: 'Menu Service',
-        url: process.env.MENU_SERVICE_URL || 'http://localhost:3002',
+        url: 'http://localhost:3002',
         healthPath: '/health'
       },
       tableService: {
         name: 'Table Service',
-        url: process.env.TABLE_SERVICE_URL || 'http://localhost:3003',
+        url: 'http://localhost:3003',
         healthPath: '/health'
       },
       billingService: {
         name: 'Billing Service',
-        url: process.env.BILLING_SERVICE_URL || 'http://localhost:3004',
+        url: 'http://localhost:3004',
         healthPath: '/health'
       }
     };
+    
+    console.log('🚀 Service Registry initialized with services:');
+    Object.entries(this.services).forEach(([key, service]) => {
+      console.log(`   ${service.name}: ${service.url}`);
+    });
   }
 
   getServices() {
@@ -42,7 +47,7 @@ class ServiceRegistry {
 
     try {
       const response = await axios.get(`${service.url}${service.healthPath}`, {
-        timeout: 5000
+        timeout: 30000
       });
       
       return {
