@@ -1,6 +1,5 @@
 const LoaiMon = require('./Category');
 const Mon = require('./MenuItem');
-const Kho = require('./Kho');
 
 // Define associations
 Mon.belongsTo(LoaiMon, {
@@ -15,6 +14,5 @@ LoaiMon.hasMany(Mon, {
 
 module.exports = {
   LoaiMon,
-  Mon,
-  Kho
+  Mon
 };

@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # MySQL Database
   mysql:
@@ -9,10 +11,10 @@ services:
       MYSQL_USER: coffee_user
       MYSQL_PASSWORD: coffee_pass
     ports:
-      - "3306:3306"
+      - "3309:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./docker-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./QuanLyCaFe.sql:/docker-entrypoint-initdb.d/init.sql
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     networks:
       - coffee-network
@@ -20,6 +22,15 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
+      interval: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
 
   # User Service
   user-service:
@@ -114,6 +125,90 @@ services:
       - coffee-network
     restart: unless-stopped
 
+  # Online Order Service
+  online-order-service:
+    build: 
+      context: ./services/online-order-service
+      dockerfile: Dockerfile
+    container_name: coffee-online-order-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3005
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=QuanLyCafe
+      - DB_USER=coffee_user
+      - DB_PASSWORD=coffee_pass
+    ports:
+      - "3005:3005"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - coffee-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3005/health"]
+      timeout: 10s
+      retries: 3
+      interval: 30s
+
+  # Voucher Service
+  voucher-service:
+    build: 
+      context: ./services/voucher-service
+      dockerfile: Dockerfile
+    container_name: coffee-voucher-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3006
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=QuanLyCafe
+      - DB_USER=coffee_user
+      - DB_PASSWORD=coffee_pass
+    ports:
+      - "3006:3006"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - coffee-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3006/health"]
+      timeout: 10s
+      retries: 3
+      interval: 30s
+
+  # Inventory Service
+  inventory-service:
+    build: 
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+    container_name: coffee-inventory-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3007
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=QuanLyCafe
+      - DB_USER=coffee_user
+      - DB_PASSWORD=coffee_pass
+    ports:
+      - "3007:3007"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - coffee-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3007/health"]
+      timeout: 10s
+      retries: 3
+      interval: 30s
+
   # API Gateway
   api-gateway:
     build: 
@@ -127,6 +222,9 @@ services:
       - MENU_SERVICE_URL=http://menu-service:3002
       - TABLE_SERVICE_URL=http://table-service:3003
       - BILLING_SERVICE_URL=http://billing-service:3004
+      - ONLINE_ORDER_SERVICE_URL=http://online-order-service:3005
+      - VOUCHER_SERVICE_URL=http://voucher-service:3006
+      - INVENTORY_SERVICE_URL=http://inventory-service:3007
       - JWT_SECRET=your-secret-key-here
     ports:
       - "3000:3000"
@@ -135,6 +233,9 @@ services:
       - menu-service
       - table-service
       - billing-service
+      - online-order-service
+      - voucher-service
+      - inventory-service
     networks:
       - coffee-network
     restart: unless-stopped
@@ -147,13 +248,20 @@ services:
     container_name: coffee-frontend
     environment:
       - VITE_API_URL=http://localhost:3000
+      - NODE_ENV=development
     ports:
       - "5173:5173"
+    volumes:
+      - ./front-end/src:/app/src
+      - ./front-end/public:/app/public
+      - /app/node_modules
     depends_on:
       - api-gateway
     networks:
       - coffee-network
     restart: unless-stopped
+    stdin_open: true
+    tty: true
 
 volumes:
   mysql_data:

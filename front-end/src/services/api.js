@@ -71,12 +71,18 @@ export const menuAPI = {
 
 // Table API - Using Vietnamese schema
 export const tableAPI = {
-  getTables: () => api.get('/api/tables'),
+  getTables: (params) => api.get('/api/tables', { params }),
   getTable: (id) => api.get(`/api/tables/${id}`),
   createTable: (tableData) => api.post('/api/tables', tableData),
   updateTable: (id, tableData) => api.put(`/api/tables/${id}`, tableData),
   deleteTable: (id) => api.delete(`/api/tables/${id}`),
-  checkAvailability: (params) => api.get('/api/tables/availability', { params }),
+  updateTableStatus: (id, statusData) => api.patch(`/api/tables/${id}/status`, statusData),
+  checkAvailability: (params) => api.get('/api/tables/available', { params }),
+  getTableStats: () => api.get('/api/tables/stats'),
+  
+  // Area-related endpoints
+  getAreas: () => api.get('/api/tables/areas'),
+  getTablesByArea: (area, params) => api.get(`/api/tables/areas/${encodeURIComponent(area)}`, { params }),
 };
 
 // Reservation API - Using Vietnamese schema
@@ -110,6 +116,43 @@ export const billingAPI = {
   deleteBill: (id) => api.delete(`/api/billing/${id}`),
   updatePaymentStatus: (id, paymentData) => api.put(`/api/billing/${id}/payment`, paymentData),
   getBillingStats: () => api.get('/api/billing/stats'),
+};
+
+// Online Order API
+export const onlineOrderAPI = {
+  // Cart management
+  getCart: (sessionId) => api.get(`/api/cart${sessionId ? `?sessionId=${sessionId}` : ''}`),
+  addToCart: (cartData) => api.post('/api/cart', cartData),
+  updateCartItem: (id, cartData) => api.put(`/api/cart/${id}`, cartData),
+  removeFromCart: (id) => api.delete(`/api/cart/${id}`),
+  clearCart: (sessionId) => api.delete(`/api/cart/clear${sessionId ? `?sessionId=${sessionId}` : ''}`),
+  
+  // Online orders
+  getOnlineOrders: (params) => api.get('/api/online-orders', { params }),
+  getOnlineOrder: (id) => api.get(`/api/online-orders/${id}`),
+  createOnlineOrder: (orderData) => api.post('/api/online-orders', orderData),
+  updateOnlineOrder: (id, orderData) => api.put(`/api/online-orders/${id}`, orderData),
+  updateOrderStatus: (id, statusData) => api.put(`/api/online-orders/${id}/status`, statusData),
+  cancelOnlineOrder: (id) => api.patch(`/api/online-orders/${id}/cancel`),
+  getOrderStats: () => api.get('/api/online-orders/stats'),
+  
+  // Order tracking
+  getOrderTracking: (orderId) => api.get(`/api/order-tracking/${orderId}`),
+  updateOrderLocation: (orderId, locationData) => api.put(`/api/order-tracking/${orderId}/location`, locationData),
+  addTrackingUpdate: (orderId, updateData) => api.post(`/api/order-tracking/${orderId}/update`, updateData),
+};
+
+// Voucher API
+export const voucherAPI = {
+  getVouchers: (params) => api.get('/api/vouchers', { params }),
+  getVoucher: (id) => api.get(`/api/vouchers/${id}`),
+  createVoucher: (voucherData) => api.post('/api/vouchers', voucherData),
+  updateVoucher: (id, voucherData) => api.put(`/api/vouchers/${id}`, voucherData),
+  deleteVoucher: (id) => api.delete(`/api/vouchers/${id}`),
+  validateVoucher: (code, orderData) => api.post('/api/vouchers/validate', { code, ...orderData }),
+  getAvailableVouchers: (customerType) => api.get(`/api/vouchers/available${customerType ? `?customerType=${customerType}` : ''}`),
+  getVoucherStats: () => api.get('/api/vouchers/stats'),
+  getVoucherUsage: (id) => api.get(`/api/vouchers/${id}/usage`),
 };
 
 // Health API

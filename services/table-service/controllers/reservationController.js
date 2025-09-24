@@ -110,17 +110,33 @@ const createReservation = async (req, res) => {
       MaBan,
       NgayDat,
       GioDat,
+      GioKetThuc,
       SoNguoi,
       TenKhach,
       SoDienThoai,
       GhiChu
     } = req.body;
 
-    // Kiểm tra các trường bắt buộc
+    // Sanitize time values - handle arrays and strings
+    const cleanGioDat = Array.isArray(GioDat) ? GioDat[0] : (typeof GioDat === 'string' ? GioDat.trim().split(',')[0] : GioDat);
+    const cleanGioKetThuc = Array.isArray(GioKetThuc) ? GioKetThuc[0] : (typeof GioKetThuc === 'string' ? GioKetThuc.trim().split(',')[0] : GioKetThuc);
+    
+    console.log('🧹 Original reservation values:', { GioDat, GioKetThuc });
+    console.log('🧹 Cleaned reservation time values:', { cleanGioDat, cleanGioKetThuc });
+
+    // Kiểm tra các trường bắt buộc cơ bản
     if (!MaBan || !NgayDat || !GioDat || !SoNguoi || !TenKhach || !SoDienThoai) {
       return res.status(400).json({
         success: false,
         error: 'Thiếu thông tin bắt buộc: MaBan, NgayDat, GioDat, SoNguoi, TenKhach, SoDienThoai'
+      });
+    }
+
+    // Kiểm tra thời gian hợp lệ (chỉ khi có GioKetThuc)
+    if (cleanGioKetThuc && cleanGioDat >= cleanGioKetThuc) {
+      return res.status(400).json({
+        success: false,
+        error: 'Giờ kết thúc phải sau giờ bắt đầu'
       });
     }
 
@@ -144,24 +160,69 @@ const createReservation = async (req, res) => {
       });
     }
 
-    // Kiểm tra xung đột thời gian đặt bàn
-    const conflictingReservation = await DatBan.findOne({
-      where: {
-        MaBan,
-        NgayDat,
-        GioDat,
-        TrangThai: ['Đã đặt', 'Đã xác nhận']
-      }
-    });
+    // Kiểm tra xem cột GioKetThuc có tồn tại không
+    let hasGioKetThucColumn = false;
+    try {
+      await sequelize.query("SELECT GioKetThuc FROM DatBan LIMIT 1");
+      hasGioKetThucColumn = true;
+    } catch (error) {
+      console.log('⚠️ GioKetThuc column not found, using fallback logic');
+      hasGioKetThucColumn = false;
+    }
 
-    if (conflictingReservation) {
+    let conflictingReservations;
+    
+    if (hasGioKetThucColumn && cleanGioKetThuc) {
+      // Logic với khoảng thời gian (khi có cột GioKetThuc)
+      conflictingReservations = await DatBan.findAll({
+        where: {
+          MaBan,
+          NgayDat,
+          TrangThai: ['Đã đặt', 'Đã xác nhận'],
+          [Op.or]: [
+            // Trường hợp 1: Thời gian bắt đầu mới nằm trong khoảng thời gian đã đặt
+            {
+              GioDat: { [Op.lte]: cleanGioDat },
+              GioKetThuc: { [Op.gt]: cleanGioDat }
+            },
+            // Trường hợp 2: Thời gian kết thúc mới nằm trong khoảng thời gian đã đặt
+            {
+              GioDat: { [Op.lt]: cleanGioKetThuc },
+              GioKetThuc: { [Op.gte]: cleanGioKetThuc }
+            },
+            // Trường hợp 3: Khoảng thời gian mới bao trùm khoảng thời gian đã đặt
+            {
+              GioDat: { [Op.gte]: cleanGioDat },
+              GioKetThuc: { [Op.lte]: cleanGioKetThuc }
+            }
+          ]
+        }
+      });
+    } else {
+      // Logic fallback (chỉ kiểm tra giờ bắt đầu trùng nhau)
+      conflictingReservations = await DatBan.findOne({
+        where: {
+          MaBan,
+          NgayDat,
+          GioDat: cleanGioDat,
+          TrangThai: ['Đã đặt', 'Đã xác nhận']
+        }
+      });
+      conflictingReservations = conflictingReservations ? [conflictingReservations] : [];
+    }
+
+    if (conflictingReservations.length > 0) {
+      const conflictDetails = conflictingReservations.map(r => ({
+        MaDat: r.MaDat,
+        GioDat: r.GioDat,
+        GioKetThuc: r.GioKetThuc || 'N/A',
+        TenKhach: r.TenKhach
+      }));
+      
       return res.status(400).json({
         success: false,
-        error: 'Bàn đã được đặt trong thời gian này',
-        conflicting_reservation: {
-          MaDat: conflictingReservation.MaDat,
-          GioDat: conflictingReservation.GioDat
-        }
+        error: 'Bàn đã được đặt trong khoảng thời gian này',
+        conflicting_reservations: conflictDetails
       });
     }
 
@@ -171,13 +232,18 @@ const createReservation = async (req, res) => {
       MaKH: MaKH || null,
       MaBan,
       NgayDat,
-      GioDat,
+      GioDat: cleanGioDat,
       SoNguoi: parseInt(SoNguoi),
       TrangThai: 'Đã đặt',
       TenKhach: TenKhach ? TenKhach.trim() : '',
       SoDienThoai: SoDienThoai ? SoDienThoai.trim() : '',
       GhiChu: GhiChu ? GhiChu.trim() : null
     };
+
+    // Chỉ thêm GioKetThuc nếu cột tồn tại và có giá trị
+    if (hasGioKetThucColumn && cleanGioKetThuc) {
+      reservationData.GioKetThuc = cleanGioKetThuc;
+    }
     
     console.log('📋 Reservation data to create:', reservationData);
     const reservation = await DatBan.create(reservationData);
@@ -521,12 +587,29 @@ const getTodayReservations = async (req, res) => {
 // Lấy bàn trống theo thời gian
 const getAvailableTables = async (req, res) => {
   try {
-    const { NgayDat, GioDat, SoNguoi } = req.query;
+    const { NgayDat, GioDat, GioKetThuc, SoNguoi } = req.query;
+    
+    console.log('🔍 getAvailableTables query params:', { NgayDat, GioDat, GioKetThuc, SoNguoi });
 
     if (!NgayDat || !GioDat || !SoNguoi) {
       return res.status(400).json({
         success: false,
         error: 'Thiếu thông tin: NgayDat, GioDat, SoNguoi'
+      });
+    }
+
+    // Sanitize time values - handle arrays and strings
+    const cleanGioDat = Array.isArray(GioDat) ? GioDat[0] : (typeof GioDat === 'string' ? GioDat.trim().split(',')[0] : GioDat);
+    const cleanGioKetThuc = Array.isArray(GioKetThuc) ? GioKetThuc[0] : (typeof GioKetThuc === 'string' ? GioKetThuc.trim().split(',')[0] : GioKetThuc);
+    
+    console.log('🧹 Original values:', { GioDat, GioKetThuc });
+    console.log('🧹 Cleaned time values:', { cleanGioDat, cleanGioKetThuc });
+
+    // Kiểm tra thời gian hợp lệ (chỉ khi có GioKetThuc)
+    if (cleanGioKetThuc && cleanGioDat >= cleanGioKetThuc) {
+      return res.status(400).json({
+        success: false,
+        error: 'Giờ kết thúc phải sau giờ bắt đầu'
       });
     }
 
@@ -538,15 +621,57 @@ const getAvailableTables = async (req, res) => {
       }
     });
 
-    // Lấy các bàn đã được đặt trong thời gian này
-    const reservedTables = await DatBan.findAll({
-      where: {
-        NgayDat,
-        GioDat,
-        TrangThai: ['Đã đặt', 'Đã xác nhận']
-      },
-      attributes: ['MaBan']
-    });
+    // Kiểm tra xem cột GioKetThuc có tồn tại không
+    let hasGioKetThucColumn = false;
+    try {
+      await sequelize.query("SELECT GioKetThuc FROM DatBan LIMIT 1");
+      hasGioKetThucColumn = true;
+    } catch (error) {
+      console.log('⚠️ GioKetThuc column not found, using fallback logic');
+      hasGioKetThucColumn = false;
+    }
+
+    let reservedTables;
+    
+    if (hasGioKetThucColumn && cleanGioKetThuc) {
+      // Logic với khoảng thời gian (khi có cột GioKetThuc)
+      console.log('🔄 Using time range logic with:', { cleanGioDat, cleanGioKetThuc });
+      reservedTables = await DatBan.findAll({
+        where: {
+          NgayDat,
+          TrangThai: ['Đã đặt', 'Đã xác nhận'],
+          [Op.or]: [
+            // Trường hợp 1: Thời gian bắt đầu mới nằm trong khoảng thời gian đã đặt
+            {
+              GioDat: { [Op.lte]: cleanGioDat },
+              GioKetThuc: { [Op.gt]: cleanGioDat }
+            },
+            // Trường hợp 2: Thời gian kết thúc mới nằm trong khoảng thời gian đã đặt
+            {
+              GioDat: { [Op.lt]: cleanGioKetThuc },
+              GioKetThuc: { [Op.gte]: cleanGioKetThuc }
+            },
+            // Trường hợp 3: Khoảng thời gian mới bao trùm khoảng thời gian đã đặt
+            {
+              GioDat: { [Op.gte]: cleanGioDat },
+              GioKetThuc: { [Op.lte]: cleanGioKetThuc }
+            }
+          ]
+        },
+        attributes: ['MaBan']
+      });
+    } else {
+      // Logic fallback (chỉ kiểm tra giờ bắt đầu trùng nhau)
+      console.log('🔄 Using fallback logic with:', { cleanGioDat });
+      reservedTables = await DatBan.findAll({
+        where: {
+          NgayDat,
+          GioDat: cleanGioDat,
+          TrangThai: ['Đã đặt', 'Đã xác nhận']
+        },
+        attributes: ['MaBan']
+      });
+    }
 
     const reservedTableIds = reservedTables.map(r => r.MaBan);
     const availableTables = allTables.filter(table => !reservedTableIds.includes(table.MaBan));

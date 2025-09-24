@@ -11,7 +11,7 @@ import AuthLayout from "./layouts/AuthLayout";
 // Public Pages
 import Home from "./pages/public/Home";
 // Use the unified Menu page that fetches from API and supports Vietnamese schema
-import Menu from "./pages/Menu";
+import Menu from "./pages/public/Menu";
 import About from "./pages/public/About";
 import Contact from "./pages/public/Contact";
 import Reservations from "./pages/public/Reservations";
@@ -23,6 +23,7 @@ import Register from "./pages/auth/Register";
 // Customer Pages
 import Profile from "./pages/customer/Profile";
 import OrderHistory from "./pages/customer/OrderHistory";
+import OrderTracking from "./pages/customer/OrderTracking";
 import Cart from "./pages/customer/Cart";
 import BookTable from "./pages/customer/BookTable";
 
@@ -33,13 +34,14 @@ import CategoryManagement from "./pages/admin/CategoryManagement";
 import TableManagement from "./pages/admin/TableManagement";
 import ReservationManagement from "./pages/admin/ReservationManagement";
 import OrderManagement from "./pages/admin/OrderManagement";
+import OnlineOrderManagement from "./pages/admin/OnlineOrderManagement";
 import UserManagement from "./pages/admin/UserManagement";
 import BillingManagement from "./pages/admin/BillingManagement";
 import Analytics from "./pages/admin/Analytics";
 
 // Components
-import ProtectedRoute from "./components/ProtectedRoute";
-import LoadingSpinner from "./components/LoadingSpinner";
+import ProtectedRoute from "./components/ui/ProtectedRoute";
+import LoadingSpinner from "./components/ui/LoadingSpinner";
 
 function App() {
   const { isLoading, user, isAuthenticated } = useAuthStore();
@@ -81,6 +83,7 @@ function App() {
           }>
             <Route path="profile" element={<Profile />} />
             <Route path="orders" element={<OrderHistory />} />
+            <Route path="orders/:orderId" element={<OrderTracking />} />
             <Route path="cart" element={<Cart />} />
           </Route>
 
@@ -92,6 +95,7 @@ function App() {
             <Route path="tables" element={<TableManagement />} />
             <Route path="reservations" element={<ReservationManagement />} />
             <Route path="orders" element={<OrderManagement />} />
+            <Route path="online-orders" element={<OnlineOrderManagement />} />
             <Route path="billing" element={<BillingManagement />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="users" element={<UserManagement />} />

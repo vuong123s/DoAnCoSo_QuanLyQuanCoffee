@@ -10,6 +10,8 @@ const getTables = async (req, res) => {
       limit = 10, 
       status,
       location,
+      khu_vuc,
+      area,
       is_active,
       capacity_min,
       capacity_max,
@@ -21,7 +23,11 @@ const getTables = async (req, res) => {
 
     // Apply filters
     if (status) whereClause.TrangThai = status;
-    // Note: Vietnamese schema doesn't have location or is_active fields
+    
+    // Filter by area/khu_vuc
+    if (khu_vuc || area) {
+      whereClause.MaKhuVuc = khu_vuc || area;
+    }
     
     if (capacity_min || capacity_max) {
       whereClause.SoCho = {};
@@ -48,7 +54,7 @@ const getTables = async (req, res) => {
     const { count, rows } = await Ban.findAndCountAll({
       where: whereClause,
       include: includeOptions,
-      order: [['TenBan', 'ASC']],
+      order: [['MaKhuVuc', 'ASC'], ['TenBan', 'ASC']],
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
@@ -115,6 +121,10 @@ const createTable = async (req, res) => {
       table_number,
       capacity,
       location = 'indoor',
+      khu_vuc = 'Tầng 1',
+      area,
+      vi_tri,
+      position,
       description,
       features,
       position_x,
@@ -138,22 +148,12 @@ const createTable = async (req, res) => {
       });
     }
 
-    // Parse features if provided
-    let parsedFeatures = null;
-    if (features) {
-      try {
-        parsedFeatures = typeof features === 'string' ? features : JSON.stringify(features);
-      } catch (err) {
-        return res.status(400).json({
-          error: 'Invalid features format'
-        });
-      }
-    }
-
     const table = await Ban.create({
       TenBan: table_number.trim(),
       SoCho: parseInt(capacity),
-      TrangThai: 'Trống'
+      TrangThai: 'Trống',
+      MaKhuVuc: area || khu_vuc || 1,
+      ViTri: position || vi_tri || null
     });
 
     res.status(201).json({
@@ -407,6 +407,14 @@ const getTableStats = async (req, res) => {
       group: ['TrangThai']
     });
 
+    const areaCounts = await Ban.findAll({
+      attributes: [
+        'MaKhuVuc',
+        [sequelize.fn('COUNT', sequelize.col('MaBan')), 'count']
+      ],
+      group: ['MaKhuVuc']
+    });
+
     const capacityStats = await Ban.findAll({
       attributes: [
         [sequelize.fn('MIN', sequelize.col('SoCho')), 'min_capacity'],
@@ -423,6 +431,10 @@ const getTableStats = async (req, res) => {
           status: s.TrangThai,
           count: parseInt(s.dataValues.count)
         })),
+        area_breakdown: areaCounts.map(a => ({
+          area: a.MaKhuVuc,
+          count: parseInt(a.dataValues.count)
+        })),
         capacity_stats: capacityStats[0]?.dataValues || {}
       }
     });
@@ -436,6 +448,81 @@ const getTableStats = async (req, res) => {
   }
 };
 
+// Get all areas/khu_vuc
+const getAreas = async (req, res) => {
+  try {
+    const areas = await Ban.findAll({
+      attributes: [
+        'MaKhuVuc',
+        [sequelize.fn('COUNT', sequelize.col('MaBan')), 'table_count']
+      ],
+      group: ['MaKhuVuc'],
+      order: [['MaKhuVuc', 'ASC']]
+    });
+
+    const areaList = areas.map(area => ({
+      name: area.MaKhuVuc,
+      table_count: parseInt(area.dataValues.table_count)
+    }));
+
+    res.json({
+      areas: areaList
+    });
+
+  } catch (error) {
+    console.error('Error fetching areas:', error);
+    res.status(500).json({
+      error: 'Failed to fetch areas',
+      message: error.message
+    });
+  }
+};
+
+// Get tables by area
+const getTablesByArea = async (req, res) => {
+  try {
+    const { area } = req.params;
+    const { include_reservations = false } = req.query;
+
+    const whereClause = { MaKhuVuc: area };
+
+    const includeOptions = [];
+    if (include_reservations === 'true') {
+      includeOptions.push({
+        model: DatBan,
+        as: 'datban',
+        where: {
+          TrangThai: ['Đã đặt', 'Hoàn thành'],
+          NgayDat: {
+            [Op.gte]: new Date().toISOString().split('T')[0]
+          }
+        },
+        required: false,
+        order: [['NgayDat', 'ASC'], ['GioDat', 'ASC']]
+      });
+    }
+
+    const tables = await Ban.findAll({
+      where: whereClause,
+      include: includeOptions,
+      order: [['TenBan', 'ASC']]
+    });
+
+    res.json({
+      area,
+      tables,
+      total_tables: tables.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching tables by area:', error);
+    res.status(500).json({
+      error: 'Failed to fetch tables by area',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   getTables,
   getTableById,
@@ -444,5 +531,7 @@ module.exports = {
   updateTableStatus,
   deleteTable,
   getAvailableTables,
-  getTableStats
+  getTableStats,
+  getAreas,
+  getTablesByArea
 };

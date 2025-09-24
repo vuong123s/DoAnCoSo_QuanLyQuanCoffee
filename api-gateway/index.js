@@ -144,6 +144,20 @@ app.use('/api/dat-ban', createServiceProxy('Table Service', 3003)); // Vietnames
 console.log('🔧 Setting up Billing Service proxy...');
 app.use('/api/billing', authMiddleware.requireStaff, createServiceProxy('Billing Service', 3004, true));
 
+// Online Order Service
+console.log('🔧 Setting up Online Order Service proxy...');
+app.use('/api/cart', createServiceProxy('Online Order Service', 3005));
+app.use('/api/online-orders', createServiceProxy('Online Order Service', 3005));
+app.use('/api/order-tracking', createServiceProxy('Online Order Service', 3005));
+
+// Voucher Service
+console.log('🔧 Setting up Voucher Service proxy...');
+app.use('/api/vouchers', createServiceProxy('Voucher Service', 3006));
+
+// Inventory Service
+console.log('🔧 Setting up Inventory Service proxy...');
+app.use('/api/inventory', authMiddleware.requireStaff, createServiceProxy('Inventory Service', 3007, true));
+
 console.log('✅ All proxy routes configured!');
 
 // ======================= OTHER ROUTES =======================
@@ -167,10 +181,34 @@ app.get('/api', (req, res) => {
     name: 'Coffee Shop API Gateway',
     version: '1.0.0',
     services: {
-      userService: { url: services.userService.url, routes: ['/api/auth', '/api/users'] },
-      menuService: { url: services.menuService.url, routes: ['/api/menu', '/api/categories'] },
-      tableService: { url: services.tableService.url, routes: ['/api/tables', '/api/ban', '/api/reservations', '/api/dat-ban'] },
-      billingService: { url: services.billingService.url, routes: ['/api/billing'] }
+      userService: { 
+        url: services.userService.url, 
+        routes: ['/api/auth', '/api/users'] 
+      },
+      menuService: { 
+        url: services.menuService.url, 
+        routes: ['/api/menu', '/api/categories'] 
+      },
+      tableService: { 
+        url: services.tableService.url, 
+        routes: ['/api/tables', '/api/ban', '/api/reservations', '/api/dat-ban'] 
+      },
+      billingService: { 
+        url: services.billingService.url, 
+        routes: ['/api/billing'] 
+      },
+      onlineOrderService: { 
+        url: services.onlineOrderService.url, 
+        routes: ['/api/cart', '/api/online-orders', '/api/order-tracking'] 
+      },
+      voucherService: { 
+        url: services.voucherService.url, 
+        routes: ['/api/vouchers'] 
+      },
+      inventoryService: { 
+        url: services.inventoryService.url, 
+        routes: ['/api/inventory'] 
+      }
     }
   });
 });

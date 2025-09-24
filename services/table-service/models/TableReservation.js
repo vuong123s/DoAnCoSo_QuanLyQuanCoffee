@@ -30,7 +30,13 @@ const DatBan = sequelize.define('DatBan', {
   },
   GioDat: {
     type: DataTypes.TIME,
-    allowNull: true
+    allowNull: true,
+    comment: 'Giờ bắt đầu đặt bàn'
+  },
+  GioKetThuc: {
+    type: DataTypes.TIME,
+    allowNull: true,
+    comment: 'Giờ kết thúc đặt bàn'
   },
   SoNguoi: {
     type: DataTypes.INTEGER,

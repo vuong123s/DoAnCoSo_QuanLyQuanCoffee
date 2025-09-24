@@ -105,6 +105,13 @@ const AdminLayout = () => {
           color: 'from-orange-500 to-orange-600'
         },
         { 
+          path: '/admin/online-orders', 
+          icon: FiPackage, 
+          label: 'Đơn hàng online', 
+          description: 'Quản lý đặt hàng online',
+          color: 'from-blue-500 to-blue-600'
+        },
+        { 
           path: '/admin/billing', 
           icon: FiCreditCard, 
           label: 'Thanh toán', 

@@ -94,6 +94,7 @@ const ReservationManagement = () => {
     setValue('MaBan', reservation.MaBan || reservation.tableId);
     setValue('NgayDat', reservation.NgayDat || reservation.date);
     setValue('GioDat', reservation.GioDat || reservation.time);
+    setValue('GioKetThuc', reservation.GioKetThuc || reservation.endTime);
     setValue('SoNguoi', reservation.SoNguoi || reservation.partySize);
     setValue('GhiChu', reservation.GhiChu || reservation.notes);
     setValue('TrangThai', reservation.TrangThai || reservation.status);
@@ -147,6 +148,7 @@ const ReservationManagement = () => {
         MaBan: parseInt(data.MaBan),
         NgayDat: data.NgayDat,
         GioDat: data.GioDat,
+        GioKetThuc: data.GioKetThuc,
         SoNguoi: parseInt(data.SoNguoi),
         GhiChu: data.GhiChu || '',
         TrangThai: data.TrangThai
@@ -279,7 +281,7 @@ const ReservationManagement = () => {
                   Bàn
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ngày & Giờ
+                  Thời gian
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Số người
@@ -309,7 +311,7 @@ const ReservationManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-900">
-                      Bàn {tables.find(table => (table.MaBan || table.id) === (reservation.MaBan || reservation.tableId))?.SoBan || tables.find(table => (table.MaBan || table.id) === (reservation.MaBan || reservation.tableId))?.number || 'N/A'}
+                     {tables.find(table => (table.MaBan) === (reservation.MaBan))?.TenBan || 'N/A'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -321,7 +323,12 @@ const ReservationManagement = () => {
                     </div>
                     <div className="flex items-center mt-1">
                       <FiClock className="w-4 h-4 text-gray-400 mr-2" />
-                      <div className="text-sm text-gray-500">{reservation.GioDat || reservation.time}</div>
+                      <div className="text-sm text-gray-500">
+                        {reservation.GioDat || reservation.time}
+                        {(reservation.GioKetThuc || reservation.endTime) && (
+                          <span> - {reservation.GioKetThuc || reservation.endTime}</span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -397,12 +404,12 @@ const ReservationManagement = () => {
                   Tên khách hàng *
                 </label>
                 <input
-                  {...register('customerName', { required: 'Tên khách hàng là bắt buộc' })}
+                  {...register('TenKhach', { required: 'Tên khách hàng là bắt buộc' })}
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 />
-                {errors.customerName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.customerName.message}</p>
+                {errors.TenKhach && (
+                  <p className="mt-1 text-sm text-red-600">{errors.TenKhach.message}</p>
                 )}
               </div>
 
@@ -411,12 +418,12 @@ const ReservationManagement = () => {
                   Số điện thoại *
                 </label>
                 <input
-                  {...register('customerPhone', { required: 'Số điện thoại là bắt buộc' })}
+                  {...register('SoDienThoai', { required: 'Số điện thoại là bắt buộc' })}
                   type="tel"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 />
-                {errors.customerPhone && (
-                  <p className="mt-1 text-sm text-red-600">{errors.customerPhone.message}</p>
+                {errors.SoDienThoai && (
+                  <p className="mt-1 text-sm text-red-600">{errors.SoDienThoai.message}</p>
                 )}
               </div>
 
@@ -425,47 +432,68 @@ const ReservationManagement = () => {
                   Bàn *
                 </label>
                 <select
-                  {...register('tableId', { required: 'Bàn là bắt buộc' })}
+                  {...register('MaBan', { required: 'Bàn là bắt buộc' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
                   <option value="">Chọn bàn</option>
-                  {tables.filter(table => table.status === 'available').map((table) => (
-                    <option key={table.id} value={table.id}>
-                      Bàn {table.number} ({table.capacity} người)
+                  {tables.map((table) => (
+                    <option key={table.MaBan || table.id} value={table.MaBan || table.id}>
+                      {table.TenBan || `Bàn ${table.SoBan || table.number}`} ({table.SoCho || table.capacity} người)
                     </option>
                   ))}
                 </select>
-                {errors.tableId && (
-                  <p className="mt-1 text-sm text-red-600">{errors.tableId.message}</p>
+                {errors.MaBan && (
+                  <p className="mt-1 text-sm text-red-600">{errors.MaBan.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ngày *
+                </label>
+                <input
+                  {...register('NgayDat', { required: 'Ngày là bắt buộc' })}
+                  type="date"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+                {errors.NgayDat && (
+                  <p className="mt-1 text-sm text-red-600">{errors.NgayDat.message}</p>
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày *
+                    Giờ bắt đầu *
                   </label>
                   <input
-                    {...register('date', { required: 'Ngày là bắt buộc' })}
-                    type="date"
+                    {...register('GioDat', { required: 'Giờ bắt đầu là bắt buộc' })}
+                    type="time"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   />
-                  {errors.date && (
-                    <p className="mt-1 text-sm text-red-600">{errors.date.message}</p>
+                  {errors.GioDat && (
+                    <p className="mt-1 text-sm text-red-600">{errors.GioDat.message}</p>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Giờ *
+                    Giờ kết thúc
                   </label>
                   <input
-                    {...register('time', { required: 'Giờ là bắt buộc' })}
+                    {...register('GioKetThuc', {
+                      validate: (value, formValues) => {
+                        if (value && formValues.GioDat && value <= formValues.GioDat) {
+                          return 'Giờ kết thúc phải sau giờ bắt đầu';
+                        }
+                        return true;
+                      }
+                    })}
                     type="time"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   />
-                  {errors.time && (
-                    <p className="mt-1 text-sm text-red-600">{errors.time.message}</p>
+                  {errors.GioKetThuc && (
+                    <p className="mt-1 text-sm text-red-600">{errors.GioKetThuc.message}</p>
                   )}
                 </div>
               </div>
@@ -475,15 +503,15 @@ const ReservationManagement = () => {
                   Số người *
                 </label>
                 <input
-                  {...register('partySize', { 
+                  {...register('SoNguoi', { 
                     required: 'Số người là bắt buộc',
                     min: { value: 1, message: 'Số người phải ít nhất 1' }
                   })}
                   type="number"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 />
-                {errors.partySize && (
-                  <p className="mt-1 text-sm text-red-600">{errors.partySize.message}</p>
+                {errors.SoNguoi && (
+                  <p className="mt-1 text-sm text-red-600">{errors.SoNguoi.message}</p>
                 )}
               </div>
 
@@ -492,7 +520,7 @@ const ReservationManagement = () => {
                   Ghi chú
                 </label>
                 <textarea
-                  {...register('notes')}
+                  {...register('GhiChu')}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   placeholder="Yêu cầu đặc biệt..."
@@ -504,17 +532,17 @@ const ReservationManagement = () => {
                   Trạng thái *
                 </label>
                 <select
-                  {...register('status', { required: 'Trạng thái là bắt buộc' })}
+                  {...register('TrangThai', { required: 'Trạng thái là bắt buộc' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
                   <option value="">Chọn trạng thái</option>
-                  <option value="pending">Chờ xác nhận</option>
-                  <option value="confirmed">Đã xác nhận</option>
-                  <option value="cancelled">Đã hủy</option>
-                  <option value="completed">Hoàn thành</option>
+                  <option value="Đã đặt">Đã đặt</option>
+                  <option value="Đã xác nhận">Đã xác nhận</option>
+                  <option value="Đã hủy">Đã hủy</option>
+                  <option value="Hoàn thành">Hoàn thành</option>
                 </select>
-                {errors.status && (
-                  <p className="mt-1 text-sm text-red-600">{errors.status.message}</p>
+                {errors.TrangThai && (
+                  <p className="mt-1 text-sm text-red-600">{errors.TrangThai.message}</p>
                 )}
               </div>
 
@@ -587,9 +615,13 @@ const ReservationManagement = () => {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Ngày giờ:</span>
+                      <span className="text-sm text-gray-600">Thời gian:</span>
                       <span className="text-sm font-medium text-gray-900">
-                        {new Date(deletingReservation.NgayDat || deletingReservation.date).toLocaleDateString('vi-VN')} - {deletingReservation.GioDat || deletingReservation.time}
+                        {new Date(deletingReservation.NgayDat || deletingReservation.date).toLocaleDateString('vi-VN')}<br/>
+                        {deletingReservation.GioDat || deletingReservation.time}
+                        {(deletingReservation.GioKetThuc || deletingReservation.endTime) && (
+                          <span> - {deletingReservation.GioKetThuc || deletingReservation.endTime}</span>
+                        )}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">

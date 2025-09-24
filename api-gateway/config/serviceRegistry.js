@@ -22,6 +22,21 @@ class ServiceRegistry {
         name: 'Billing Service',
         url: 'http://localhost:3004',
         healthPath: '/health'
+      },
+      onlineOrderService: {
+        name: 'Online Order Service',
+        url: 'http://localhost:3005',
+        healthPath: '/health'
+      },
+      voucherService: {
+        name: 'Voucher Service',
+        url: 'http://localhost:3006',
+        healthPath: '/health'
+      },
+      inventoryService: {
+        name: 'Inventory Service',
+        url: 'http://localhost:3007',
+        healthPath: '/health'
       }
     };
     

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { tableAPI } from '../../services/api';
+import { tableAPI, reservationAPI } from '../../services/api';
 import { useForm } from 'react-hook-form';
+import TablesByArea from '../../components/TablesByArea';
 import { 
   FiPlus, FiEdit, FiTrash2, FiUsers, FiMapPin, FiSearch, FiFilter, 
   FiGrid, FiList, FiRefreshCw, FiDownload, FiEye, FiSettings,
-  FiCheckCircle, FiClock, FiAlertCircle, FiTool, FiX
+  FiCheckCircle, FiClock, FiAlertCircle, FiTool, FiX, FiCalendar, FiPhone
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -13,18 +14,25 @@ const TableManagement = () => {
   const [filteredTables, setFilteredTables] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingTable, setEditingTable] = useState(null);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [showReservationsModal, setShowReservationsModal] = useState(false);
+  const [tableReservations, setTableReservations] = useState([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('area'); // 'area', 'grid' or 'list'
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [capacityFilter, setCapacityFilter] = useState('all');
+  const [areaFilter, setAreaFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [areas, setAreas] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
     available: 0,
     occupied: 0,
     reserved: 0,
-    maintenance: 0
+    maintenance: 0,
+    areas: []
   });
 
   const {
@@ -37,11 +45,13 @@ const TableManagement = () => {
 
   useEffect(() => {
     fetchTables();
+    fetchAreas();
+    fetchStats();
   }, []);
 
   useEffect(() => {
     filterTables();
-  }, [tables, searchTerm, statusFilter, capacityFilter]);
+  }, [tables, searchTerm, statusFilter, capacityFilter, areaFilter]);
 
   const filterTables = () => {
     let filtered = tables;
@@ -65,7 +75,14 @@ const TableManagement = () => {
     if (capacityFilter !== 'all') {
       const capacity = parseInt(capacityFilter);
       filtered = filtered.filter(table => 
-        (table.SoChoNgoi || table.capacity) === capacity
+        (table.SoCho || table.capacity) === capacity
+      );
+    }
+
+    // Area filter
+    if (areaFilter !== 'all') {
+      filtered = filtered.filter(table => 
+        (table.KhuVuc || table.area) === areaFilter
       );
     }
 
@@ -119,6 +136,24 @@ const TableManagement = () => {
     }
   };
 
+  const fetchAreas = async () => {
+    try {
+      const response = await tableAPI.getAreas();
+      setAreas(response.data.areas || []);
+    } catch (error) {
+      console.error('Error fetching areas:', error);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const response = await tableAPI.getTableStats();
+      setStats(response.data.stats || {});
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
   const exportTables = () => {
     const csvContent = [
       ['Số bàn', 'Sức chứa', 'Vị trí', 'Trạng thái'],
@@ -165,9 +200,32 @@ const TableManagement = () => {
     setEditingTable(table);
     setValue('SoBan', table.SoBan || table.number);
     setValue('SoChoNgoi', table.SoChoNgoi || table.capacity);
+    setValue('KhuVuc', table.KhuVuc || table.area);
     setValue('ViTri', table.ViTri || table.location);
     setValue('TrangThai', table.TrangThai || table.status);
     setShowModal(true);
+  };
+
+  const handleTableClick = async (table) => {
+    setSelectedTable(table);
+    setLoadingReservations(true);
+    setShowReservationsModal(true);
+    
+    try {
+      // Fetch reservations for this table
+      const response = await reservationAPI.getReservations({
+        MaBan: table.MaBan || table.id
+      });
+      
+      const reservations = response.data?.data?.reservations || response.data?.reservations || [];
+      setTableReservations(Array.isArray(reservations) ? reservations : []);
+    } catch (error) {
+      console.error('Error fetching table reservations:', error);
+      toast.error('Lỗi khi tải danh sách đặt bàn');
+      setTableReservations([]);
+    } finally {
+      setLoadingReservations(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -188,6 +246,7 @@ const TableManagement = () => {
       const tableData = {
         SoBan: data.SoBan,
         SoChoNgoi: parseInt(data.SoChoNgoi),
+        KhuVuc: data.KhuVuc,
         ViTri: data.ViTri,
         TrangThai: data.TrangThai
       };
@@ -247,6 +306,45 @@ const TableManagement = () => {
     }
   };
 
+  const getReservationStatusColor = (status) => {
+    switch (status) {
+      case 'Đã đặt':
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'Đã xác nhận':
+      case 'confirmed':
+        return 'bg-green-100 text-green-800';
+      case 'Đã hủy':
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      case 'Hoàn thành':
+      case 'completed':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getReservationStatusText = (status) => {
+    switch (status) {
+      case 'pending':
+        return 'Đã đặt';
+      case 'confirmed':
+        return 'Đã xác nhận';
+      case 'cancelled':
+        return 'Đã hủy';
+      case 'completed':
+        return 'Hoàn thành';
+      case 'Đã đặt':
+      case 'Đã xác nhận':
+      case 'Đã hủy':
+      case 'Hoàn thành':
+        return status;
+      default:
+        return status || 'Không xác định';
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -274,21 +372,21 @@ const TableManagement = () => {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="flex items-center mx-2 space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <FiFilter className="w-4 h-4" />
               <span>Bộ lọc</span>
             </button>
             <button
               onClick={exportTables}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="flex items-center mx-2 space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <FiDownload className="w-4 h-4" />
               <span>Xuất file</span>
             </button>
             <button
               onClick={fetchTables}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="flex items-center mx-2 space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <FiRefreshCw className="w-4 h-4" />
               <span>Làm mới</span>
@@ -299,7 +397,7 @@ const TableManagement = () => {
                 reset();
                 setShowModal(true);
               }}
-              className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center space-x-2"
+              className="bg-amber-600 mx-2 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center space-x-2"
             >
               <FiPlus className="w-4 h-4" />
               <span>Thêm bàn mới</span>
@@ -314,63 +412,111 @@ const TableManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Tổng số bàn</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.total_tables || 0}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
               <FiUsers className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Có sẵn</p>
-              <p className="text-2xl font-bold text-green-600">{stats.available}</p>
+        
+        {stats.status_breakdown?.map((statusStat, index) => {
+          const colors = {
+            'Trống': { bg: 'bg-green-100', text: 'text-green-600', icon: FiCheckCircle },
+            'Đã đặt': { bg: 'bg-yellow-100', text: 'text-yellow-600', icon: FiClock },
+            'Đang phục vụ': { bg: 'bg-red-100', text: 'text-red-600', icon: FiUsers },
+          };
+          const color = colors[statusStat.status] || { bg: 'bg-gray-100', text: 'text-gray-600', icon: FiAlertCircle };
+          const IconComponent = color.icon;
+          
+          return (
+            <div key={index} className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">{statusStat.status}</p>
+                  <p className={`text-2xl font-bold ${color.text}`}>{statusStat.count}</p>
+                </div>
+                <div className={`p-3 ${color.bg} rounded-full`}>
+                  <IconComponent className={`w-6 h-6 ${color.text}`} />
+                </div>
+              </div>
             </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <FiCheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Đang sử dụng</p>
-              <p className="text-2xl font-bold text-red-600">{stats.occupied}</p>
-            </div>
-            <div className="p-3 bg-red-100 rounded-full">
-              <FiUsers className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Đã đặt</p>
-              <p className="text-2xl font-bold text-yellow-600">{stats.reserved}</p>
-            </div>
-            <div className="p-3 bg-yellow-100 rounded-full">
-              <FiClock className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Bảo trì</p>
-              <p className="text-2xl font-bold text-gray-600">{stats.maintenance}</p>
-            </div>
-            <div className="p-3 bg-gray-100 rounded-full">
-              <FiTool className="w-6 h-6 text-gray-600" />
+          );
+        })}
+        
+        {stats.area_breakdown && stats.area_breakdown.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Khu vực</p>
+                <p className="text-2xl font-bold text-purple-600">{stats.area_breakdown.length}</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-full">
+                <FiMapPin className="w-6 h-6 text-purple-600" />
+              </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* View Mode Selector */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            <label className="text-sm font-medium text-gray-700">Chế độ xem:</label>
+            <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+              <button
+                onClick={() => setViewMode('area')}
+                className={`px-4 py-2 text-sm font-medium flex items-center space-x-2 ${
+                  viewMode === 'area' 
+                    ? 'bg-amber-600 text-white' 
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <FiMapPin className="w-4 h-4" />
+                <span>Theo khu vực</span>
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-4 py-2 text-sm font-medium flex items-center space-x-2 ${
+                  viewMode === 'grid' 
+                    ? 'bg-amber-600 text-white' 
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <FiGrid className="w-4 h-4" />
+                <span>Lưới</span>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-4 py-2 text-sm font-medium flex items-center space-x-2 ${
+                  viewMode === 'list' 
+                    ? 'bg-amber-600 text-white' 
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <FiList className="w-4 h-4" />
+                <span>Danh sách</span>
+              </button>
+            </div>
+          </div>
+          
+          {viewMode !== 'area' && (
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <FiFilter className="w-4 h-4" />
+              <span>Bộ lọc</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Filters */}
-      {showFilters && (
+      {showFilters && viewMode !== 'area' && (
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Tìm kiếm</label>
               <div className="relative">
@@ -385,6 +531,19 @@ const TableManagement = () => {
               </div>
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Khu vực</label>
+              <select
+                value={areaFilter}
+                onChange={(e) => setAreaFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              >
+                <option value="all">Tất cả khu vực</option>
+                {areas.map((area) => (
+                  <option key={area.name} value={area.name}>{area.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Trạng thái</label>
               <select
                 value={statusFilter}
@@ -392,10 +551,9 @@ const TableManagement = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               >
                 <option value="all">Tất cả trạng thái</option>
-                <option value="Có sẵn">Có sẵn</option>
-                <option value="Đang sử dụng">Đang sử dụng</option>
+                <option value="Trống">Trống</option>
                 <option value="Đã đặt">Đã đặt</option>
-                <option value="Bảo trì">Bảo trì</option>
+                <option value="Đang phục vụ">Đang phục vụ</option>
               </select>
             </div>
             <div>
@@ -413,46 +571,46 @@ const TableManagement = () => {
                 <option value="10">10 người</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Hiển thị</label>
-              <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`flex-1 px-4 py-2 text-sm font-medium ${
-                    viewMode === 'grid' 
-                      ? 'bg-amber-600 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <FiGrid className="w-4 h-4 mx-auto" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`flex-1 px-4 py-2 text-sm font-medium ${
-                    viewMode === 'list' 
-                      ? 'bg-amber-600 text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <FiList className="w-4 h-4 mx-auto" />
-                </button>
-              </div>
+            <div className="flex items-end">
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('all');
+                  setCapacityFilter('all');
+                  setAreaFilter('all');
+                }}
+                className="w-full px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Xóa bộ lọc
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* Tables Display */}
-      {viewMode === 'grid' ? (
+      {viewMode === 'area' ? (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <TablesByArea 
+            onTableSelect={setSelectedTable}
+            selectedTableId={selectedTable?.MaBan}
+            showReservations={true}
+          />
+        </div>
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredTables.map((table) => (
-            <div key={table.MaBan || table.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border-l-4 border-amber-500">
+            <div 
+              key={table.MaBan || table.id} 
+              className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border-l-4 border-amber-500 cursor-pointer"
+              onClick={() => handleTableClick(table)}
+            >
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Bàn {table.SoBan || table.number}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{table.TenBan}</h3>
                   <div className="flex items-center text-gray-600 text-sm mt-1">
                     <FiUsers className="w-4 h-4 mr-1" />
-                    <span>{table.SoChoNgoi || table.capacity} người</span>
+                    <span>{table.SoCho} người</span>
                   </div>
                   {(table.ViTri || table.location) && (
                     <div className="flex items-center text-gray-600 text-sm mt-1">
@@ -463,14 +621,20 @@ const TableManagement = () => {
                 </div>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => handleEdit(table)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(table);
+                    }}
                     className="text-amber-600 hover:text-amber-900 p-1 rounded-full hover:bg-amber-50"
                     title="Chỉnh sửa"
                   >
                     <FiEdit className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(table.MaBan || table.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(table.MaBan || table.id);
+                    }}
                     className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50"
                     title="Xóa"
                   >
@@ -487,6 +651,11 @@ const TableManagement = () => {
                 <span className="text-xs text-gray-500">
                   ID: {table.MaBan || table.id}
                 </span>
+              </div>
+              
+              <div className="mt-2 text-xs text-blue-600 flex items-center">
+                <FiEye className="w-3 h-3 mr-1" />
+                <span>Nhấn để xem đặt bàn</span>
               </div>
             </div>
           ))}
@@ -515,7 +684,11 @@ const TableManagement = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredTables.map((table) => (
-                <tr key={table.MaBan || table.id} className="hover:bg-gray-50">
+                <tr 
+                  key={table.MaBan || table.id} 
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => handleTableClick(table)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="text-sm font-medium text-gray-900">
@@ -544,14 +717,30 @@ const TableManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
                       <button
-                        onClick={() => handleEdit(table)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTableClick(table);
+                        }}
+                        className="text-blue-600 hover:text-blue-900 p-2 rounded-full hover:bg-blue-50"
+                        title="Xem đặt bàn"
+                      >
+                        <FiEye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(table);
+                        }}
                         className="text-amber-600 hover:text-amber-900 p-2 rounded-full hover:bg-amber-50"
                         title="Chỉnh sửa"
                       >
                         <FiEdit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(table.MaBan || table.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(table.MaBan || table.id);
+                        }}
                         className="text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-50"
                         title="Xóa"
                       >
@@ -624,14 +813,15 @@ const TableManagement = () => {
                   <FiX className="w-5 h-5" />
                 </button>
               </div>
+            </div>
             
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-6 pt-0">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Số bàn *
+                  Tên bàn *
                 </label>
                 <input
-                  {...register('SoBan', { required: 'Số bàn là bắt buộc' })}
+                  {...register('SoBan', { required: 'Tên bàn là bắt buộc' })}
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   placeholder="Ví dụ: 1, A1, VIP01..."
@@ -661,13 +851,33 @@ const TableManagement = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Khu vực *
+                </label>
+                <select
+                  {...register('KhuVuc', { required: 'Khu vực là bắt buộc' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                >
+                  <option value="">Chọn khu vực</option>
+                  <option value="Tầng 1">Tầng 1</option>
+                  <option value="Tầng 2">Tầng 2</option>
+                  <option value="Sân thượng">Sân thượng</option>
+                  <option value="VIP">VIP</option>
+                  <option value="Ngoài trời">Ngoài trời</option>
+                </select>
+                {errors.KhuVuc && (
+                  <p className="mt-1 text-sm text-red-600">{errors.KhuVuc.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Vị trí
                 </label>
                 <input
                   {...register('ViTri')}
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  placeholder="Ví dụ: Tầng 1, Gần cửa sổ, VIP..."
+                  placeholder="Ví dụ: Gần cửa sổ, Góc phòng, Trung tâm..."
                 />
               </div>
 
@@ -711,6 +921,131 @@ const TableManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Table Reservations Modal */}
+      {showReservationsModal && selectedTable && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Đặt bàn - {selectedTable.TenBan || `Bàn ${selectedTable.SoBan || selectedTable.number}`}
+                  </h2>
+                  <p className="text-gray-600 mt-1">
+                    {selectedTable.SoCho || selectedTable.capacity} người • {selectedTable.ViTri || selectedTable.location || 'Chưa xác định vị trí'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowReservationsModal(false);
+                    setSelectedTable(null);
+                    setTableReservations([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 p-1"
+                >
+                  <FiX className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              {loadingReservations ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-amber-600 border-t-transparent"></div>
+                  <span className="ml-3 text-gray-600">Đang tải danh sách đặt bàn...</span>
+                </div>
+              ) : tableReservations.length === 0 ? (
+                <div className="text-center py-12">
+                  <FiCalendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Chưa có đặt bàn nào</h3>
+                  <p className="text-gray-600">Bàn này chưa có lịch đặt bàn nào.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Danh sách đặt bàn ({tableReservations.length})
+                    </h3>
+                  </div>
+                  
+                  <div className="grid gap-4">
+                    {tableReservations.map((reservation) => (
+                      <div 
+                        key={reservation.MaDat || reservation.id} 
+                        className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-4 mb-2">
+                              <div className="flex items-center text-gray-900">
+                                <FiUsers className="w-4 h-4 mr-2 text-gray-500" />
+                                <span className="font-medium">{reservation.TenKhach || reservation.customerName}</span>
+                              </div>
+                              <div className="flex items-center text-gray-600">
+                                <FiPhone className="w-4 h-4 mr-2 text-gray-500" />
+                                <span>{reservation.SoDienThoai || reservation.customerPhone}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-6 text-sm text-gray-600">
+                              <div className="flex items-center">
+                                <FiCalendar className="w-4 h-4 mr-2 text-gray-500" />
+                                <span>
+                                  {new Date(reservation.NgayDat || reservation.date).toLocaleDateString('vi-VN')}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <FiClock className="w-4 h-4 mr-2 text-gray-500" />
+                                <span>
+                                  {reservation.GioDat || reservation.time}
+                                  {(reservation.GioKetThuc || reservation.endTime) && (
+                                    <span> - {reservation.GioKetThuc || reservation.endTime}</span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <FiUsers className="w-4 h-4 mr-2 text-gray-500" />
+                                <span>{reservation.SoNguoi || reservation.partySize} người</span>
+                              </div>
+                            </div>
+                            
+                            {(reservation.GhiChu || reservation.notes) && (
+                              <div className="mt-2 text-sm text-gray-600">
+                                <span className="font-medium">Ghi chú:</span> {reservation.GhiChu || reservation.notes}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="ml-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getReservationStatusColor(reservation.TrangThai || reservation.status)}`}>
+                              {getReservationStatusText(reservation.TrangThai || reservation.status)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 bg-gray-50">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowReservationsModal(false);
+                    setSelectedTable(null);
+                    setTableReservations([]);
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           </div>
         </div>
