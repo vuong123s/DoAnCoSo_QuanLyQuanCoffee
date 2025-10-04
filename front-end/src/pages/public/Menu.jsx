@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { menuAPI } from '../../services/api';
-import useCartStore from '../../stores/cartStore';
+import { menuAPI } from '../../shared/services/api';
+import useCartStore from '../../app/stores/cartStore';
+import ProductCard from '../../components/common/product/ProductCard';
 import { FiSearch, FiFilter, FiStar, FiShoppingCart, FiPlus } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -21,9 +22,18 @@ const Menu = () => {
           menuAPI.getMenuItems()
         ]);
         
-        // Handle Vietnamese schema response
-        const categoriesData = categoriesResponse.data.categories || categoriesResponse.data || [];
-        const menuData = menuResponse.data.items || menuResponse.data || [];
+        // Handle Vietnamese schema response with proper array validation
+        const categoriesData = Array.isArray(categoriesResponse.data?.categories) 
+          ? categoriesResponse.data.categories 
+          : Array.isArray(categoriesResponse.data) 
+          ? categoriesResponse.data 
+          : [];
+          
+        const menuData = Array.isArray(menuResponse.data?.items) 
+          ? menuResponse.data.items 
+          : Array.isArray(menuResponse.data) 
+          ? menuResponse.data 
+          : [];
         
         setCategories(categoriesData);
         setMenuItems(menuData);
@@ -39,7 +49,8 @@ const Menu = () => {
   }, []);
 
   useEffect(() => {
-    let filtered = menuItems;
+    // Ensure menuItems is always an array
+    let filtered = Array.isArray(menuItems) ? menuItems : [];
 
     // Filter by category (support both English and Vietnamese schema)
     if (selectedCategory !== 'all') {
@@ -141,7 +152,7 @@ const Menu = () => {
             </select>
           </div>
         </div>
-
+        
         {/* Menu Items Grid */}
         {filteredItems.length === 0 ? (
           <div className="text-center py-12">
@@ -156,7 +167,7 @@ const Menu = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredItems.map((item) => {
               const itemId = item.MaMon || item.id;
               const itemName = item.TenMon || item.name;
@@ -164,58 +175,23 @@ const Menu = () => {
               const itemPrice = item.DonGia || item.price;
               const itemImage = item.HinhAnh || item.image;
               const isAvailable = item.TrangThai === 'Có sẵn' || item.available !== false;
+              const isFeatured = item.NoiBat || item.featured;
+              const soldCount = item.DaBan || item.sold || 0;
               
               return (
-                <div key={itemId} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                  <div className="relative">
-                    <img
-                      src={itemImage || 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'}
-                      alt={itemName}
-                      className="w-full h-48 object-cover"
-                    />
-                    {(item.NoiBat || item.featured) && (
-                      <div className="absolute top-2 left-2 bg-amber-600 text-white px-2 py-1 rounded-full text-xs font-medium">
-                        Nổi bật
-                      </div>
-                    )}
-                    {!isAvailable && (
-                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                        <span className="text-white font-medium">Hết hàng</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{itemName}</h3>
-                      <div className="flex items-center text-yellow-400">
-                        <FiStar className="w-4 h-4 fill-current" />
-                        <span className="ml-1 text-sm text-gray-600">4.8</span>
-                      </div>
-                    </div>
-                    
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                      {itemDescription}
-                    </p>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-xl font-bold text-amber-600">
-                          {formatCurrency(itemPrice)}
-                        </span>
-                      </div>
-                      
-                      <button
-                        onClick={() => handleAddToCart(item)}
-                        disabled={!isAvailable}
-                        className="flex items-center space-x-2 bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <FiPlus className="w-4 h-4" />
-                        <span>Thêm</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <ProductCard
+                  key={itemId}
+                  id={itemId}
+                  img={itemImage}
+                  title={itemName}
+                  price={itemPrice}
+                  sold={soldCount}
+                  description={itemDescription}
+                  onAddToCart={() => handleAddToCart(item)}
+                  isAvailable={isAvailable}
+                  featured={isFeatured}
+                  formatPrice={formatCurrency}
+                />
               );
             })}
           </div>

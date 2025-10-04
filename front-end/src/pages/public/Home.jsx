@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { menuAPI } from '../../services/api';
+import { menuAPI } from '../../shared/services/api';
 import { FiCoffee, FiClock, FiStar, FiArrowRight, FiUsers, FiAward } from 'react-icons/fi';
+import Product from '../../components/common/product/Product';
 
 const Home = () => {
   const [featuredItems, setFeaturedItems] = useState([]);
@@ -68,10 +69,10 @@ const Home = () => {
                   Xem thực đơn
                 </Link>
                 <Link
-                  to="/reservations"
+                  to="/menu"
                   className="border border-amber-600 text-amber-600 px-8 py-3 rounded-lg hover:bg-amber-50 transition-colors font-medium text-center"
                 >
-                  Đặt bàn ngay
+                  Đặt hàng ngay
                 </Link>
               </div>
             </div>
@@ -118,8 +119,8 @@ const Home = () => {
               Khám phá những món cà phê đặc biệt được yêu thích nhất tại Coffee Shop
             </p>
           </div>
-
-          {loading ? (
+          <Product />
+          {/* {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="bg-white rounded-lg shadow-md p-6 animate-pulse">
@@ -155,7 +156,7 @@ const Home = () => {
                 </div>
               ))}
             </div>
-          )}
+          )} */}
 
           <div className="text-center mt-12">
             <Link
@@ -216,14 +217,14 @@ const Home = () => {
           <h2 className="text-3xl font-bold text-white mb-4">
             Sẵn sàng thưởng thức cà phê tuyệt vời?
           </h2>
-          <p className="text-amber-100 mb-8 max-w-2xl mx-auto">
-            Đặt bàn ngay hôm nay và trải nghiệm không gian cà phê độc đáo của chúng tôi
+          <p className="text-xl text-white mb-8 max-w-2xl mx-auto">
+            Đặt hàng ngay hôm nay và trải nghiệm hương vị cà phê độc đáo của chúng tôi
           </p>
           <Link
-            to="/reservations"
+            to="/menu"
             className="bg-white text-amber-600 px-8 py-3 rounded-lg hover:bg-gray-100 transition-colors font-medium inline-block"
           >
-            Đặt bàn ngay
+            Đặt hàng ngay
           </Link>
         </div>
       </section>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { billingAPI, menuAPI, tableAPI } from '../../services/api';
+import { billingAPI, menuAPI } from '../../shared/services/api';
 import { useForm } from 'react-hook-form';
 import { FiPlus, FiEdit, FiTrash2, FiEye, FiPrinter, FiClock, FiDollarSign, FiUser, FiMapPin } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -7,7 +7,6 @@ import toast from 'react-hot-toast';
 const OrderManagement = () => {
   const [orders, setOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
-  const [tables, setTables] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
@@ -35,14 +34,12 @@ const OrderManagement = () => {
 
   const fetchData = async () => {
     try {
-      const [ordersResponse, menuResponse, tablesResponse] = await Promise.all([
-        billingAPI.getOrders(),
-        menuAPI.getMenuItems(),
-        tableAPI.getTables()
+      const [ordersResponse, menuResponse] = await Promise.all([
+        billingAPI.getBills(),
+        menuAPI.getMenuItems()
       ]);
-      setOrders(ordersResponse.data.orders || []);
+      setOrders(ordersResponse.data.bills || []);
       setMenuItems(menuResponse.data.items || []);
-      setTables(tablesResponse.data.tables || []);
     } catch (error) {
       toast.error('Lỗi khi tải dữ liệu');
     } finally {

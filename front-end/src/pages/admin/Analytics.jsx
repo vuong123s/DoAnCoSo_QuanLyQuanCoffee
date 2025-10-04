@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { billingAPI, menuAPI, userAPI, reservationAPI } from '../../services/api';
+import { billingAPI, menuAPI, userAPI } from '../../shared/services/api';
 import { FiTrendingUp, FiDollarSign, FiUsers, FiShoppingBag, FiCalendar, FiCoffee, FiStar, FiClock } from 'react-icons/fi';
 
 const Analytics = () => {
@@ -25,11 +25,6 @@ const Analytics = () => {
       topSelling: [],
       categories: []
     },
-    reservations: {
-      total: 0,
-      confirmed: 0,
-      cancelled: 0
-    },
     hourlyStats: []
   });
 
@@ -42,12 +37,11 @@ const Analytics = () => {
       setLoading(true);
       
       // Simulate API calls - replace with actual API endpoints
-      const [revenueData, ordersData, customersData, productsData, reservationsData] = await Promise.all([
-        billingAPI.getRevenue({ period: dateRange }),
-        billingAPI.getOrderStats({ period: dateRange }),
-        userAPI.getCustomerStats({ period: dateRange }),
-        menuAPI.getProductStats({ period: dateRange }),
-        reservationAPI.getReservationStats({ period: dateRange })
+      const [revenueData, ordersData, customersData, productsData] = await Promise.all([
+        billingAPI.getBillingStats(),
+        billingAPI.getBillingStats(),
+        userAPI.getUsers(),
+        menuAPI.getMenuItems()
       ]);
 
       setAnalytics({
@@ -96,11 +90,6 @@ const Analytics = () => {
             { name: 'Bánh ngọt', percentage: 20, revenue: 3150000 },
             { name: 'Đồ uống khác', percentage: 10, revenue: 1575000 }
           ]
-        },
-        reservations: {
-          total: 156,
-          confirmed: 134,
-          cancelled: 22
         },
         hourlyStats: [
           { hour: '6:00', orders: 12, revenue: 180000 },
@@ -225,20 +214,6 @@ const Analytics = () => {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Đặt bàn</p>
-              <p className="text-2xl font-bold text-gray-900">{analytics.reservations.total}</p>
-              <p className="text-sm text-gray-600">
-                {analytics.reservations.confirmed} xác nhận, {analytics.reservations.cancelled} hủy
-              </p>
-            </div>
-            <div className="p-3 bg-amber-100 rounded-full">
-              <FiCalendar className="w-6 h-6 text-amber-600" />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Charts Row */}

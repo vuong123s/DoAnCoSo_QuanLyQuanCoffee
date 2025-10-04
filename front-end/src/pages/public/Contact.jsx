@@ -44,7 +44,7 @@ const Contact = () => {
     {
       icon: FiClock,
       title: 'Giờ mở cửa',
-      details: ['T2-T6: 6:00 - 22:00', 'T7-CN: 7:00 - 23:00'],
+      details: ['T2-CN: 6:00 - 22:00'],
       color: 'text-amber-600 bg-amber-100'
     }
   ];
@@ -154,7 +154,7 @@ const Contact = () => {
                   >
                     <option value="">Chọn chủ đề</option>
                     <option value="general">Thông tin chung</option>
-                    <option value="reservation">Đặt bàn</option>
+                    <option value="order">Đặt hàng</option>
                     <option value="complaint">Khiếu nại</option>
                     <option value="suggestion">Góp ý</option>
                     <option value="partnership">Hợp tác</option>

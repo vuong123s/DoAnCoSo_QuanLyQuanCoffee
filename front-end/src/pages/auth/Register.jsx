@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore } from '../../app/stores/authStore';
+import { immediateRedirectAfterAuth } from '../../shared/utils/authRedirect';
 import { FiEye, FiEyeOff, FiMail, FiLock, FiUser, FiPhone } from 'react-icons/fi';
 
 const Register = () => {
@@ -35,13 +36,8 @@ const Register = () => {
     const { confirmPassword, ...userData } = data;
     const result = await registerUser(userData);
     if (result.success) {
-      // Chuyển hướng dựa trên role của user
-      const userRole = result.user?.role;
-      if (userRole === 'admin' || userRole === 'manager' || userRole === 'staff') {
-        navigate('/admin', { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
+      // Use immediate redirect for reliable page change
+      immediateRedirectAfterAuth(result.user);
     }
   };
 

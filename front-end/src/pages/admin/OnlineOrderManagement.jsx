@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { onlineOrderAPI } from '../../services/api';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { onlineOrderAPI } from '../../shared/services/api';
+import LoadingSpinner from '../../components/common/ui/LoadingSpinner';
 import { 
   FiSearch, 
   FiFilter, 

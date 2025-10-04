@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '../app/stores/authStore';
 import toast from 'react-hot-toast';
 import {
   FiHome, FiMenu, FiUsers, FiCalendar, FiShoppingCart,
@@ -91,6 +91,13 @@ const AdminLayout = () => {
           label: 'Đặt bàn', 
           description: 'Quản lý đặt chỗ',
           color: 'from-pink-500 to-pink-600'
+        },
+        { 
+          path: '/admin/group-reservations', 
+          icon: FiUsers, 
+          label: 'Đặt bàn nhóm', 
+          description: 'Quản lý đặt bàn nhóm',
+          color: 'from-violet-500 to-violet-600'
         }
       ]
     },
@@ -143,6 +150,24 @@ const AdminLayout = () => {
 
   const allMenuItems = menuCategories.flatMap(category => category.items);
 
+  // Function to get icon color based on theme color
+  const getIconColor = (colorGradient) => {
+    const colorMap = {
+      'from-blue-500 to-blue-600': 'text-blue-600',
+      'from-purple-500 to-purple-600': 'text-purple-600',
+      'from-amber-500 to-amber-600': 'text-amber-600',
+      'from-green-500 to-green-600': 'text-green-600',
+      'from-indigo-500 to-indigo-600': 'text-indigo-600',
+      'from-pink-500 to-pink-600': 'text-pink-600',
+      'from-orange-500 to-orange-600': 'text-orange-600',
+      'from-emerald-500 to-emerald-600': 'text-emerald-600',
+      'from-cyan-500 to-cyan-600': 'text-cyan-600',
+      'from-violet-500 to-violet-600': 'text-violet-600',
+      'from-gray-500 to-gray-600': 'text-gray-600'
+    };
+    return colorMap[colorGradient] || 'text-blue-600';
+  };
+
   const isActive = (path, exact = false) => {
     if (exact) {
       return location.pathname === path;
@@ -185,8 +210,8 @@ const AdminLayout = () => {
       } flex flex-col`}>
         
         {/* Sidebar Header */}
-        <div className="relative bg-gradient-to-r from-amber-600 via-amber-700 to-orange-600 p-3">
-          <div className="absolute inset-0 bg-black opacity-10"></div>
+        <div className="relative p-3">
+          <div className="absolute inset-0"></div>
           <div className="relative z-10">
             <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!sidebarCollapsed && (
@@ -194,13 +219,13 @@ const AdminLayout = () => {
                   <div className="w-12 h-12 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
                     <FiCoffee className="w-7 h-7" />
                   </div>
-                  <h1 className="font-bold !text-[24px] text-white">Coffee Shop</h1>
+                  <h1 className="font-bold !text-[24px]">Coffee Shop</h1>
                 </div>
               )}
               
               {sidebarCollapsed && (
                 <div className="w-12 h-12 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                  <FiCoffee className="text-black w-7 h-7" />
+                  <FiMenu className="text-black w-7 h-7" />
                 </div>
               )}
               
@@ -216,7 +241,7 @@ const AdminLayout = () => {
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6">
+        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 scrollbar-hide">
           {menuCategories.map((category, categoryIndex) => (
             <div key={categoryIndex}>
               {!sidebarCollapsed && (
@@ -226,43 +251,73 @@ const AdminLayout = () => {
               )}
               <div className="space-y-1">
                 {category.items.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
-                      isActive(item.path, item.exact)
-                        ? `bg-gradient-to-r ${item.color} text-white shadow-lg shadow-${item.color.split('-')[1]}-500/25 transform scale-105`
-                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 hover:scale-105'
-                    }`}
-                    title={sidebarCollapsed ? item.label : ''}
-                  >
-                    <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
+                  <div key={item.path} className="relative group">
+                    <Link
+                      to={item.path}
+                      className={`relative flex items-center transition-all duration-300 ${
+                        sidebarCollapsed 
+                          ? 'px-2 py-3 mx-2 justify-center' 
+                          : 'px-4 py-3 mx-2'
+                      } rounded-xl ${
+                        isActive(item.path, item.exact)
+                          ? `bg-gradient-to-r ${item.color} text-white shadow-lg transform scale-105`
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 hover:scale-102'
+                      }`}
+                    >
+                    {/* Icon Container - Always visible with proper contrast */}
+                    <div className={`flex items-center justify-center transition-all duration-300 ${
+                      sidebarCollapsed 
+                        ? 'w-8 h-8' 
+                        : 'w-10 h-10 mr-3'
+                    } rounded-lg ${
                       isActive(item.path, item.exact) 
-                        ? 'bg-white bg-opacity-20' 
+                        ? 'bg-white shadow-md' 
                         : 'bg-gray-100 group-hover:bg-gray-200'
-                    } transition-all duration-200`}>
-                      <item.icon className={`w-5 h-5 ${
-                        isActive(item.path, item.exact) ? 'text-white' : 'text-gray-600'
+                    }`}>
+                      <item.icon className={`transition-all duration-300 ${
+                        sidebarCollapsed ? 'w-4 h-4' : 'w-5 h-5'
+                      } ${
+                        isActive(item.path, item.exact) 
+                          ? getIconColor(item.color)
+                          : 'text-gray-600 group-hover:text-gray-700'
                       }`} />
                     </div>
                     
+                    {/* Text Content - Only show when expanded */}
                     {!sidebarCollapsed && (
-                      <div className="ml-4 flex-1">
-                        <div className="font-medium text-sm">{item.label}</div>
-                        <div className={`text-xs mt-0.5 ${
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{item.label}</div>
+                        <div className={`text-xs mt-0.5 truncate ${
                           isActive(item.path, item.exact) 
                             ? 'text-white text-opacity-80' 
-                            : 'text-gray-500'
+                            : 'text-gray-500 group-hover:text-gray-600'
                         }`}>
                           {item.description}
                         </div>
                       </div>
                     )}
                     
-                    {isActive(item.path, item.exact) && (
+                    {/* Active Indicator for Expanded State */}
+                    {isActive(item.path, item.exact) && !sidebarCollapsed && (
                       <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-white rounded-l-full"></div>
                     )}
+                    
+                    {/* Active Dot for Collapsed State */}
+                    {isActive(item.path, item.exact) && sidebarCollapsed && (
+                      <div className="absolute -right-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-white rounded-full shadow-sm"></div>
+                    )}
                   </Link>
+                  
+                  {/* Tooltip for Collapsed State */}
+                  {sidebarCollapsed && (
+                    <div className="absolute left-full ml-3 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white px-3 py-2 rounded-lg text-sm font-medium opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-xl">
+                      <div className="font-medium">{item.label}</div>
+                      <div className="text-xs text-gray-300 mt-0.5">{item.description}</div>
+                      {/* Tooltip Arrow */}
+                      <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
+                    </div>
+                  )}
+                </div>
                 ))}
               </div>
             </div>
@@ -409,7 +464,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Enhanced Page Content */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100">
+        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100 scrollbar-hide">
           <div className="p-8">
             <Outlet />
           </div>

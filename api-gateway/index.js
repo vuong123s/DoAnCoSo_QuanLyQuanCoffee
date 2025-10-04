@@ -130,21 +130,21 @@ app.use('/api/categories', createServiceProxy('Menu Service', 3002));
 
 // User Service
 console.log('🔧 Setting up User Service proxy...');
-app.use('/api/auth', createServiceProxy('User Service', 3001));
 app.use('/api/users', authMiddleware.authenticateToken, createServiceProxy('User Service', 3001, true));
 
 // Table Service
 console.log('🔧 Setting up Table Service proxy...');
 app.use('/api/tables', createServiceProxy('Table Service', 3003));
-app.use('/api/ban', createServiceProxy('Table Service', 3003)); // Vietnamese route for tables
+app.use('/api/ban', createServiceProxy('Table Service', 3003)); // Vietnamese route
 app.use('/api/reservations', createServiceProxy('Table Service', 3003));
-app.use('/api/dat-ban', createServiceProxy('Table Service', 3003)); // Vietnamese route for reservations
+app.use('/api/dat-ban', createServiceProxy('Table Service', 3003)); // Vietnamese route
+app.use('/api/areas', createServiceProxy('Table Service', 3003));
+app.use('/api/khu-vuc', createServiceProxy('Table Service', 3003)); // Vietnamese route
+app.use('/api/auto-cancel', createServiceProxy('Table Service', 3003)); // Auto cancel expired reservations for areas
 
 // Billing Service
 console.log('🔧 Setting up Billing Service proxy...');
 app.use('/api/billing', authMiddleware.requireStaff, createServiceProxy('Billing Service', 3004, true));
-
-// Online Order Service
 console.log('🔧 Setting up Online Order Service proxy...');
 app.use('/api/cart', createServiceProxy('Online Order Service', 3005));
 app.use('/api/online-orders', createServiceProxy('Online Order Service', 3005));
@@ -191,7 +191,7 @@ app.get('/api', (req, res) => {
       },
       tableService: { 
         url: services.tableService.url, 
-        routes: ['/api/tables', '/api/ban', '/api/reservations', '/api/dat-ban'] 
+        routes: ['/api/tables', '/api/ban', '/api/reservations', '/api/dat-ban', '/api/areas', '/api/khu-vuc', '/api/auto-cancel'] 
       },
       billingService: { 
         url: services.billingService.url, 

@@ -1,699 +1,549 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'react-hot-toast';
-import { FiCalendar, FiClock, FiUsers, FiPhone, FiUser, FiMessageSquare, FiCheckCircle, FiArrowLeft, FiToggleLeft, FiToggleRight, FiX } from 'react-icons/fi';
-import { reservationAPI } from '../../services/api';
-import TablesByArea from '../../components/TablesByArea';
+import { reservationAPI } from '../../shared/services/api';
+import { useAuthStore } from '../../app/stores/authStore';
+import TablesByArea from '../../components/tables/TablesByArea';
+import { FiCalendar, FiClock, FiUsers, FiPhone, FiMail, FiMessageSquare, FiCheck, FiX, FiAlertCircle } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 const BookTable = () => {
-  const [availableTables, setAvailableTables] = useState([]);
-  const [selectedTable, setSelectedTable] = useState(null);
+  const { user, isAuthenticated } = useAuthStore();
+  const [currentStep, setCurrentStep] = useState(1);
   const [selectedTables, setSelectedTables] = useState([]);
-  const [isMultipleBooking, setIsMultipleBooking] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(1); // 1: Form, 2: Select Table, 3: Confirmation
-  const [reservationData, setReservationData] = useState(null);
+  const [timeConflicts, setTimeConflicts] = useState({});
 
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors },
     setValue,
-    getValues
+    formState: { errors },
+    reset
   } = useForm({
     defaultValues: {
-      NgayDat: new Date().toISOString().split('T')[0],
-      GioDat: '12:00',
-      GioKetThuc: '14:00',
+      TenKhach: user?.HoTen || '',
+      SoDienThoai: user?.SDT || '',
+      EmailKhach: user?.Email || '',
+      NgayDat: '',
+      GioDat: '',
+      GioKetThuc: '',
       SoNguoi: 2,
-      TenKhach: '',
-      SoDienThoai: '',
       GhiChu: ''
     }
   });
 
-  const watchedValues = watch(['NgayDat', 'GioDat', 'GioKetThuc', 'SoNguoi']);
+  const watchedValues = watch(['NgayDat', 'GioDat', 'GioKetThuc']);
 
-  const fetchAvailableTables = useCallback(async (NgayDat, GioDat, GioKetThuc, SoNguoi) => {
-    try {
-      setLoading(true);
-      console.log('🔍 Frontend sending params:', { NgayDat, GioDat, GioKetThuc, SoNguoi });
-      const response = await reservationAPI.getAvailableTables({ NgayDat, GioDat, GioKetThuc, SoNguoi });
-      
-      if (response.data.success) {
-        setAvailableTables(response.data.data.available_tables);
-      } else {
-        toast.error('Không thể lấy danh sách bàn trống');
-      }
-    } catch (error) {
-      console.error('Error fetching available tables:', error);
-      toast.error('Lỗi khi lấy danh sách bàn trống');
-      setAvailableTables([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch available tables when date, time, or party size changes
+  // Auto-fill user data if authenticated
   useEffect(() => {
-    const [NgayDat, GioDat, GioKetThuc, SoNguoi] = watchedValues;
-    if (NgayDat && GioDat && GioKetThuc && SoNguoi && step === 2) {
-      fetchAvailableTables(NgayDat, GioDat, GioKetThuc, SoNguoi);
+    if (isAuthenticated && user) {
+      setValue('TenKhach', user.HoTen || '');
+      setValue('SoDienThoai', user.SDT || '');
+      setValue('EmailKhach', user.Email || '');
     }
-  }, [watchedValues[0], watchedValues[1], watchedValues[2], watchedValues[3], step, fetchAvailableTables]);
+  }, [isAuthenticated, user, setValue]);
 
-  const onSubmitForm = (data) => {
-    // Kiểm tra thời gian hợp lệ
-    if (data.GioDat >= data.GioKetThuc) {
-      toast.error('Giờ kết thúc phải sau giờ bắt đầu');
-      return;
+  // Check time conflicts when date/time changes
+  useEffect(() => {
+    if (selectedTables.length > 0 && watchedValues[0] && watchedValues[1] && watchedValues[2]) {
+      checkTimeConflicts();
+    }
+  }, [selectedTables, ...watchedValues]);
+
+  const checkTimeConflicts = async () => {
+    const [date, startTime, endTime] = watchedValues;
+    if (!date || !startTime || !endTime) return;
+
+    const conflicts = {};
+    
+    for (const table of selectedTables) {
+      try {
+        const response = await reservationAPI.checkTimeConflict(
+          table.MaBan,
+          date,
+          startTime,
+          endTime
+        );
+        
+        if (response.data.hasConflict) {
+          conflicts[table.MaBan] = response.data.conflictingReservations;
+        }
+      } catch (error) {
+        console.error('Error checking time conflict for table:', table.MaBan, error);
+      }
     }
     
-    setReservationData(data);
-    setStep(2);
-    fetchAvailableTables(data.NgayDat, data.GioDat, data.GioKetThuc, data.SoNguoi);
+    setTimeConflicts(conflicts);
   };
 
   const handleTableSelect = (table) => {
-    if (isMultipleBooking) {
-      // Multi-select mode: toggle table in/out of selection
+    setSelectedTables(prev => {
       const tableId = table.MaBan || table.id;
-      const isAlreadySelected = selectedTables.some(t => (t.MaBan || t.id) === tableId);
+      const isAlreadySelected = prev.some(t => (t.MaBan || t.id) === tableId);
       
       if (isAlreadySelected) {
-        // Remove table from selection
-        setSelectedTables(prev => prev.filter(t => (t.MaBan || t.id) !== tableId));
-        toast.success(`Đã bỏ chọn ${table.TenBan || table.name || `Bàn ${tableId}`}`);
+        return prev.filter(t => (t.MaBan || t.id) !== tableId);
       } else {
-        // Add table to selection (max 10 tables)
-        if (selectedTables.length >= 10) {
+        if (prev.length >= 10) {
           toast.error('Chỉ có thể chọn tối đa 10 bàn');
-          return;
+          return prev;
         }
-        setSelectedTables(prev => [...prev, table]);
-        toast.success(`Đã chọn ${table.TenBan || table.name || `Bàn ${tableId}`}`);
+        return [...prev, table];
       }
-    } else {
-      // Single select mode
-      setSelectedTable(table);
-    }
+    });
   };
 
-  const removeTableFromSelection = (tableId) => {
+  const removeTable = (tableId) => {
     setSelectedTables(prev => prev.filter(t => (t.MaBan || t.id) !== tableId));
   };
 
-  const clearAllSelections = () => {
+  const clearAllTables = () => {
     setSelectedTables([]);
-    setSelectedTable(null);
+    setTimeConflicts({});
   };
 
-  const handleConfirmReservation = async () => {
-    // Validate required fields for guest booking
-    if (!reservationData.TenKhach || !reservationData.SoDienThoai) {
-      toast.error('Vui lòng nhập đầy đủ thông tin khách hàng');
+  const getTotalCapacity = () => {
+    return selectedTables.reduce((total, table) => total + (table.SoCho || 0), 0);
+  };
+
+  const getSelectedTableIds = () => {
+    return selectedTables.map(table => table.MaBan || table.id);
+  };
+
+  const hasTimeConflicts = () => {
+    return Object.keys(timeConflicts).length > 0;
+  };
+
+  const onSubmit = async (data) => {
+    if (selectedTables.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một bàn');
       return;
     }
 
-    if (isMultipleBooking) {
-      // Multiple booking validation
-      if (selectedTables.length === 0) {
-        toast.error('Vui lòng chọn ít nhất một bàn');
-        return;
-      }
+    if (hasTimeConflicts()) {
+      toast.error('Có xung đột thời gian với các đặt bàn khác. Vui lòng chọn thời gian khác.');
+      return;
+    }
 
-      try {
-        setLoading(true);
-        
-        // Create multiple individual reservations
-        const reservationPromises = selectedTables.map(table => {
-          const bookingData = {
-            ...reservationData,
-            MaBan: table.MaBan || table.id,
-            GhiChu: `${reservationData.GhiChu || ''} - Đặt nhóm ${selectedTables.length} bàn`.trim()
-          };
-          return reservationAPI.createReservation(bookingData);
-        });
+    // Validate time
+    const startTime = new Date(`2000-01-01T${data.GioDat}`);
+    const endTime = new Date(`2000-01-01T${data.GioKetThuc}`);
+    
+    if (endTime <= startTime) {
+      toast.error('Giờ kết thúc phải sau giờ bắt đầu');
+      return;
+    }
 
-        const results = await Promise.all(reservationPromises);
-        const successCount = results.filter(r => r.data.success).length;
-        
-        if (successCount === selectedTables.length) {
-          setStep(3);
-          toast.success(`Đặt thành công ${successCount} bàn!`);
-        } else {
-          toast.error(`Chỉ đặt được ${successCount}/${selectedTables.length} bàn`);
-        }
-      } catch (error) {
-        console.error('Error creating multiple reservations:', error);
-        toast.error('Lỗi khi đặt nhiều bàn');
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      // Single booking
-      if (!selectedTable) {
-        toast.error('Vui lòng chọn bàn');
-        return;
-      }
+    const timeDiff = (endTime - startTime) / (1000 * 60); // minutes
+    if (timeDiff < 30) {
+      toast.error('Thời gian đặt bàn tối thiểu là 30 phút');
+      return;
+    }
 
-      try {
-        setLoading(true);
-        const bookingData = {
-          ...reservationData,
-          MaBan: selectedTable.MaBan
+    if (timeDiff > 240) { // 4 hours
+      toast.error('Thời gian đặt bàn tối đa là 4 giờ');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // For single table reservation
+      if (selectedTables.length === 1) {
+        const reservationData = {
+          ...data,
+          MaKH: user?.MaKH || null,
+          MaBan: selectedTables[0].MaBan
         };
 
-        const response = await reservationAPI.createReservation(bookingData);
-        
+        const response = await reservationAPI.createReservation(reservationData);
+
         if (response.data.success) {
-          setStep(3);
           toast.success('Đặt bàn thành công!');
+          setCurrentStep(3);
         } else {
-          toast.error(response.data.error || 'Không thể đặt bàn');
+          toast.error(response.data.message || 'Có lỗi xảy ra khi đặt bàn');
         }
-      } catch (error) {
-        console.error('Error creating reservation:', error);
-        toast.error(error.response?.data?.error || 'Lỗi khi đặt bàn');
-      } finally {
-        setLoading(false);
+      } 
+      // For multiple table reservations (group booking)
+      else {
+        const reservationData = {
+          ...data,
+          MaKH: user?.MaKH || null,
+          selectedTables: selectedTables.map(table => ({
+            MaBan: table.MaBan,
+            TenBan: table.TenBan,
+            SoCho: table.SoCho
+          }))
+        };
+
+        const response = await reservationAPI.createMultiTableReservation(reservationData);
+
+        if (response.data.success) {
+          toast.success(`Đặt bàn thành công! Đã đặt ${response.data.successCount}/${selectedTables.length} bàn`);
+          setCurrentStep(3);
+        } else {
+          toast.error(response.data.message || 'Có lỗi xảy ra khi đặt bàn');
+        }
       }
+    } catch (error) {
+      console.error('Booking error:', error);
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi đặt bàn');
+    } finally {
+      setLoading(false);
     }
   };
 
   const resetForm = () => {
-    setStep(1);
-    setSelectedTable(null);
+    reset();
     setSelectedTables([]);
-    setReservationData(null);
-    setAvailableTables([]);
-    setIsMultipleBooking(false);
+    setTimeConflicts({});
+    setCurrentStep(1);
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  const renderStep1 = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Thông tin đặt bàn</h2>
+        <p className="text-gray-600">Vui lòng điền thông tin để đặt bàn</p>
+      </div>
 
-  const formatTime = (timeString) => {
-    return timeString;
-  };
+      <form onSubmit={handleSubmit(() => setCurrentStep(2))} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FiUsers className="inline w-4 h-4 mr-1" />
+              Tên khách hàng *
+            </label>
+            <input
+              {...register('TenKhach', { required: 'Vui lòng nhập tên khách hàng' })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              placeholder="Nhập tên khách hàng"
+            />
+            {errors.TenKhach && (
+              <p className="mt-1 text-sm text-red-600">{errors.TenKhach.message}</p>
+            )}
+          </div>
 
-  if (step === 3) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100 py-12">
-        <div className="max-w-2xl mx-auto px-4">
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FiCheckCircle className="w-10 h-10 text-green-600" />
-            </div>
-            
-            <h1 className="text-3xl font-bold text-gray-800 mb-4">
-              {isMultipleBooking ? 'Đặt Nhiều Bàn Thành Công!' : 'Đặt Bàn Thành Công!'}
-            </h1>
-            
-            <p className="text-gray-600 mb-8">
-              {isMultipleBooking 
-                ? `Cảm ơn bạn đã đặt ${selectedTables.length} bàn tại Coffee Shop. Chúng tôi sẽ liên hệ với bạn để xác nhận.`
-                : 'Cảm ơn bạn đã đặt bàn tại Coffee Shop. Chúng tôi sẽ liên hệ với bạn để xác nhận.'
-              }
-            </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FiPhone className="inline w-4 h-4 mr-1" />
+              Số điện thoại *
+            </label>
+            <input
+              {...register('SoDienThoai', { 
+                required: 'Vui lòng nhập số điện thoại',
+                pattern: {
+                  value: /^[0-9]{10,11}$/,
+                  message: 'Số điện thoại không hợp lệ'
+                }
+              })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              placeholder="Nhập số điện thoại"
+            />
+            {errors.SoDienThoai && (
+              <p className="mt-1 text-sm text-red-600">{errors.SoDienThoai.message}</p>
+            )}
+          </div>
 
-            <div className="bg-gray-50 rounded-lg p-6 mb-8 text-left">
-              <h3 className="font-semibold text-gray-800 mb-4">Thông tin đặt bàn:</h3>
-              <div className="space-y-2 text-sm text-gray-600">
-                <p><span className="font-medium">Tên khách hàng:</span> {reservationData?.TenKhach}</p>
-                <p><span className="font-medium">Số điện thoại:</span> {reservationData?.SoDienThoai}</p>
-                <p><span className="font-medium">Ngày:</span> {formatDate(reservationData?.NgayDat)}</p>
-                <p><span className="font-medium">Thời gian:</span> {reservationData?.GioDat} - {reservationData?.GioKetThuc}</p>
-                <p><span className="font-medium">Số người:</span> {reservationData?.SoNguoi} người</p>
-                
-                {isMultipleBooking ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FiMail className="inline w-4 h-4 mr-1" />
+              Email
+            </label>
+            <input
+              {...register('EmailKhach', {
+                pattern: {
+                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                  message: 'Email không hợp lệ'
+                }
+              })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              placeholder="Nhập email (tùy chọn)"
+            />
+            {errors.EmailKhach && (
+              <p className="mt-1 text-sm text-red-600">{errors.EmailKhach.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FiUsers className="inline w-4 h-4 mr-1" />
+              Số người *
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="50"
+              {...register('SoNguoi', { 
+                required: 'Vui lòng nhập số người',
+                min: { value: 1, message: 'Số người tối thiểu là 1' },
+                max: { value: 50, message: 'Số người tối đa là 50' }
+              })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+            {errors.SoNguoi && (
+              <p className="mt-1 text-sm text-red-600">{errors.SoNguoi.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FiCalendar className="inline w-4 h-4 mr-1" />
+              Ngày đặt *
+            </label>
+            <input
+              type="date"
+              min={new Date().toISOString().split('T')[0]}
+              {...register('NgayDat', { required: 'Vui lòng chọn ngày đặt' })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+            {errors.NgayDat && (
+              <p className="mt-1 text-sm text-red-600">{errors.NgayDat.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FiClock className="inline w-4 h-4 mr-1" />
+              Giờ bắt đầu *
+            </label>
+            <input
+              type="time"
+              {...register('GioDat', { required: 'Vui lòng chọn giờ bắt đầu' })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+            {errors.GioDat && (
+              <p className="mt-1 text-sm text-red-600">{errors.GioDat.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <FiClock className="inline w-4 h-4 mr-1" />
+              Giờ kết thúc *
+            </label>
+            <input
+              type="time"
+              {...register('GioKetThuc', { required: 'Vui lòng chọn giờ kết thúc' })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+            {errors.GioKetThuc && (
+              <p className="mt-1 text-sm text-red-600">{errors.GioKetThuc.message}</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            <FiMessageSquare className="inline w-4 h-4 mr-1" />
+            Ghi chú
+          </label>
+          <textarea
+            {...register('GhiChu')}
+            rows={3}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            placeholder="Nhập ghi chú (tùy chọn)"
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            className="bg-amber-600 text-white px-8 py-3 rounded-lg hover:bg-amber-700 transition-colors font-medium"
+          >
+            Tiếp theo: Chọn bàn
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+
+  const renderStep2 = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          Chọn bàn ({selectedTables.length}/10)
+        </h2>
+        <p className="text-gray-600">Chọn các bàn bạn muốn đặt</p>
+      </div>
+
+      {/* Time Conflict Warning */}
+      {hasTimeConflicts() && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <FiAlertCircle className="w-5 h-5 text-red-600 mr-2" />
+            <h3 className="text-red-800 font-medium">Cảnh báo xung đột thời gian</h3>
+          </div>
+          <p className="text-red-700 text-sm mt-1">
+            Một số bàn đã được đặt trong khung thời gian này. Vui lòng chọn thời gian khác hoặc bỏ chọn các bàn bị xung đột.
+          </p>
+          <div className="mt-2">
+            {Object.entries(timeConflicts).map(([tableId, conflicts]) => {
+              const table = selectedTables.find(t => t.MaBan == tableId);
+              return (
+                <div key={tableId} className="text-sm text-red-600">
+                  • {table?.TenBan}: {conflicts.length} đặt bàn trùng thời gian
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Selected Tables Summary */}
+      {selectedTables.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium text-amber-800">Bàn đã chọn</h3>
+            <button
+              onClick={clearAllTables}
+              className="text-amber-600 hover:text-amber-700 text-sm font-medium"
+            >
+              Xóa tất cả
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {selectedTables.map((table) => (
+              <div
+                key={table.MaBan}
+                className={`p-3 rounded-lg border ${
+                  timeConflicts[table.MaBan] ? 'bg-red-100 border-red-300' : 'bg-white border-amber-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
                   <div>
-                    <p><span className="font-medium">Số bàn đã đặt:</span> {selectedTables.length} bàn</p>
-                    <div className="mt-3">
-                      <p className="font-medium mb-2">Danh sách bàn:</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {selectedTables.map((table, index) => (
-                          <div key={table.MaBan || table.id} className="bg-white border rounded p-2">
-                            <p className="font-medium text-xs">
-                              {table.TenBan || table.name || `Bàn ${table.MaBan || table.id}`}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Sức chứa: {table.SoCho || table.capacity} người
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <p className="font-medium text-sm">{table.TenBan}</p>
+                    <p className="text-xs text-gray-600">{table.SoCho} chỗ</p>
                   </div>
-                ) : (
-                  <p><span className="font-medium">Bàn:</span> {selectedTable?.TenBan} (Sức chứa: {selectedTable?.SoCho} người)</p>
-                )}
-                
-                {reservationData?.GhiChu && (
-                  <p><span className="font-medium">Ghi chú:</span> {reservationData.GhiChu}</p>
+                  <button
+                    onClick={() => removeTable(table.MaBan)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <FiX className="w-4 h-4" />
+                  </button>
+                </div>
+                {timeConflicts[table.MaBan] && (
+                  <p className="text-xs text-red-600 mt-1">Xung đột thời gian</p>
                 )}
               </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                onClick={resetForm}
-                className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-              >
-                Đặt Bàn Khác
-              </button>
-              <button
-                onClick={() => window.location.href = '/'}
-                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Về Trang Chủ
-              </button>
-            </div>
+            ))}
           </div>
+          <div className="mt-3 pt-3 border-t border-amber-200">
+            <p className="text-sm text-amber-800">
+              Tổng sức chứa: <span className="font-medium">{getTotalCapacity()} chỗ</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tables by Area */}
+      <TablesByArea
+        onTableSelect={handleTableSelect}
+        selectedTableIds={getSelectedTableIds()}
+        isMultipleSelect={true}
+        reservationDate={watchedValues[0]}
+        reservationTime={watchedValues[1]}
+      />
+
+      {/* Navigation */}
+      <div className="flex justify-between">
+        <button
+          onClick={() => setCurrentStep(1)}
+          className="bg-gray-500 text-white px-8 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium"
+        >
+          Quay lại
+        </button>
+        <button
+          onClick={handleSubmit(onSubmit)}
+          disabled={selectedTables.length === 0 || hasTimeConflicts() || loading}
+          className="bg-amber-600 text-white px-8 py-3 rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Đang đặt bàn...' : 'Xác nhận đặt bàn'}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderStep3 = () => (
+    <div className="text-center space-y-6">
+      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+        <FiCheck className="w-10 h-10 text-green-600" />
+      </div>
+      <h2 className="text-2xl font-bold text-gray-900">Đặt bàn thành công!</h2>
+      <p className="text-gray-600">
+        Cảm ơn bạn đã đặt bàn. Chúng tôi sẽ liên hệ với bạn để xác nhận trong thời gian sớm nhất.
+      </p>
+      <div className="bg-gray-50 rounded-lg p-6 text-left max-w-md mx-auto">
+        <h3 className="font-medium text-gray-900 mb-4">Thông tin đặt bàn</h3>
+        <div className="space-y-2 text-sm">
+          <p><span className="text-gray-600">Tên:</span> {watch('TenKhach')}</p>
+          <p><span className="text-gray-600">Số điện thoại:</span> {watch('SoDienThoai')}</p>
+          <p><span className="text-gray-600">Ngày:</span> {watch('NgayDat')}</p>
+          <p><span className="text-gray-600">Thời gian:</span> {watch('GioDat')} - {watch('GioKetThuc')}</p>
+          <p><span className="text-gray-600">Số bàn:</span> {selectedTables.length}</p>
+          <p><span className="text-gray-600">Tổng sức chứa:</span> {getTotalCapacity()} chỗ</p>
         </div>
       </div>
-    );
-  }
+      <button
+        onClick={resetForm}
+        className="bg-amber-600 text-white px-8 py-3 rounded-lg hover:bg-amber-700 transition-colors font-medium"
+      >
+        Đặt bàn mới
+      </button>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100 py-12">
-      <div className="max-w-4xl mx-auto px-4">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">Đặt Bàn</h1>
-          <p className="text-gray-600 text-lg mb-4">
-            Đặt bàn trước để có trải nghiệm tốt nhất tại Coffee Shop
-          </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-2xl mx-auto">
-            <p className="text-blue-800 text-sm">
-              💡 <strong>Lưu ý:</strong> Bạn có thể đặt bàn mà không cần đăng nhập. 
-              Chỉ cần điền thông tin liên hệ để chúng tôi xác nhận đặt bàn.
-            </p>
-          </div>
-        </div>
-
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Progress Steps */}
-        <div className="flex items-center justify-center mb-8">
-          <div className="flex items-center space-x-4">
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-              step >= 1 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-500'
-            }`}>
-              1
-            </div>
-            <div className={`w-16 h-1 ${step >= 2 ? 'bg-amber-600' : 'bg-gray-200'}`}></div>
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-              step >= 2 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-500'
-            }`}>
-              2
-            </div>
-            <div className={`w-16 h-1 ${step >= 3 ? 'bg-amber-600' : 'bg-gray-200'}`}></div>
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-              step >= 3 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-500'
-            }`}>
-              3
+        <div className="mb-8">
+          <div className="flex items-center justify-center">
+            {[1, 2, 3].map((step) => (
+              <React.Fragment key={step}>
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${
+                    step === currentStep
+                      ? 'bg-amber-600 text-white'
+                      : step < currentStep
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-300 text-gray-600'
+                  }`}
+                >
+                  {step < currentStep ? <FiCheck className="w-5 h-5" /> : step}
+                </div>
+                {step < 3 && (
+                  <div
+                    className={`w-16 h-1 mx-2 ${
+                      step < currentStep ? 'bg-green-600' : 'bg-gray-300'
+                    }`}
+                  />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+          <div className="flex justify-center mt-4">
+            <div className="flex space-x-8 text-sm">
+              <span className={currentStep === 1 ? 'text-amber-600 font-medium' : 'text-gray-500'}>
+                Thông tin
+              </span>
+              <span className={currentStep === 2 ? 'text-amber-600 font-medium' : 'text-gray-500'}>
+                Chọn bàn
+              </span>
+              <span className={currentStep === 3 ? 'text-green-600 font-medium' : 'text-gray-500'}>
+                Hoàn thành
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {step === 1 && (
-            <div className="p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">Thông Tin Đặt Bàn</h2>
-                
-                {/* Multiple booking toggle */}
-                <div className="flex items-center space-x-3">
-                  <span className="text-sm font-medium text-gray-700">Đặt nhiều bàn</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMultipleBooking(!isMultipleBooking);
-                      clearAllSelections();
-                    }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${
-                      isMultipleBooking ? 'bg-amber-600' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        isMultipleBooking ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                  
-                </div>
-              </div>
-
-              {/* Booking type explanation */}
-              <div className={`mb-6 p-4 rounded-lg border ${
-                isMultipleBooking 
-                  ? 'bg-amber-50 border-amber-200' 
-                  : 'bg-blue-50 border-blue-200'
-              }`}>
-                <p className={`text-sm ${
-                  isMultipleBooking ? 'text-amber-800' : 'text-blue-800'
-                }`}>
-                  {isMultipleBooking 
-                    ? '🎉 Đặt nhiều bàn: Nhấn vào bàn để chọn/bỏ chọn. Tối đa 10 bàn cho sự kiện lớn'
-                    : '👤 Đặt bàn đơn: Chọn một bàn cho gia đình hoặc nhóm nhỏ'
-                  }
-                </p>
-              </div>
-              
-              <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Tên khách hàng */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <FiUser className="w-4 h-4 inline mr-2" />
-                      Tên khách hàng *
-                    </label>
-                    <input
-                      type="text"
-                      {...register('TenKhach', { 
-                        required: 'Vui lòng nhập tên khách hàng',
-                        minLength: { value: 2, message: 'Tên phải có ít nhất 2 ký tự' }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                      placeholder="Nhập tên của bạn"
-                    />
-                    {errors.TenKhach && (
-                      <p className="text-red-500 text-sm mt-1">{errors.TenKhach.message}</p>
-                    )}
-                  </div>
-
-                  {/* Số điện thoại */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <FiPhone className="w-4 h-4 inline mr-2" />
-                      Số điện thoại *
-                    </label>
-                    <input
-                      type="tel"
-                      {...register('SoDienThoai', { 
-                        required: 'Vui lòng nhập số điện thoại',
-                        pattern: {
-                          value: /^[0-9]{10,11}$/,
-                          message: 'Số điện thoại không hợp lệ'
-                        }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                      placeholder="0123456789"
-                    />
-                    {errors.SoDienThoai && (
-                      <p className="text-red-500 text-sm mt-1">{errors.SoDienThoai.message}</p>
-                    )}
-                  </div>
-
-                  {/* Ngày đặt */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <FiCalendar className="w-4 h-4 inline mr-2" />
-                      Ngày đặt *
-                    </label>
-                    <input
-                      type="date"
-                      {...register('NgayDat', { 
-                        required: 'Vui lòng chọn ngày',
-                        validate: (value) => {
-                          const selectedDate = new Date(value);
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          return selectedDate >= today || 'Không thể đặt bàn cho ngày trong quá khứ';
-                        }
-                      })}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    />
-                    {errors.NgayDat && (
-                      <p className="text-red-500 text-sm mt-1">{errors.NgayDat.message}</p>
-                    )}
-                  </div>
-
-                  {/* Giờ bắt đầu */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <FiClock className="w-4 h-4 inline mr-2" />
-                      Giờ bắt đầu *
-                    </label>
-                    <select
-                      {...register('GioDat', { required: 'Vui lòng chọn giờ bắt đầu' })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    >
-                      {Array.from({ length: 14 }, (_, i) => {
-                        const hour = i + 7; // 7AM to 8PM
-                        return (
-                          <option key={hour} value={`${hour.toString().padStart(2, '0')}:00`}>
-                            {hour}:00
-                          </option>
-                        );
-                      })}
-                    </select>
-                    {errors.GioDat && (
-                      <p className="text-red-500 text-sm mt-1">{errors.GioDat.message}</p>
-                    )}
-                  </div>
-
-                  {/* Giờ kết thúc */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <FiClock className="w-4 h-4 inline mr-2" />
-                      Giờ kết thúc *
-                    </label>
-                    <select
-                      {...register('GioKetThuc', { 
-                        required: 'Vui lòng chọn giờ kết thúc',
-                        validate: (value) => {
-                          const startTime = getValues('GioDat');
-                          return value > startTime || 'Giờ kết thúc phải sau giờ bắt đầu';
-                        }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    >
-                      {Array.from({ length: 15 }, (_, i) => {
-                        const hour = i + 8; // 8AM to 10PM
-                        return (
-                          <option key={hour} value={`${hour.toString().padStart(2, '0')}:00`}>
-                            {hour}:00
-                          </option>
-                        );
-                      })}
-                    </select>
-                    {errors.GioKetThuc && (
-                      <p className="text-red-500 text-sm mt-1">{errors.GioKetThuc.message}</p>
-                    )}
-                  </div>
-
-                  {/* Số người */}
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <FiUsers className="w-4 h-4 inline mr-2" />
-                      Số người *
-                    </label>
-                    <select
-                      {...register('SoNguoi', { 
-                        required: 'Vui lòng chọn số người',
-                        min: { value: 1, message: 'Số người phải ít nhất 1' }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    >
-                      {Array.from({ length: 10 }, (_, i) => (
-                        <option key={i + 1} value={i + 1}>
-                          {i + 1} người
-                        </option>
-                      ))}
-                    </select>
-                    {errors.SoNguoi && (
-                      <p className="text-red-500 text-sm mt-1">{errors.SoNguoi.message}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Ghi chú */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <FiMessageSquare className="w-4 h-4 inline mr-2" />
-                    Ghi chú
-                  </label>
-                  <textarea
-                    {...register('GhiChu')}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    placeholder="Yêu cầu đặc biệt (tùy chọn)"
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    className="px-8 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
-                  >
-                    Tiếp Tục
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {isMultipleBooking ? `Chọn Nhiều Bàn (${selectedTables.length}/10)` : 'Chọn Bàn'}
-                </h2>
-                <button
-                  onClick={() => setStep(1)}
-                  className="flex items-center space-x-2 text-amber-600 hover:text-amber-700 font-medium"
-                >
-                  <FiArrowLeft className="w-4 h-4" />
-                  <span>Quay lại</span>
-                </button>
-              </div>
-
-              {reservationData && (
-                <div className="bg-amber-50 rounded-lg p-4 mb-6">
-                  <h3 className="font-medium text-gray-800 mb-2">Thông tin đặt bàn:</h3>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p><span className="font-medium">Khách hàng:</span> {reservationData.TenKhach}</p>
-                    <p><span className="font-medium">Ngày:</span> {formatDate(reservationData.NgayDat)}</p>
-                    <p><span className="font-medium">Thời gian:</span> {reservationData?.GioDat} - {reservationData?.GioKetThuc}</p>
-                    <p><span className="font-medium">Số người:</span> {reservationData.SoNguoi} người</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Selected tables display for multiple booking */}
-              {isMultipleBooking && selectedTables.length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-blue-800">
-                      Bàn đã chọn ({selectedTables.length})
-                    </h3>
-                    <button
-                      onClick={clearAllSelections}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      Xóa tất cả
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {selectedTables.map((table) => {
-                      const tableId = table.MaBan || table.id;
-                      const tableName = table.TenBan || table.name || `Bàn ${tableId}`;
-                      return (
-                        <div
-                          key={tableId}
-                          className="bg-white border border-blue-200 rounded-lg p-2 flex items-center justify-between"
-                        >
-                          <div className="flex-1">
-                            <p className="font-medium text-sm text-gray-800">{tableName}</p>
-                            <p className="text-xs text-gray-600">
-                              <FiUsers className="inline w-3 h-3 mr-1" />
-                              {table.SoCho || table.capacity} người
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => removeTableFromSelection(tableId)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                          >
-                            <FiX className="w-4 h-4" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Tables by Area Component */}
-              <div className="mb-6">
-                <TablesByArea 
-                  onTableSelect={handleTableSelect}
-                  selectedTableId={selectedTable?.MaBan}
-                  selectedTableIds={isMultipleBooking ? selectedTables.map(t => t.MaBan || t.id) : []}
-                  isMultipleSelect={isMultipleBooking}
-                  showReservations={false}
-                />
-              </div>
-
-              {/* Single table selection display */}
-              {!isMultipleBooking && selectedTable && (
-                <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-                  <h3 className="font-medium text-gray-800 mb-2">Bàn đã chọn:</h3>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-lg">{selectedTable.TenBan}</p>
-                      <p className="text-sm text-gray-600">
-                        <FiUsers className="inline w-4 h-4 mr-1" />
-                        Sức chứa: {selectedTable.SoCho} người
-                      </p>
-                      {selectedTable.KhuVuc && (
-                        <p className="text-sm text-gray-600">
-                          Khu vực: {selectedTable.KhuVuc}
-                        </p>
-                      )}
-                      {selectedTable.ViTri && (
-                        <p className="text-sm text-gray-600">
-                          Vị trí: {selectedTable.ViTri}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Confirmation button */}
-              <div className="flex justify-center">
-                {isMultipleBooking ? (
-                  selectedTables.length > 0 && (
-                    <button
-                      onClick={handleConfirmReservation}
-                      disabled={loading}
-                      className="px-8 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50 flex items-center space-x-2"
-                    >
-                      <FiCheckCircle className="w-4 h-4" />
-                      <span>
-                        {loading 
-                          ? 'Đang đặt bàn...' 
-                          : `Xác Nhận Đặt ${selectedTables.length} Bàn`
-                        }
-                      </span>
-                    </button>
-                  )
-                ) : (
-                  selectedTable && (
-                    <button
-                      onClick={handleConfirmReservation}
-                      disabled={loading}
-                      className="px-8 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50 flex items-center space-x-2"
-                    >
-                      <FiCheckCircle className="w-4 h-4" />
-                      <span>{loading ? 'Đang đặt bàn...' : 'Xác Nhận Đặt Bàn'}</span>
-                    </button>
-                  )
-                )}
-              </div>
-
-              {/* No selection message */}
-              {((isMultipleBooking && selectedTables.length === 0) || (!isMultipleBooking && !selectedTable)) && (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">
-                    {isMultipleBooking 
-                      ? 'Nhấn vào các bàn để chọn nhiều bàn cùng lúc' 
-                      : 'Vui lòng chọn một bàn để tiếp tục'
-                    }
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+        {/* Content */}
+        <div className="bg-white rounded-xl shadow-lg p-8">
+          {currentStep === 1 && renderStep1()}
+          {currentStep === 2 && renderStep2()}
+          {currentStep === 3 && renderStep3()}
         </div>
       </div>
     </div>

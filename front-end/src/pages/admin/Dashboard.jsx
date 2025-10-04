@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { billingAPI, healthAPI } from '../../services/api';
-import { useAuthStore } from '../../stores/authStore';
-import { FiTrendingUp, FiUsers, FiShoppingCart, FiDollarSign, FiCoffee, FiCalendar, FiActivity, FiAlertCircle } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { billingAPI, healthAPI, tableAPI, reservationAPI } from '../../shared/services/api';
+import { useAuthStore } from '../../app/stores/authStore';
+import { FiTrendingUp, FiUsers, FiShoppingCart, FiDollarSign, FiCoffee, FiCalendar, FiActivity, FiAlertCircle, FiGrid, FiClock } from 'react-icons/fi';
 
 const Dashboard = () => {
   const { isAuthenticated, user, isLoading } = useAuthStore();
@@ -10,6 +11,18 @@ const Dashboard = () => {
     totalOrders: 0,
     totalCustomers: 0,
     averageOrderValue: 0
+  });
+  const [tableStats, setTableStats] = useState({
+    total: 0,
+    available: 0,
+    occupied: 0,
+    reserved: 0
+  });
+  const [reservationStats, setReservationStats] = useState({
+    total: 0,
+    today: 0,
+    pending: 0,
+    confirmed: 0
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [systemHealth, setSystemHealth] = useState({});
@@ -27,7 +40,7 @@ const Dashboard = () => {
         return;
       }
       try {
-        const [billingResponse, healthResponse] = await Promise.all([
+        const [billingResponse, healthResponse, tableStatsResponse, reservationStatsResponse] = await Promise.all([
           billingAPI.getBillingStats().catch((err) => {
             console.warn('Billing API error:', err.message);
             return { data: {} };
@@ -35,6 +48,14 @@ const Dashboard = () => {
           healthAPI.getServicesHealth().catch((err) => {
             console.warn('Health API error:', err.message);
             return { data: {} };
+          }),
+          tableAPI.getTableStats().catch((err) => {
+            console.warn('Table API error:', err.message);
+            return { data: { stats: { total: 0, available: 0, occupied: 0, reserved: 0 } } };
+          }),
+          reservationAPI.getReservationStats().catch((err) => {
+            console.warn('Reservation API error:', err.message);
+            return { data: { stats: { total: 0, today: 0, pending: 0, confirmed: 0 } } };
           })
         ]);
 
@@ -43,6 +64,20 @@ const Dashboard = () => {
           totalOrders: 156,
           totalCustomers: 89,
           averageOrderValue: 157000
+        });
+
+        setTableStats(tableStatsResponse.data.stats || {
+          total: 20,
+          available: 12,
+          occupied: 5,
+          reserved: 3
+        });
+
+        setReservationStats(reservationStatsResponse.data.stats || {
+          total: 45,
+          today: 8,
+          pending: 3,
+          confirmed: 5
         });
 
         setSystemHealth(healthResponse.data || {});
@@ -94,6 +129,60 @@ const Dashboard = () => {
       icon: FiTrendingUp,
       color: 'bg-amber-500',
       change: '+5.7%'
+    }
+  ];
+
+  const tableStatCards = [
+    {
+      title: 'Tổng số bàn',
+      value: tableStats.total.toString(),
+      icon: FiGrid,
+      color: 'bg-indigo-500'
+    },
+    {
+      title: 'Bàn trống',
+      value: tableStats.available.toString(),
+      icon: FiGrid,
+      color: 'bg-green-500'
+    },
+    {
+      title: 'Bàn đã đặt',
+      value: tableStats.reserved.toString(),
+      icon: FiGrid,
+      color: 'bg-yellow-500'
+    },
+    {
+      title: 'Đang phục vụ',
+      value: tableStats.occupied.toString(),
+      icon: FiGrid,
+      color: 'bg-red-500'
+    }
+  ];
+
+  const reservationStatCards = [
+    {
+      title: 'Đặt bàn hôm nay',
+      value: reservationStats.today.toString(),
+      icon: FiCalendar,
+      color: 'bg-blue-500'
+    },
+    {
+      title: 'Chờ xác nhận',
+      value: reservationStats.pending.toString(),
+      icon: FiClock,
+      color: 'bg-yellow-500'
+    },
+    {
+      title: 'Đã xác nhận',
+      value: reservationStats.confirmed.toString(),
+      icon: FiCalendar,
+      color: 'bg-green-500'
+    },
+    {
+      title: 'Tổng đặt bàn',
+      value: reservationStats.total.toString(),
+      icon: FiCalendar,
+      color: 'bg-purple-500'
     }
   ];
 
@@ -155,6 +244,42 @@ const Dashboard = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Table Stats Section */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Tình trạng bàn</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {tableStatCards.map((card, index) => (
+            <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg">
+              <div className={`p-2 rounded-lg ${card.color} mr-3`}>
+                <card.icon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">{card.title}</p>
+                <p className="text-xl font-bold text-gray-900">{card.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Reservation Stats Section */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Thống kê đặt bàn</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {reservationStatCards.map((card, index) => (
+            <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg">
+              <div className={`p-2 rounded-lg ${card.color} mr-3`}>
+                <card.icon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">{card.title}</p>
+                <p className="text-xl font-bold text-gray-900">{card.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -225,22 +350,22 @@ const Dashboard = () => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Thao tác nhanh</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button className="flex flex-col items-center p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+          <Link to="/admin/menu" className="flex flex-col items-center p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
             <FiCoffee className="w-6 h-6 text-amber-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Thêm món mới</span>
-          </button>
-          <button className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+            <span className="text-sm font-medium text-gray-900">Quản lý menu</span>
+          </Link>
+          <Link to="/admin/reservations" className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
             <FiCalendar className="w-6 h-6 text-blue-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Xem đặt bàn</span>
-          </button>
-          <button className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
-            <FiShoppingCart className="w-6 h-6 text-green-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Đơn hàng mới</span>
-          </button>
-          <button className="flex flex-col items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+            <span className="text-sm font-medium text-gray-900">Quản lý đặt bàn</span>
+          </Link>
+          <Link to="/admin/tables" className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+            <FiGrid className="w-6 h-6 text-green-600 mb-2" />
+            <span className="text-sm font-medium text-gray-900">Quản lý bàn</span>
+          </Link>
+          <Link to="/admin/users" className="flex flex-col items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
             <FiUsers className="w-6 h-6 text-purple-600 mb-2" />
             <span className="text-sm font-medium text-gray-900">Quản lý user</span>
-          </button>
+          </Link>
         </div>
       </div>
 

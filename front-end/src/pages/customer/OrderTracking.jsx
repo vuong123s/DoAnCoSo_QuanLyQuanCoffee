@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { onlineOrderAPI } from '../../services/api';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { onlineOrderAPI } from '../../shared/services/api';
+import LoadingSpinner from '../../components/common/ui/LoadingSpinner';
 import { FiPackage, FiTruck, FiCheckCircle, FiClock, FiMapPin, FiPhone, FiUser } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 

@@ -2,6 +2,45 @@ const { DatBan, Ban } = require('../models');
 const { Op, Sequelize } = require('sequelize');
 const { sequelize } = require('../config/database');
 
+// Helper function to update table status based on reservations
+const updateTableStatusBasedOnReservations = async (MaBan, currentAction = null) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Tìm tất cả đặt bàn active cho bàn này trong ngày hôm nay
+    const activeReservations = await DatBan.findAll({
+      where: {
+        MaBan,
+        NgayDat: today,
+        TrangThai: ['Đã đặt', 'Đã xác nhận']
+      }
+    });
+
+    const table = await Ban.findByPk(MaBan);
+    if (!table) return;
+
+    // Logic cập nhật trạng thái bàn:
+    // - Nếu có ít nhất 1 đơn đặt bàn ở trạng thái "Đã đặt" hoặc "Đã xác nhận" → Bàn = "Đã đặt"
+    // - Nếu không có đơn đặt bàn nào active → Bàn = "Trống"
+    
+    if (activeReservations.length > 0) {
+      // Có đặt bàn active → bàn ở trạng thái "Đã đặt"
+      if (table.TrangThai !== 'Đã đặt') {
+        await table.update({ TrangThai: 'Đã đặt' });
+        console.log(`📋 Updated table ${MaBan} status to "Đã đặt" (${activeReservations.length} active reservations)`);
+      }
+    } else {
+      // Không có đặt bàn active → bàn trống
+      if (table.TrangThai !== 'Trống') {
+        await table.update({ TrangThai: 'Trống' });
+        console.log(`📋 Updated table ${MaBan} status to "Trống" (no active reservations)`);
+      }
+    }
+  } catch (error) {
+    console.error('Error updating table status:', error);
+  }
+};
+
 // Lấy tất cả đặt bàn với bộ lọc
 const getReservations = async (req, res) => {
   try {
@@ -114,6 +153,7 @@ const createReservation = async (req, res) => {
       SoNguoi,
       TenKhach,
       SoDienThoai,
+      EmailKhach,
       GhiChu
     } = req.body;
 
@@ -125,10 +165,10 @@ const createReservation = async (req, res) => {
     console.log('🧹 Cleaned reservation time values:', { cleanGioDat, cleanGioKetThuc });
 
     // Kiểm tra các trường bắt buộc cơ bản
-    if (!MaBan || !NgayDat || !GioDat || !SoNguoi || !TenKhach || !SoDienThoai) {
+    if (!MaBan || !NgayDat || !GioDat || !GioKetThuc || !SoNguoi || !TenKhach || !SoDienThoai) {
       return res.status(400).json({
         success: false,
-        error: 'Thiếu thông tin bắt buộc: MaBan, NgayDat, GioDat, SoNguoi, TenKhach, SoDienThoai'
+        error: 'Thiếu thông tin bắt buộc: MaBan, NgayDat, GioDat, GioKetThuc, SoNguoi, TenKhach, SoDienThoai'
       });
     }
 
@@ -226,6 +266,37 @@ const createReservation = async (req, res) => {
       });
     }
 
+    // Sử dụng stored procedure để kiểm tra toàn diện
+    console.log('🔍 Validating reservation with database functions...');
+    try {
+      const [validationResult] = await sequelize.query(
+        `SELECT KiemTraToanDienDatBan(?, ?, ?, ?, ?, ?, ?, ?, ?) as isValid`,
+        {
+          replacements: [
+            MaKH || null,
+            MaBan,
+            NgayDat,
+            cleanGioDat,
+            cleanGioKetThuc,
+            parseInt(SoNguoi),
+            TenKhach ? TenKhach.trim() : '',
+            SoDienThoai ? SoDienThoai.trim() : '',
+            EmailKhach ? EmailKhach.trim() : null
+          ]
+        }
+      );
+
+      if (!validationResult[0]?.isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'Dữ liệu đặt bàn không hợp lệ. Vui lòng kiểm tra lại thông tin.',
+          details: 'Validation failed by database function'
+        });
+      }
+    } catch (validationError) {
+      console.log('⚠️ Database validation function not available, using basic validation');
+    }
+
     // Tạo đặt bàn
     console.log('🔄 Creating reservation in database...');
     const reservationData = {
@@ -233,27 +304,23 @@ const createReservation = async (req, res) => {
       MaBan,
       NgayDat,
       GioDat: cleanGioDat,
+      GioKetThuc: cleanGioKetThuc,
       SoNguoi: parseInt(SoNguoi),
       TrangThai: 'Đã đặt',
       TenKhach: TenKhach ? TenKhach.trim() : '',
       SoDienThoai: SoDienThoai ? SoDienThoai.trim() : '',
-      GhiChu: GhiChu ? GhiChu.trim() : null
+      EmailKhach: EmailKhach ? EmailKhach.trim() : null,
+      GhiChu: GhiChu ? GhiChu.trim() : null,
+      NgayTaoDat: new Date(),
+      MaNVXuLy: req.user?.MaNV || null // From auth middleware
     };
-
-    // Chỉ thêm GioKetThuc nếu cột tồn tại và có giá trị
-    if (hasGioKetThucColumn && cleanGioKetThuc) {
-      reservationData.GioKetThuc = cleanGioKetThuc;
-    }
     
     console.log('📋 Reservation data to create:', reservationData);
     const reservation = await DatBan.create(reservationData);
     console.log('✅ Reservation created with ID:', reservation.MaDat);
 
-    // Cập nhật trạng thái bàn nếu đặt cho hôm nay
-    const today = new Date().toISOString().split('T')[0];
-    if (NgayDat === today) {
-      await table.update({ TrangThai: 'Đã đặt' });
-    }
+    // Cập nhật trạng thái bàn dựa trên đặt bàn mới
+    await updateTableStatusBasedOnReservations(MaBan, 'created');
 
     const createdReservation = await DatBan.findByPk(reservation.MaDat, {
       include: [{
@@ -386,25 +453,7 @@ const updateReservationStatus = async (req, res) => {
     if (GhiChu) updateData.GhiChu = GhiChu;
 
     // Cập nhật trạng thái bàn dựa trên trạng thái đặt bàn
-    const table = await Ban.findByPk(reservation.MaBan);
-    switch (TrangThai) {
-      case 'Đã xác nhận':
-        // Cập nhật trạng thái bàn nếu đặt cho hôm nay
-        const today = new Date().toISOString().split('T')[0];
-        if (reservation.NgayDat === today) {
-          await table.update({ TrangThai: 'Đã đặt' });
-        }
-        break;
-      case 'Hoàn thành':
-        await table.update({ TrangThai: 'Trống' });
-        break;
-      case 'Đã hủy':
-        // Chỉ cập nhật trạng thái bàn nếu bàn đang được đặt cho reservation này
-        if (table.TrangThai === 'Đã đặt') {
-          await table.update({ TrangThai: 'Trống' });
-        }
-        break;
-    }
+    await updateTableStatusBasedOnReservations(reservation.MaBan, TrangThai);
 
     await reservation.update(updateData);
 
@@ -464,11 +513,8 @@ const cancelReservation = async (req, res) => {
       GhiChu: GhiChu || reservation.GhiChu
     });
 
-    // Cập nhật trạng thái bàn nếu bàn đang được đặt
-    const table = await Ban.findByPk(reservation.MaBan);
-    if (table.TrangThai === 'Đã đặt') {
-      await table.update({ TrangThai: 'Trống' });
-    }
+    // Cập nhật trạng thái bàn dựa trên tất cả đặt bàn
+    await updateTableStatusBasedOnReservations(reservation.MaBan, 'Đã hủy');
 
     res.json({
       success: true,
@@ -505,27 +551,13 @@ const deleteReservation = async (req, res) => {
       });
     }
 
-    // Cập nhật trạng thái bàn nếu bàn đang được đặt cho reservation này
-    const table = await Ban.findByPk(reservation.MaBan);
-    if (table && table.TrangThai === 'Đã đặt') {
-      // Kiểm tra xem có reservation khác cho bàn này không
-      const otherReservations = await DatBan.findOne({
-        where: {
-          MaBan: reservation.MaBan,
-          MaDat: { [Op.ne]: id },
-          TrangThai: ['Đã đặt', 'Đã xác nhận'],
-          NgayDat: new Date().toISOString().split('T')[0]
-        }
-      });
-
-      // Chỉ cập nhật trạng thái bàn nếu không có reservation khác
-      if (!otherReservations) {
-        await table.update({ TrangThai: 'Trống' });
-      }
-    }
-
+    const tableMaBan = reservation.MaBan;
+    
     // Xóa đặt bàn khỏi database
     await reservation.destroy();
+
+    // Cập nhật trạng thái bàn dựa trên tất cả đặt bàn còn lại
+    await updateTableStatusBasedOnReservations(tableMaBan, 'deleted');
 
     res.json({
       success: true,

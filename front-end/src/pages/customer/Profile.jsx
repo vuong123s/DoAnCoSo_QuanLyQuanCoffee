@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useAuthStore } from '../../stores/authStore';
-import { userAPI } from '../../services/api';
+import { useAuthStore } from '../../app/stores/authStore';
+import { userAPI } from '../../shared/services/api';
 import toast from 'react-hot-toast';
 
 const Profile = () => {

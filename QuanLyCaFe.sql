@@ -1,6 +1,9 @@
 -- Tạo database
-CREATE DATABASE QuanLyCafe CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS QuanLyCafe CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE QuanLyCafe;
+
+-- Cài đặt để cho phép tạo function
+SET GLOBAL log_bin_trust_function_creators = 1;
 
 -- ======================
 -- BẢNG NHÂN VIÊN
@@ -511,3 +514,852 @@ INSERT INTO TheoDoiDonHang (MaDHOnline, TrangThai, MoTa, MaNVCapNhat) VALUES
 (5, 'Đã xác nhận', 'Đơn hàng đã được xác nhận', 3),
 (5, 'Đang chuẩn bị', 'Đang pha chế các món', 3),
 (5, 'Đang giao', 'Shipper đang trên đường giao hàng', 3);
+
+-- ==============================================
+-- STORED PROCEDURES TỰ ĐỘNG HỦY ĐẶT BÀN
+-- ==============================================
+
+DELIMITER //
+
+-- ==============================================
+-- 1. FUNCTION: Tự động hủy đơn đặt bàn quá hạn
+-- ==============================================
+CREATE FUNCTION TuDongHuyDonDatBanQuaHan()
+RETURNS INT
+DETERMINISTIC
+READS SQL DATA
+MODIFIES SQL DATA
+BEGIN
+    DECLARE v_SoDonHuy INT DEFAULT 0;
+    DECLARE v_NgayHienTai DATE DEFAULT CURDATE();
+    DECLARE v_GioHienTai TIME DEFAULT CURTIME();
+    DECLARE v_ThoiGianHienTai DATETIME DEFAULT NOW();
+    
+    -- Lấy thời gian hiện tại
+    SET v_NgayHienTai = CURDATE();
+    SET v_GioHienTai = CURTIME();
+    SET v_ThoiGianHienTai = NOW();
+    
+    -- Cập nhật trạng thái các đơn đặt bàn quá hạn
+    -- Điều kiện: Ngày đặt < ngày hiện tại HOẶC (ngày đặt = ngày hiện tại VÀ giờ đặt + 30 phút < giờ hiện tại)
+    UPDATE DatBan 
+    SET TrangThai = 'Đã hủy',
+        GhiChu = CONCAT(IFNULL(GhiChu, ''), ' [Tự động hủy do quá hạn - ', v_ThoiGianHienTai, ']')
+    WHERE TrangThai IN ('Đã đặt', 'Đã xác nhận')
+      AND (
+          -- Trường hợp 1: Ngày đặt đã qua
+          NgayDat < v_NgayHienTai
+          OR
+          -- Trường hợp 2: Ngày đặt là hôm nay nhưng đã quá giờ đặt + 30 phút
+          (NgayDat = v_NgayHienTai AND ADDTIME(GioDat, '00:30:00') < v_GioHienTai)
+      );
+    
+    -- Lấy số lượng đơn đã hủy
+    SET v_SoDonHuy = ROW_COUNT();
+    
+    -- Cập nhật trạng thái bàn về "Trống" cho các bàn có đơn đặt bị hủy
+    UPDATE Ban b
+    SET TrangThai = 'Trống'
+    WHERE TrangThai = 'Đã đặt'
+      AND NOT EXISTS (
+          SELECT 1 FROM DatBan db 
+          WHERE db.MaBan = b.MaBan 
+            AND db.TrangThai IN ('Đã đặt', 'Đã xác nhận')
+            AND (
+                db.NgayDat > v_NgayHienTai
+                OR (db.NgayDat = v_NgayHienTai AND db.GioDat > v_GioHienTai)
+            )
+      );
+    
+    -- Log kết quả
+    INSERT INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong) 
+    VALUES (v_ThoiGianHienTai, 'AUTO_CANCEL_RESERVATIONS', 
+            CONCAT('Tự động hủy đơn đặt bàn quá hạn'), v_SoDonHuy)
+    ON DUPLICATE KEY UPDATE 
+        ThoiGian = VALUES(ThoiGian),
+        SoLuong = VALUES(SoLuong);
+    
+    -- Trả về số đơn đã hủy
+    RETURN v_SoDonHuy;
+        
+END //
+
+-- ==============================================
+-- 2. FUNCTION: Kiểm tra và cảnh báo đơn sắp hết hạn
+-- ==============================================
+CREATE FUNCTION KiemTraDonSapHetHan(
+    p_SoPhutCanhBao INT
+)
+RETURNS INT
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_NgayHienTai DATE;
+    DECLARE v_GioHienTai TIME;
+    DECLARE v_GioiHanCanhBao TIME;
+    DECLARE v_SoPhutCanhBao INT DEFAULT 15;
+    DECLARE v_SoDonSapHetHan INT DEFAULT 0;
+    
+    -- Xử lý giá trị mặc định
+    IF p_SoPhutCanhBao IS NULL OR p_SoPhutCanhBao <= 0 THEN
+        SET v_SoPhutCanhBao = 15;
+    ELSE
+        SET v_SoPhutCanhBao = p_SoPhutCanhBao;
+    END IF;
+    
+    -- Lấy thời gian hiện tại
+    SET v_NgayHienTai = CURDATE();
+    SET v_GioHienTai = CURTIME();
+    SET v_GioiHanCanhBao = ADDTIME(v_GioHienTai, CONCAT('00:', v_SoPhutCanhBao, ':00'));
+    
+    -- Đếm số đơn đặt bàn sắp hết hạn
+    SELECT COUNT(*)
+    INTO v_SoDonSapHetHan
+    FROM DatBan db
+    JOIN Ban b ON db.MaBan = b.MaBan
+    WHERE db.TrangThai IN ('Đã đặt', 'Đã xác nhận')
+      AND db.NgayDat = v_NgayHienTai
+      AND db.GioDat BETWEEN v_GioHienTai AND v_GioiHanCanhBao;
+    
+    RETURN v_SoDonSapHetHan;
+    
+END //
+
+-- ==============================================
+-- 3. FUNCTION: Lấy báo cáo đơn đặt bàn bị hủy
+-- ==============================================
+CREATE FUNCTION BaoCaoDonDatBanBiHuy(
+    p_NgayBatDau DATE,
+    p_NgayKetThuc DATE
+)
+RETURNS INT
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_TongSoDonHuy INT DEFAULT 0;
+    
+    SELECT COUNT(*)
+    INTO v_TongSoDonHuy
+    FROM DatBan
+    WHERE TrangThai = 'Đã hủy'
+      AND DATE(NgayTaoDat) BETWEEN p_NgayBatDau AND p_NgayKetThuc;
+    
+    RETURN v_TongSoDonHuy;
+END //
+
+-- ==============================================
+-- 4. FUNCTION: Tính thời gian còn lại đến giờ đặt bàn
+-- ==============================================
+CREATE FUNCTION TinhThoiGianConLai(
+    p_NgayDat DATE,
+    p_GioDat TIME
+)
+RETURNS VARCHAR(50)
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_ThoiGianDat DATETIME;
+    DECLARE v_ThoiGianHienTai DATETIME;
+    DECLARE v_ChenhLech INT DEFAULT 0;
+    DECLARE v_Gio INT DEFAULT 0;
+    DECLARE v_Phut INT DEFAULT 0;
+    DECLARE v_KetQua VARCHAR(50) DEFAULT '';
+    
+    SET v_ThoiGianDat = CONCAT(p_NgayDat, ' ', p_GioDat);
+    SET v_ThoiGianHienTai = NOW();
+    
+    -- Tính chênh lệch theo phút
+    SET v_ChenhLech = TIMESTAMPDIFF(MINUTE, v_ThoiGianHienTai, v_ThoiGianDat);
+    
+    IF v_ChenhLech < 0 THEN
+        SET v_KetQua = 'Đã quá hạn';
+    ELSEIF v_ChenhLech = 0 THEN
+        SET v_KetQua = 'Đúng giờ';
+    ELSE
+        SET v_Gio = FLOOR(v_ChenhLech / 60);
+        SET v_Phut = v_ChenhLech % 60;
+        
+        IF v_Gio > 0 THEN
+            SET v_KetQua = CONCAT(v_Gio, ' giờ ', v_Phut, ' phút');
+        ELSE
+            SET v_KetQua = CONCAT(v_Phut, ' phút');
+        END IF;
+    END IF;
+    
+    RETURN v_KetQua;
+END //
+
+-- ==============================================
+-- 5. EVENT: Tự động chạy hủy đơn đặt bàn mỗi 30 phút
+-- ==============================================
+CREATE EVENT IF NOT EXISTS AutoCancelExpiredReservations
+ON SCHEDULE EVERY 30 MINUTE
+STARTS CURRENT_TIMESTAMP
+DO
+BEGIN
+    SELECT TuDongHuyDonDatBanQuaHan();
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- BẢNG LOG HỆ THỐNG (nếu chưa có)
+-- ==============================================
+CREATE TABLE IF NOT EXISTS LogHeThong (
+    MaLog INT AUTO_INCREMENT PRIMARY KEY,
+    ThoiGian DATETIME NOT NULL,
+    HanhDong VARCHAR(100) NOT NULL,
+    MoTa TEXT,
+    SoLuong INT DEFAULT 0,
+    INDEX idx_action_time (HanhDong, ThoiGian)
+);
+
+-- ==============================================
+-- EXAMPLES SỬ DỤNG
+-- ==============================================
+
+-- Ví dụ 1: Chạy thủ công hủy đơn quá hạn
+-- SELECT TuDongHuyDonDatBanQuaHan() as SoDonDaHuy;
+
+-- Ví dụ 2: Kiểm tra đơn sắp hết hạn trong 15 phút
+-- SELECT KiemTraDonSapHetHan(15) as SoDonSapHetHan;
+
+-- Ví dụ 3: Báo cáo đơn bị hủy trong tháng
+-- SELECT BaoCaoDonDatBanBiHuy('2024-01-01', '2024-01-31') as TongSoDonHuy;
+
+-- Ví dụ 4: Tính thời gian còn lại
+-- SELECT TinhThoiGianConLai('2024-01-15', '19:00:00') as ThoiGianConLai;
+
+-- Ví dụ 5: Xem log hệ thống
+-- SELECT * FROM LogHeThong WHERE HanhDong = 'AUTO_CANCEL_RESERVATIONS' ORDER BY ThoiGian DESC LIMIT 10;
+
+-- ==============================================
+-- 6. FUNCTION: Tự động reset bàn về trạng thái trống lúc 10h tối
+-- ==============================================
+CREATE FUNCTION TuDongResetBanLucCuoiNgay()
+RETURNS INT
+DETERMINISTIC
+MODIFIES SQL DATA
+BEGIN
+    DECLARE v_SoBanReset INT DEFAULT 0;
+    DECLARE v_ThoiGianHienTai DATETIME;
+    
+    -- Lấy thời gian hiện tại
+    SET v_ThoiGianHienTai = NOW();
+    
+    -- Reset tất cả bàn "Đang sử dụng" về "Trống"
+    UPDATE Ban 
+    SET TrangThai = 'Trống'
+    WHERE TrangThai = 'Đang sử dụng';
+    
+    -- Lấy số lượng bàn đã reset
+    SET v_SoBanReset = ROW_COUNT();
+    
+    -- Log kết quả
+    INSERT INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong) 
+    VALUES (v_ThoiGianHienTai, 'AUTO_RESET_TABLES', 
+            CONCAT('Tự động reset bàn về trạng thái trống lúc cuối ngày - Reset ', v_SoBanReset, ' bàn'), v_SoBanReset);
+    
+    -- Trả về số bàn đã reset
+    RETURN v_SoBanReset;
+        
+END //
+
+-- ==============================================
+-- 7. FUNCTION: Reset bàn có điều kiện (chỉ reset bàn không có đặt bàn active)
+-- ==============================================
+CREATE FUNCTION TuDongResetBanThongMinh()
+RETURNS INT
+DETERMINISTIC
+MODIFIES SQL DATA
+BEGIN
+    DECLARE v_SoBanReset INT DEFAULT 0;
+    DECLARE v_ThoiGianHienTai DATETIME;
+    DECLARE v_NgayHienTai DATE;
+    
+    -- Lấy thời gian hiện tại
+    SET v_ThoiGianHienTai = NOW();
+    SET v_NgayHienTai = CURDATE();
+    
+    -- Reset bàn "Đang sử dụng" về "Trống" chỉ khi không có đặt bàn active
+    UPDATE Ban b
+    SET TrangThai = 'Trống'
+    WHERE TrangThai = 'Đang sử dụng'
+      AND NOT EXISTS (
+          SELECT 1 FROM DatBan db 
+          WHERE db.MaBan = b.MaBan 
+            AND db.TrangThai IN ('Đã đặt', 'Đã xác nhận')
+            AND (
+                -- Có đặt bàn cho ngày mai hoặc sau đó
+                db.NgayDat > v_NgayHienTai
+                OR 
+                -- Có đặt bàn hôm nay nhưng chưa đến giờ (sau 22h)
+                (db.NgayDat = v_NgayHienTai AND db.GioDat > '22:00:00')
+            )
+      );
+    
+    -- Lấy số lượng bàn đã reset
+    SET v_SoBanReset = ROW_COUNT();
+    
+    -- Log kết quả
+    INSERT INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong) 
+    VALUES (v_ThoiGianHienTai, 'AUTO_RESET_TABLES_SMART', 
+            CONCAT('Tự động reset bàn thông minh lúc cuối ngày'), v_SoBanReset)
+    ON DUPLICATE KEY UPDATE 
+        ThoiGian = VALUES(ThoiGian),
+        SoLuong = VALUES(SoLuong);
+    
+    -- Trả về số bàn đã reset
+    RETURN v_SoBanReset;
+        
+END //
+
+-- ==============================================
+-- 8. FUNCTION: Kiểm tra bàn có thể reset không
+-- ==============================================
+CREATE FUNCTION KiemTraBanCoTheReset(p_MaBan INT)
+RETURNS BOOLEAN
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_TrangThaiBan VARCHAR(20) DEFAULT '';
+    DECLARE v_CoDatBanActive INT DEFAULT 0;
+    DECLARE v_NgayHienTai DATE;
+    
+    SET v_NgayHienTai = CURDATE();
+    
+    -- Lấy trạng thái bàn hiện tại
+    SELECT TrangThai INTO v_TrangThaiBan 
+    FROM Ban 
+    WHERE MaBan = p_MaBan;
+    
+    -- Nếu bàn không ở trạng thái "Đang sử dụng" thì không cần reset
+    IF v_TrangThaiBan != 'Đang sử dụng' THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Kiểm tra có đặt bàn active không
+    SELECT COUNT(*) INTO v_CoDatBanActive
+    FROM DatBan
+    WHERE MaBan = p_MaBan
+      AND TrangThai IN ('Đã đặt', 'Đã xác nhận')
+      AND (
+          -- Có đặt bàn cho ngày mai hoặc sau đó
+          NgayDat > v_NgayHienTai
+          OR 
+          -- Có đặt bàn hôm nay nhưng chưa đến giờ (sau 22h)
+          (NgayDat = v_NgayHienTai AND GioDat > '22:00:00')
+      );
+    
+    -- Nếu có đặt bàn active thì không reset
+    IF v_CoDatBanActive > 0 THEN
+        RETURN FALSE;
+    END IF;
+    
+    RETURN TRUE;
+END //
+
+-- ==============================================
+-- 9. EVENT: Tự động reset bàn lúc 10h tối mỗi ngày
+-- ==============================================
+CREATE EVENT IF NOT EXISTS AutoResetTablesAt10PM
+ON SCHEDULE EVERY 1 DAY
+STARTS (TIMESTAMP(CURRENT_DATE) + INTERVAL 1 DAY + INTERVAL 22 HOUR)
+DO
+BEGIN
+    SELECT TuDongResetBanThongMinh();
+END //
+
+-- ==============================================
+-- 10. FUNCTION: Lấy báo cáo reset bàn theo ngày
+-- ==============================================
+CREATE FUNCTION BaoCaoResetBanTheoNgay(
+    p_NgayBatDau DATE,
+    p_NgayKetThuc DATE
+)
+RETURNS INT
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_TongSoBanReset INT DEFAULT 0;
+    
+    SELECT SUM(SoLuong)
+    INTO v_TongSoBanReset
+    FROM LogHeThong
+    WHERE HanhDong IN ('AUTO_RESET_TABLES', 'AUTO_RESET_TABLES_SMART')
+      AND DATE(ThoiGian) BETWEEN p_NgayBatDau AND p_NgayKetThuc;
+    
+    RETURN IFNULL(v_TongSoBanReset, 0);
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- EXAMPLES SỬ DỤNG CÁC PROCEDURES RESET BÀN
+-- ==============================================
+
+-- Ví dụ 1: Chạy thủ công reset tất cả bàn
+-- SELECT TuDongResetBanLucCuoiNgay() as SoBanDaReset;
+
+-- Ví dụ 2: Chạy thủ công reset bàn thông minh
+-- SELECT TuDongResetBanThongMinh() as SoBanDaReset;
+
+-- Ví dụ 3: Kiểm tra bàn có thể reset không
+-- SELECT KiemTraBanCoTheReset(1) as CoTheReset;
+
+-- Ví dụ 4: Báo cáo reset bàn trong tháng
+-- SELECT BaoCaoResetBanTheoNgay('2024-01-01', '2024-01-31') as TongSoBanReset;
+
+-- Ví dụ 5: Xem log reset bàn
+-- SELECT * FROM LogHeThong WHERE HanhDong LIKE '%RESET_TABLES%' ORDER BY ThoiGian DESC LIMIT 10;
+
+-- ==============================================
+-- STORED PROCEDURES KIỂM TRA KHI TẠO ĐƠN ĐẶT BÀN
+-- ==============================================
+
+DELIMITER //
+
+-- ==============================================
+-- 11. FUNCTION: Kiểm tra thông tin khách hàng hợp lệ
+-- ==============================================
+CREATE FUNCTION KiemTraThongTinKhachHang(
+    p_TenKhach VARCHAR(100),
+    p_SoDienThoai VARCHAR(15),
+    p_EmailKhach VARCHAR(100)
+)
+RETURNS VARCHAR(500)
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_KetQua VARCHAR(500) DEFAULT '';
+    
+    -- Kiểm tra tên khách hàng
+    IF p_TenKhach IS NULL OR TRIM(p_TenKhach) = '' THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Tên khách hàng không được để trống. ');
+    ELSEIF CHAR_LENGTH(TRIM(p_TenKhach)) < 2 THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Tên khách hàng phải có ít nhất 2 ký tự. ');
+    ELSEIF CHAR_LENGTH(TRIM(p_TenKhach)) > 100 THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Tên khách hàng không được quá 100 ký tự. ');
+    END IF;
+    
+    -- Kiểm tra số điện thoại
+    IF p_SoDienThoai IS NULL OR TRIM(p_SoDienThoai) = '' THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Số điện thoại không được để trống. ');
+    ELSEIF NOT (p_SoDienThoai REGEXP '^[0-9+()-\\s]+$') THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Số điện thoại chỉ được chứa số, dấu +, -, (), khoảng trắng. ');
+    ELSEIF CHAR_LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(p_SoDienThoai, '+', ''), '-', ''), '(', ''), ')', '')) < 10 THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Số điện thoại phải có ít nhất 10 chữ số. ');
+    END IF;
+    
+    -- Kiểm tra email (nếu có)
+    IF p_EmailKhach IS NOT NULL AND TRIM(p_EmailKhach) != '' THEN
+        IF NOT (p_EmailKhach REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$') THEN
+            SET v_KetQua = CONCAT(v_KetQua, 'Định dạng email không hợp lệ. ');
+        END IF;
+    END IF;
+    
+    -- Trả về kết quả
+    IF v_KetQua = '' THEN
+        RETURN 'OK';
+    ELSE
+        RETURN TRIM(v_KetQua);
+    END IF;
+END //
+
+-- ==============================================
+-- 12. FUNCTION: Kiểm tra thời gian đặt bàn hợp lệ
+-- ==============================================
+DELIMITER //
+CREATE FUNCTION KiemTraThoiGianDatBan(
+    p_NgayDat DATE,
+    p_GioDat TIME,
+    p_GioKetThuc TIME
+)
+RETURNS VARCHAR(500)
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_KetQua VARCHAR(500) DEFAULT '';
+    DECLARE v_NgayHienTai DATE;
+    DECLARE v_GioHienTai TIME;
+    DECLARE v_GioMoCua TIME DEFAULT '06:00:00';
+    DECLARE v_GioDongCua TIME DEFAULT '22:00:00';
+    DECLARE v_ThoiGianToiThieu INT DEFAULT 60; /* 60 phút */
+    DECLARE v_ThoiGianToiDa INT DEFAULT 240; /* 4 giờ */
+    DECLARE v_ChenhLechPhut INT DEFAULT 0;
+    
+    SET v_NgayHienTai = CURDATE();
+    SET v_GioHienTai = CURTIME();
+    
+    -- Kiểm tra ngày đặt
+    IF p_NgayDat IS NULL THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Ngày đặt bàn không được để trống. ');
+    ELSEIF p_NgayDat < v_NgayHienTai THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Không thể đặt bàn cho ngày đã qua. ');
+    ELSEIF p_NgayDat > DATE_ADD(v_NgayHienTai, INTERVAL 30 DAY) THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Chỉ có thể đặt bàn trước tối đa 30 ngày. ');
+    END IF;
+    
+    -- Kiểm tra giờ đặt
+    IF p_GioDat IS NULL THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Giờ đặt bàn không được để trống. ');
+    ELSEIF p_GioDat < v_GioMoCua OR p_GioDat > v_GioDongCua THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Giờ đặt bàn phải trong khoảng 06:00 - 22:00. ');
+    END IF;
+    
+    -- Kiểm tra giờ kết thúc
+    IF p_GioKetThuc IS NULL THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Giờ kết thúc không được để trống. ');
+    ELSEIF p_GioKetThuc <= p_GioDat THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Giờ kết thúc phải sau giờ bắt đầu. ');
+    ELSEIF p_GioKetThuc > v_GioDongCua THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Giờ kết thúc không được quá 22:00. ');
+    END IF;
+    
+    -- Kiểm tra thời gian đặt bàn hợp lý
+    IF p_GioDat IS NOT NULL AND p_GioKetThuc IS NOT NULL THEN
+        SET v_ChenhLechPhut = TIMESTAMPDIFF(MINUTE, p_GioDat, p_GioKetThuc);
+        
+        IF v_ChenhLechPhut < v_ThoiGianToiThieu THEN
+            SET v_KetQua = CONCAT(v_KetQua, 'Thời gian đặt bàn tối thiểu là ', v_ThoiGianToiThieu, ' phút. ');
+        ELSEIF v_ChenhLechPhut > v_ThoiGianToiDa THEN
+            SET v_KetQua = CONCAT(v_KetQua, 'Thời gian đặt bàn tối đa là ', v_ThoiGianToiDa, ' phút. ');
+        END IF;
+    END IF;
+    
+    -- Kiểm tra đặt bàn trong ngày hiện tại
+    IF p_NgayDat = v_NgayHienTai AND p_GioDat IS NOT NULL THEN
+        IF p_GioDat <= ADDTIME(v_GioHienTai, '01:00:00') THEN
+            SET v_KetQua = CONCAT(v_KetQua, 'Phải đặt bàn trước ít nhất 1 giờ. ');
+        END IF;
+    END IF;
+    
+    -- Trả về kết quả
+    IF v_KetQua = '' THEN
+        RETURN 'OK';
+    ELSE
+        RETURN TRIM(v_KetQua);
+    END IF;
+END //
+DELIMITER ;
+
+-- ==============================================
+-- 13. FUNCTION: Kiểm tra số lượng khách hợp lệ
+-- ==============================================
+DELIMITER //
+CREATE FUNCTION KiemTraSoLuongKhach(
+    p_SoNguoi INT,
+    p_MaBan INT
+)
+RETURNS VARCHAR(500)
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_KetQua VARCHAR(500) DEFAULT '';
+    DECLARE v_SoChoToiThieu INT DEFAULT 1;
+    DECLARE v_SoChoToiDa INT DEFAULT 20;
+    DECLARE v_SoChoBan INT DEFAULT 0;
+    DECLARE v_TenBan VARCHAR(50) DEFAULT '';
+    
+    -- Kiểm tra số người cơ bản
+    IF p_SoNguoi IS NULL THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Số lượng khách không được để trống. ');
+    ELSEIF p_SoNguoi < v_SoChoToiThieu THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Số lượng khách tối thiểu là ', v_SoChoToiThieu, ' người. ');
+    ELSEIF p_SoNguoi > v_SoChoToiDa THEN
+        SET v_KetQua = CONCAT(v_KetQua, 'Số lượng khách tối đa là ', v_SoChoToiDa, ' người. Vui lòng liên hệ trực tiếp để đặt bàn nhóm lớn. ');
+    END IF;
+    
+    -- Kiểm tra sức chứa bàn (nếu có chỉ định bàn)
+    IF p_MaBan IS NOT NULL AND p_SoNguoi IS NOT NULL THEN
+        SELECT SoCho, TenBan INTO v_SoChoBan, v_TenBan
+        FROM Ban 
+        WHERE MaBan = p_MaBan;
+        
+        IF v_SoChoBan IS NULL THEN
+            SET v_KetQua = CONCAT(v_KetQua, 'Bàn không tồn tại. ');
+        ELSEIF p_SoNguoi > v_SoChoBan THEN
+            SET v_KetQua = CONCAT(v_KetQua, 'Số khách (', p_SoNguoi, ') vượt quá sức chứa bàn ', v_TenBan, ' (', v_SoChoBan, ' chỗ). ');
+        END IF;
+    END IF;
+    
+    -- Trả về kết quả
+    IF v_KetQua = '' THEN
+        RETURN 'OK';
+    ELSE
+        RETURN TRIM(v_KetQua);
+    END IF;
+END //
+DELIMITER ;
+
+-- ==============================================
+-- 14. FUNCTION: Kiểm tra trùng lặp đặt bàn
+-- ==============================================
+DELIMITER //
+CREATE FUNCTION KiemTraTrungLapDatBan(
+    p_SoDienThoai VARCHAR(15),
+    p_NgayDat DATE,
+    p_GioDat TIME,
+    p_GioKetThuc TIME
+)
+RETURNS VARCHAR(500)
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_KetQua VARCHAR(500) DEFAULT '';
+    DECLARE v_SoDonTrung INT DEFAULT 0;
+    DECLARE v_ThongTinTrung TEXT DEFAULT '';
+    
+    -- Kiểm tra trùng lặp theo số điện thoại trong cùng khoảng thời gian
+    SELECT COUNT(*), GROUP_CONCAT(CONCAT(TenKhach, ' - Bàn ', (SELECT TenBan FROM Ban WHERE Ban.MaBan = DatBan.MaBan), ' (', GioDat, '-', IFNULL(GioKetThuc, ADDTIME(GioDat, '02:00:00')), ')') SEPARATOR '; ')
+    INTO v_SoDonTrung, v_ThongTinTrung
+    FROM DatBan
+    WHERE SoDienThoai = p_SoDienThoai
+      AND NgayDat = p_NgayDat
+      AND TrangThai IN ('Đã đặt', 'Đã xác nhận')
+      AND (
+          -- Kiểm tra xung đột thời gian
+          (p_GioDat >= GioDat AND p_GioDat < IFNULL(GioKetThuc, ADDTIME(GioDat, '02:00:00')))
+          OR (p_GioKetThuc > GioDat AND p_GioKetThuc <= IFNULL(GioKetThuc, ADDTIME(GioDat, '02:00:00')))
+          OR (p_GioDat <= GioDat AND p_GioKetThuc >= IFNULL(GioKetThuc, ADDTIME(GioDat, '02:00:00')))
+      );
+    
+    -- Nếu có trùng lặp
+    IF v_SoDonTrung > 0 THEN
+        SET v_KetQua = CONCAT('Số điện thoại này đã có đặt bàn trong cùng khoảng thời gian: ', v_ThongTinTrung);
+    END IF;
+    
+    -- Trả về kết quả
+    IF v_KetQua = '' THEN
+        RETURN 'OK';
+    ELSE
+        RETURN v_KetQua;
+    END IF;
+END //
+DELIMITER ;
+
+-- ==============================================
+-- 15. FUNCTION: Kiểm tra toàn diện khi tạo đặt bàn
+-- ==============================================
+DELIMITER //
+CREATE FUNCTION KiemTraToanDienDatBan(
+    p_MaKH INT,
+    p_MaBan INT,
+    p_NgayDat DATE,
+    p_GioDat TIME,
+    p_GioKetThuc TIME,
+    p_SoNguoi INT,
+    p_TenKhach VARCHAR(100),
+    p_SoDienThoai VARCHAR(15),
+    p_EmailKhach VARCHAR(100)
+)
+RETURNS BOOLEAN
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_LoiThongTin VARCHAR(500) DEFAULT '';
+    DECLARE v_LoiThoiGian VARCHAR(500) DEFAULT '';
+    DECLARE v_LoiSoNguoi VARCHAR(500) DEFAULT '';
+    DECLARE v_LoiTrungLap VARCHAR(500) DEFAULT '';
+    DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+    BEGIN
+        RETURN FALSE;
+    END;
+    
+    -- Kiểm tra các tham số bắt buộc
+    IF p_TenKhach IS NULL OR TRIM(p_TenKhach) = '' THEN
+        RETURN FALSE;
+    END IF;
+    
+    IF p_SoDienThoai IS NULL OR TRIM(p_SoDienThoai) = '' THEN
+        RETURN FALSE;
+    END IF;
+    
+    IF p_NgayDat IS NULL OR p_GioDat IS NULL OR p_GioKetThuc IS NULL THEN
+        RETURN FALSE;
+    END IF;
+    
+    IF p_SoNguoi IS NULL OR p_SoNguoi <= 0 THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- 1. Kiểm tra thông tin khách hàng
+    SET v_LoiThongTin = KiemTraThongTinKhachHang(p_TenKhach, p_SoDienThoai, p_EmailKhach);
+    IF v_LoiThongTin != 'OK' THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- 2. Kiểm tra thời gian đặt bàn
+    SET v_LoiThoiGian = KiemTraThoiGianDatBan(p_NgayDat, p_GioDat, p_GioKetThuc);
+    IF v_LoiThoiGian != 'OK' THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- 3. Kiểm tra số lượng khách
+    SET v_LoiSoNguoi = KiemTraSoLuongKhach(p_SoNguoi, p_MaBan);
+    IF v_LoiSoNguoi != 'OK' THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- 4. Kiểm tra trùng lặp đặt bàn
+    SET v_LoiTrungLap = KiemTraTrungLapDatBan(p_SoDienThoai, p_NgayDat, p_GioDat, p_GioKetThuc);
+    IF v_LoiTrungLap != 'OK' THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Tất cả kiểm tra đều hợp lệ
+    RETURN TRUE;
+END //
+DELIMITER ;
+
+-- ==============================================
+-- 16. FUNCTION: Tạo đặt bàn với kiểm tra đầy đủ (nâng cấp)
+-- ==============================================
+DELIMITER //
+CREATE FUNCTION TaoDatBanVoiKiemTraDayDu(
+    p_MaKH INT,
+    p_MaBan INT,
+    p_NgayDat DATE,
+    p_GioDat TIME,
+    p_GioKetThuc TIME,
+    p_SoNguoi INT,
+    p_TenKhach VARCHAR(100),
+    p_SoDienThoai VARCHAR(15),
+    p_EmailKhach VARCHAR(100),
+    p_GhiChu TEXT,
+    p_MaNVXuLy INT
+)
+RETURNS INT
+DETERMINISTIC
+MODIFIES SQL DATA
+BEGIN
+    DECLARE v_KiemTra BOOLEAN DEFAULT FALSE;
+    DECLARE v_ThoiGianTao DATETIME;
+    DECLARE v_MaDatMoi INT DEFAULT 0;
+    DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+    BEGIN
+        RETURN 0;
+    END;
+    
+    -- Lấy thời gian hiện tại
+    SET v_ThoiGianTao = NOW();
+    
+    -- Kiểm tra toàn diện
+    SET v_KiemTra = KiemTraToanDienDatBan(
+        p_MaKH, p_MaBan, p_NgayDat, p_GioDat, p_GioKetThuc, p_SoNguoi,
+        p_TenKhach, p_SoDienThoai, p_EmailKhach
+    );
+    
+    -- Nếu không pass kiểm tra
+    IF v_KiemTra = FALSE THEN
+        RETURN 0;
+    END IF;
+    
+    -- Tạo đặt bàn mới
+    INSERT INTO DatBan (
+        MaKH, MaBan, NgayDat, GioDat, GioKetThuc, SoNguoi,
+        TrangThai, TenKhach, SoDienThoai, EmailKhach, GhiChu, MaNVXuLy,
+        NgayTaoDat
+    ) VALUES (
+        p_MaKH, p_MaBan, p_NgayDat, p_GioDat, p_GioKetThuc, p_SoNguoi,
+        'Đã đặt', p_TenKhach, p_SoDienThoai, p_EmailKhach, p_GhiChu, p_MaNVXuLy,
+        v_ThoiGianTao
+    );
+    
+    -- Lấy ID đặt bàn mới tạo
+    SET v_MaDatMoi = LAST_INSERT_ID();
+    
+    -- Cập nhật trạng thái bàn (nếu có chỉ định bàn)
+    IF p_MaBan IS NOT NULL THEN
+        UPDATE Ban SET TrangThai = 'Đã đặt' WHERE MaBan = p_MaBan;
+    END IF;
+    
+    -- Log thành công (với error handling)
+    INSERT IGNORE INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong) 
+    VALUES (v_ThoiGianTao, 'CREATE_RESERVATION_SUCCESS', 
+            CONCAT('Tạo đặt bàn thành công - Khách: ', IFNULL(p_TenKhach, ''), ', SĐT: ', IFNULL(p_SoDienThoai, '')), 1);
+    
+    RETURN v_MaDatMoi;
+    
+END //
+DELIMITER ;
+
+-- ==============================================
+-- 17. FUNCTION: Tính điểm uy tín khách hàng
+-- ==============================================
+DELIMITER //
+CREATE FUNCTION TinhDiemUyTinKhachHang(p_SoDienThoai VARCHAR(15))
+RETURNS INT
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_DiemUyTin INT DEFAULT 100; /* Điểm khởi điểm */
+    DECLARE v_SoDonHoanThanh INT DEFAULT 0;
+    DECLARE v_SoDonHuy INT DEFAULT 0;
+    DECLARE v_SoDonNoShow INT DEFAULT 0;
+    DECLARE v_TongSoDon INT DEFAULT 0;
+    
+    -- Đếm các loại đơn đặt bàn
+    SELECT 
+        COUNT(CASE WHEN TrangThai = 'Hoàn thành' THEN 1 END),
+        COUNT(CASE WHEN TrangThai = 'Đã hủy' THEN 1 END),
+        COUNT(CASE WHEN TrangThai = 'No-show' THEN 1 END),
+        COUNT(*)
+    INTO v_SoDonHoanThanh, v_SoDonHuy, v_SoDonNoShow, v_TongSoDon
+    FROM DatBan
+    WHERE SoDienThoai = p_SoDienThoai
+      AND NgayTaoDat >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH); /* 6 tháng gần nhất */
+    
+    -- Tính điểm uy tín
+    IF v_TongSoDon = 0 THEN
+        RETURN v_DiemUyTin; /* Khách hàng mới */
+    END IF;
+    
+    -- Cộng điểm cho đơn hoàn thành
+    SET v_DiemUyTin = v_DiemUyTin + (v_SoDonHoanThanh * 5);
+    
+    -- Trừ điểm cho đơn hủy
+    SET v_DiemUyTin = v_DiemUyTin - (v_SoDonHuy * 10);
+    
+    -- Trừ điểm nặng cho no-show
+    SET v_DiemUyTin = v_DiemUyTin - (v_SoDonNoShow * 20);
+    
+    -- Đảm bảo điểm không âm và không quá 200
+    IF v_DiemUyTin < 0 THEN
+        SET v_DiemUyTin = 0;
+    ELSEIF v_DiemUyTin > 200 THEN
+        SET v_DiemUyTin = 200;
+    END IF;
+    
+    RETURN v_DiemUyTin;
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- EXAMPLES SỬ DỤNG CÁC PROCEDURES KIỂM TRA
+-- ==============================================
+
+-- Ví dụ 1: Kiểm tra thông tin khách hàng
+-- SELECT KiemTraThongTinKhachHang('Nguyễn Văn A', '0123456789', 'test@email.com') as KetQua;
+
+-- Ví dụ 2: Kiểm tra thời gian đặt bàn (6h-22h)
+-- SELECT KiemTraThoiGianDatBan('2024-01-15', '19:00:00', '21:00:00') as KetQua;
+
+-- Ví dụ 3: Kiểm tra số lượng khách
+-- SELECT KiemTraSoLuongKhach(4, 1) as KetQua;
+
+-- Ví dụ 4: Kiểm tra trùng lặp
+-- SELECT KiemTraTrungLapDatBan('0123456789', '2024-01-15', '19:00:00', '21:00:00') as KetQua;
+
+-- Ví dụ 5: Kiểm tra toàn diện
+-- SELECT KiemTraToanDienDatBan(1, 1, '2024-01-15', '19:00:00', '21:00:00', 4, 'Nguyễn Văn A', '0123456789', 'test@email.com') as KetQua;
+
+-- Ví dụ 6: Tạo đặt bàn với kiểm tra đầy đủ
+-- SELECT TaoDatBanVoiKiemTraDayDu(1, 1, '2024-01-15', '19:00:00', '21:00:00', 4, 'Nguyễn Văn A', '0123456789', 'test@email.com', 'Ghi chú', 1) as MaDatMoi;
+
+-- Ví dụ 7: Tính điểm uy tín khách hàng
+-- SELECT TinhDiemUyTinKhachHang('0123456789') as DiemUyTin;
+
+-- Bật Event Scheduler (cần chạy với quyền admin)
+-- SET GLOBAL event_scheduler = ON;

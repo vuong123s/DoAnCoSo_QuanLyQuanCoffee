@@ -13,6 +13,8 @@ const {
   getReservationStats
 } = require('../controllers/reservationController');
 
+const { validateReservation } = require('../middleware/reservationValidation');
+
 // Migration endpoint to fix database schema
 router.post('/migrate-database', async (req, res) => {
   try {
@@ -52,7 +54,7 @@ router.get('/', getReservations);
 router.get('/:id', getReservationById);
 
 // Create new reservation
-router.post('/', createReservation);
+router.post('/', validateReservation, createReservation);
 
 // Update reservation
 router.put('/:id', updateReservation);

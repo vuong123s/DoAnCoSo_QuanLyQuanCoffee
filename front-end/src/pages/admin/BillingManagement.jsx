@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { billingAPI, userAPI } from '../../services/api';
+import { billingAPI, userAPI } from '../../shared/services/api';
 import { useForm } from 'react-hook-form';
 import { FiDollarSign, FiCalendar, FiUser, FiCreditCard, FiFilter, FiDownload, FiEye, FiSearch } from 'react-icons/fi';
 import toast from 'react-hot-toast';

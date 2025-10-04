@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore } from '../../app/stores/authStore';
+import { redirectAfterAuth, immediateRedirectAfterAuth } from '../../shared/utils/authRedirect';
 import { FiEye, FiEyeOff, FiMail, FiLock } from 'react-icons/fi';
 
 const Login = () => {
@@ -32,8 +33,12 @@ const Login = () => {
   const onSubmit = async (data) => {
     const result = await login(data);
     if (result.success) {
-      console.log('Login successful, no automatic redirect');
-      // User can manually navigate where they want
+      const { user } = result;
+      
+      // Use immediate redirect for reliable page change
+      immediateRedirectAfterAuth(user, { 
+        from: from !== '/' ? from : null
+      });
     }
   };
 
@@ -145,8 +150,11 @@ const Login = () => {
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
           <h3 className="text-sm font-medium text-gray-700 mb-2">Tài khoản demo:</h3>
           <div className="text-xs text-gray-600 space-y-1">
-            <p><strong>Admin:</strong> admin@coffee.com / admin123</p>
-            <p><strong>Khách hàng:</strong> Đăng ký tài khoản mới</p>
+            <p><strong>Admin (→ Trang Admin):</strong> admin@coffee.com / admin123</p>
+            <p><strong>Khách hàng (→ Trang chính):</strong> Đăng ký tài khoản mới</p>
+          </div>
+          <div className="mt-2 text-xs text-blue-600">
+            <p>💡 Hệ thống sẽ tự động chuyển hướng dựa trên vai trò của bạn</p>
           </div>
         </div>
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
-import { onlineOrderAPI } from '../../services/api';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { useAuthStore } from '../../app/stores/authStore';
+import { onlineOrderAPI } from '../../shared/services/api';
+import LoadingSpinner from '../../components/common/ui/LoadingSpinner';
 import { FiEye, FiPackage, FiClock, FiCheckCircle, FiTruck, FiFilter } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 

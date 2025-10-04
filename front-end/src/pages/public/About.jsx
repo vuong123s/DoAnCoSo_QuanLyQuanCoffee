@@ -184,9 +184,7 @@ const About = () => {
                 
                 <div className="space-y-3">
                   {[
-                    { day: 'Thứ Hai - Thứ Sáu', hours: '6:00 - 22:00' },
-                    { day: 'Thứ Bảy', hours: '7:00 - 23:00' },
-                    { day: 'Chủ Nhật', hours: '7:00 - 22:00' }
+                    { day: 'Thứ Hai - Chủ Nhật', hours: '6:00 - 22:00' }
                   ].map((schedule, index) => (
                     <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
                       <span className="text-gray-700">{schedule.day}</span>

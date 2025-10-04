@@ -1,29 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { reservationAPI, tableAPI } from '../../services/api';
-import { useForm } from 'react-hook-form';
-import { FiCalendar, FiClock, FiUser, FiPhone, FiEdit, FiTrash2, FiCheck, FiX, FiSearch, FiFilter } from 'react-icons/fi';
+import { reservationAPI, tableAPI } from '../../shared/services/api';
+import { FiCalendar, FiClock, FiUsers, FiPhone, FiMail, FiEdit, FiTrash2, FiEye, FiFilter, FiDownload, FiX } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const ReservationManagement = () => {
   const [reservations, setReservations] = useState([]);
-  const [tables, setTables] = useState([]);
   const [filteredReservations, setFilteredReservations] = useState([]);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [editingReservation, setEditingReservation] = useState(null);
-  const [deletingReservation, setDeletingReservation] = useState(null);
+  const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    formState: { errors, isSubmitting },
-  } = useForm();
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState(null);
+  const [filters, setFilters] = useState({
+    status: '',
+    date: '',
+    table: '',
+    search: ''
+  });
+  const [stats, setStats] = useState({
+    total: 0,
+    confirmed: 0,
+    pending: 0,
+    cancelled: 0,
+    completed: 0
+  });
 
   useEffect(() => {
     fetchData();
@@ -31,645 +30,453 @@ const ReservationManagement = () => {
 
   useEffect(() => {
     filterReservations();
-  }, [reservations, statusFilter, dateFilter]);
+  }, [reservations, filters]);
 
   const fetchData = async () => {
     try {
-      const [reservationsResponse, tablesResponse] = await Promise.all([
+      const [reservationsResponse, tablesResponse, statsResponse] = await Promise.all([
         reservationAPI.getReservations(),
-        tableAPI.getTables()
+        tableAPI.getTables(),
+        reservationAPI.getReservationStats()
       ]);
+
+      if (reservationsResponse.data.success) {
+        setReservations(reservationsResponse.data.reservations);
+      }
       
-      console.log('Reservations response:', reservationsResponse);
-      console.log('Tables response:', tablesResponse);
+      if (tablesResponse.data.success) {
+        setTables(tablesResponse.data.tables);
+      }
       
-      // Handle reservations data
-      const reservationsData = reservationsResponse.data?.data?.reservations || 
-                              reservationsResponse.data?.reservations || 
-                              reservationsResponse.data || [];
-      
-      // Handle tables data  
-      const tablesData = tablesResponse.data?.tables || 
-                        tablesResponse.data || [];
-      
-      console.log('Processed reservations:', reservationsData);
-      console.log('Processed tables:', tablesData);
-      
-      setReservations(Array.isArray(reservationsData) ? reservationsData : []);
-      setTables(Array.isArray(tablesData) ? tablesData : []);
+      if (statsResponse.data.success) {
+        setStats(statsResponse.data.stats);
+      }
     } catch (error) {
       toast.error('Lỗi khi tải dữ liệu');
-      console.error('Error fetching data:', error);
-      setReservations([]);
-      setTables([]);
     } finally {
       setLoading(false);
     }
   };
 
   const filterReservations = () => {
-    // Ensure reservations is always an array
-    const reservationsList = Array.isArray(reservations) ? reservations : [];
-    let filtered = reservationsList;
+    let filtered = reservations;
 
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(reservation => 
-        (reservation.TrangThai || reservation.status) === statusFilter
-      );
+    if (filters.status) {
+      filtered = filtered.filter(reservation => reservation.TrangThai === filters.status);
     }
 
-    if (dateFilter) {
-      filtered = filtered.filter(reservation => 
-        (reservation.NgayDat || reservation.date) === dateFilter
+    if (filters.date) {
+      filtered = filtered.filter(reservation => reservation.NgayDat === filters.date);
+    }
+
+    if (filters.table) {
+      filtered = filtered.filter(reservation => reservation.MaBan == filters.table);
+    }
+
+    if (filters.search) {
+      filtered = filtered.filter(reservation =>
+        reservation.TenKhach.toLowerCase().includes(filters.search.toLowerCase()) ||
+        reservation.SoDienThoai.includes(filters.search) ||
+        reservation.EmailKhach?.toLowerCase().includes(filters.search.toLowerCase())
       );
     }
 
     setFilteredReservations(filtered);
   };
 
-  const handleEdit = (reservation) => {
-    setEditingReservation(reservation);
-    setValue('TenKhach', reservation.TenKhach || reservation.customerName);
-    setValue('SoDienThoai', reservation.SoDienThoai || reservation.customerPhone);
-    setValue('MaBan', reservation.MaBan || reservation.tableId);
-    setValue('NgayDat', reservation.NgayDat || reservation.date);
-    setValue('GioDat', reservation.GioDat || reservation.time);
-    setValue('GioKetThuc', reservation.GioKetThuc || reservation.endTime);
-    setValue('SoNguoi', reservation.SoNguoi || reservation.partySize);
-    setValue('GhiChu', reservation.GhiChu || reservation.notes);
-    setValue('TrangThai', reservation.TrangThai || reservation.status);
-    setShowModal(true);
-  };
-
-  const handleDeleteClick = (reservation) => {
-    setDeletingReservation(reservation);
-    setShowDeleteModal(true);
-  };
-
-  const handleDelete = async () => {
-    if (!deletingReservation) return;
-    
-    setDeleting(true);
+  const handleStatusChange = async (reservationId, newStatus) => {
     try {
-      await reservationAPI.deleteReservation(deletingReservation.MaDat || deletingReservation.id);
-      toast.success('Xóa đặt bàn thành công');
-      setShowDeleteModal(false);
-      setDeletingReservation(null);
-      fetchData();
-    } catch (error) {
-      toast.error('Lỗi khi xóa đặt bàn');
-      console.error('Error deleting reservation:', error);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setShowDeleteModal(false);
-    setDeletingReservation(null);
-  };
-
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      await reservationAPI.updateReservation(id, { TrangThai: newStatus });
-      toast.success('Cập nhật trạng thái thành công');
-      fetchData();
-    } catch (error) {
-      toast.error('Lỗi khi cập nhật trạng thái');
-    }
-  };
-
-  const onSubmit = async (data) => {
-    try {
-      // Convert to Vietnamese schema
-      const reservationData = {
-        TenKhach: data.TenKhach,
-        SoDienThoai: data.SoDienThoai,
-        MaBan: parseInt(data.MaBan),
-        NgayDat: data.NgayDat,
-        GioDat: data.GioDat,
-        GioKetThuc: data.GioKetThuc,
-        SoNguoi: parseInt(data.SoNguoi),
-        GhiChu: data.GhiChu || '',
-        TrangThai: data.TrangThai
-      };
-
-      if (editingReservation) {
-        await reservationAPI.updateReservation(editingReservation.MaDat || editingReservation.id, reservationData);
-        toast.success('Cập nhật đặt bàn thành công');
-      } else {
-        await reservationAPI.createReservation(reservationData);
-        toast.success('Thêm đặt bàn mới thành công');
+      const response = await reservationAPI.updateReservationStatus(reservationId, { TrangThai: newStatus });
+      if (response.data.success) {
+        toast.success('Cập nhật trạng thái thành công');
+        fetchData();
       }
-      setShowModal(false);
-      setEditingReservation(null);
-      reset();
-      fetchData();
     } catch (error) {
-      toast.error('Có lỗi xảy ra');
-      console.error('Error submitting reservation:', error);
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
     }
+  };
+
+  const handleDelete = async (reservation) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa đặt bàn của ${reservation.TenKhach}?`)) return;
+
+    try {
+      const response = await reservationAPI.deleteReservation(reservation.MaDat);
+      if (response.data.success) {
+        toast.success('Xóa đặt bàn thành công');
+        fetchData();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleCancel = async (reservation) => {
+    if (!window.confirm(`Bạn có chắc muốn hủy đặt bàn của ${reservation.TenKhach}?`)) return;
+
+    try {
+      const response = await reservationAPI.cancelReservation(reservation.MaDat);
+      if (response.data.success) {
+        toast.success('Hủy đặt bàn thành công');
+        fetchData();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const exportReservations = () => {
+    const csvContent = [
+      ['Tên khách', 'Số điện thoại', 'Email', 'Ngày đặt', 'Giờ bắt đầu', 'Giờ kết thúc', 'Số người', 'Bàn', 'Trạng thái', 'Ghi chú'],
+      ...filteredReservations.map(reservation => [
+        reservation.TenKhach,
+        reservation.SoDienThoai,
+        reservation.EmailKhach || '',
+        reservation.NgayDat,
+        reservation.GioDat,
+        reservation.GioKetThuc,
+        reservation.SoNguoi,
+        getTableName(reservation.MaBan),
+        reservation.TrangThai,
+        reservation.GhiChu || ''
+      ])
+    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `reservations_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getTableName = (tableId) => {
+    const table = tables.find(t => t.MaBan == tableId);
+    return table ? table.TenBan : `Bàn ${tableId}`;
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending':
-      case 'Đã đặt':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'confirmed':
-      case 'Đã xác nhận':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-      case 'Đã hủy':
-        return 'bg-red-100 text-red-800';
-      case 'completed':
-      case 'Hoàn thành':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'Đã đặt': return 'text-blue-600 bg-blue-100';
+      case 'Đã xác nhận': return 'text-green-600 bg-green-100';
+      case 'Đã hủy': return 'text-red-600 bg-red-100';
+      case 'Hoàn thành': return 'text-gray-600 bg-gray-100';
+      default: return 'text-gray-600 bg-gray-100';
     }
   };
 
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'pending':
-        return 'Đã đặt';
-      case 'confirmed':
-        return 'Đã xác nhận';
-      case 'cancelled':
-        return 'Đã hủy';
-      case 'completed':
-        return 'Hoàn thành';
-      case 'Đã đặt':
-      case 'Đã xác nhận':
-      case 'Đã hủy':
-      case 'Hoàn thành':
-        return status;
-      default:
-        return status || 'Không xác định';
-    }
+  const formatTime = (timeString) => {
+    return timeString ? timeString.substring(0, 5) : '';
   };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('vi-VN');
+  };
+
+  const renderStats = () => (
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <FiCalendar className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-gray-600">Tổng đặt bàn</p>
+            <p className="text-lg font-semibold">{stats.total}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center">
+          <div className="p-2 bg-yellow-100 rounded-lg">
+            <FiClock className="w-5 h-5 text-yellow-600" />
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-gray-600">Chờ xác nhận</p>
+            <p className="text-lg font-semibold">{stats.pending}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <div className="w-5 h-5 bg-green-500 rounded"></div>
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-gray-600">Đã xác nhận</p>
+            <p className="text-lg font-semibold">{stats.confirmed}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center">
+          <div className="p-2 bg-gray-100 rounded-lg">
+            <div className="w-5 h-5 bg-gray-500 rounded"></div>
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-gray-600">Hoàn thành</p>
+            <p className="text-lg font-semibold">{stats.completed}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center">
+          <div className="p-2 bg-red-100 rounded-lg">
+            <div className="w-5 h-5 bg-red-500 rounded"></div>
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-gray-600">Đã hủy</p>
+            <p className="text-lg font-semibold">{stats.cancelled}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderFilters = () => (
+    <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex-1 min-w-64">
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo tên, SĐT, email..."
+            value={filters.search}
+            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          />
+        </div>
+        
+        <input
+          type="date"
+          value={filters.date}
+          onChange={(e) => setFilters(prev => ({ ...prev, date: e.target.value }))}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+        />
+        
+        <select
+          value={filters.table}
+          onChange={(e) => setFilters(prev => ({ ...prev, table: e.target.value }))}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+        >
+          <option value="">Tất cả bàn</option>
+          {tables.map(table => (
+            <option key={table.MaBan} value={table.MaBan}>
+              {table.TenBan}
+            </option>
+          ))}
+        </select>
+        
+        <select
+          value={filters.status}
+          onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+        >
+          <option value="">Tất cả trạng thái</option>
+          <option value="Đã đặt">Đã đặt</option>
+          <option value="Đã xác nhận">Đã xác nhận</option>
+          <option value="Đã hủy">Đã hủy</option>
+          <option value="Hoàn thành">Hoàn thành</option>
+        </select>
+        
+        <button
+          onClick={exportReservations}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+        >
+          <FiDownload className="w-4 h-4 mr-2" />
+          Xuất CSV
+        </button>
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm animate-pulse">
-          <div className="bg-gray-300 h-8 w-48 rounded mb-4"></div>
-          <div className="bg-gray-300 h-10 w-full rounded"></div>
-        </div>
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Quản lý Đặt bàn</h1>
-        <button
-          onClick={() => {
-            setEditingReservation(null);
-            reset();
-            setShowModal(true);
-          }}
-          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center space-x-2"
-        >
-          <FiCalendar className="w-4 h-4" />
-          <span>Thêm đặt bàn</span>
-        </button>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Quản lý đặt bàn</h1>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-6 rounded-lg shadow-sm">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex items-center space-x-2">
-            <FiFilter className="text-gray-400 w-5 h-5" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="Đã đặt">Đã đặt</option>
-              <option value="Đã xác nhận">Đã xác nhận</option>
-              <option value="Đã hủy">Đã hủy</option>
-              <option value="Hoàn thành">Hoàn thành</option>
-            </select>
-          </div>
-          <div className="flex items-center space-x-2">
-            <FiCalendar className="text-gray-400 w-5 h-5" />
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-      </div>
+      {renderStats()}
+      {renderFilters()}
 
       {/* Reservations Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Khách hàng
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Bàn
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thời gian
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Số người
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trạng thái
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thao tác
-                </th>
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Khách hàng</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Liên hệ</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bàn</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số người</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {filteredReservations.map(reservation => (
+              <tr key={reservation.MaDat} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div>
+                    <div className="font-medium text-gray-900">{reservation.TenKhach}</div>
+                    {reservation.GhiChu && (
+                      <div className="text-sm text-gray-500 truncate max-w-32">{reservation.GhiChu}</div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm">
+                    <div className="flex items-center text-gray-900">
+                      <FiPhone className="w-3 h-3 mr-1" />
+                      {reservation.SoDienThoai}
+                    </div>
+                    {reservation.EmailKhach && (
+                      <div className="flex items-center text-gray-500 mt-1">
+                        <FiMail className="w-3 h-3 mr-1" />
+                        {reservation.EmailKhach}
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm">
+                    <div className="flex items-center text-gray-900">
+                      <FiCalendar className="w-3 h-3 mr-1" />
+                      {formatDate(reservation.NgayDat)}
+                    </div>
+                    <div className="flex items-center text-gray-500 mt-1">
+                      <FiClock className="w-3 h-3 mr-1" />
+                      {formatTime(reservation.GioDat)} - {formatTime(reservation.GioKetThuc)}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap font-medium">
+                  {getTableName(reservation.MaBan)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <FiUsers className="w-4 h-4 mr-1 text-gray-500" />
+                    {reservation.SoNguoi}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <select
+                    value={reservation.TrangThai}
+                    onChange={(e) => handleStatusChange(reservation.MaDat, e.target.value)}
+                    className={`px-2 py-1 rounded-full text-xs font-medium border-0 ${getStatusColor(reservation.TrangThai)}`}
+                  >
+                    <option value="Đã đặt">Đã đặt</option>
+                    <option value="Đã xác nhận">Đã xác nhận</option>
+                    <option value="Đã hủy">Đã hủy</option>
+                    <option value="Hoàn thành">Hoàn thành</option>
+                  </select>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => {
+                        setSelectedReservation(reservation);
+                        setShowDetailModal(true);
+                      }}
+                      className="text-blue-600 hover:text-blue-800"
+                      title="Xem chi tiết"
+                    >
+                      <FiEye className="w-4 h-4" />
+                    </button>
+                    {reservation.TrangThai !== 'Đã hủy' && reservation.TrangThai !== 'Hoàn thành' && (
+                      <button
+                        onClick={() => handleCancel(reservation)}
+                        className="text-yellow-600 hover:text-yellow-800"
+                        title="Hủy đặt bàn"
+                      >
+                        <FiX className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(reservation)}
+                      className="text-red-600 hover:text-red-800"
+                      title="Xóa"
+                    >
+                      <FiTrash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {Array.isArray(filteredReservations) && filteredReservations.map((reservation) => (
-                <tr key={reservation.MaDat || reservation.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="flex items-center">
-                        <FiUser className="w-4 h-4 text-gray-400 mr-2" />
-                        <div className="text-sm font-medium text-gray-900">{reservation.TenKhach || reservation.customerName}</div>
-                      </div>
-                      <div className="flex items-center mt-1">
-                        <FiPhone className="w-4 h-4 text-gray-400 mr-2" />
-                        <div className="text-sm text-gray-500">{reservation.SoDienThoai || reservation.customerPhone}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">
-                     {tables.find(table => (table.MaBan) === (reservation.MaBan))?.TenBan || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <FiCalendar className="w-4 h-4 text-gray-400 mr-2" />
-                      <div className="text-sm text-gray-900">
-                        {new Date(reservation.NgayDat || reservation.date).toLocaleDateString('vi-VN')}
-                      </div>
-                    </div>
-                    <div className="flex items-center mt-1">
-                      <FiClock className="w-4 h-4 text-gray-400 mr-2" />
-                      <div className="text-sm text-gray-500">
-                        {reservation.GioDat || reservation.time}
-                        {(reservation.GioKetThuc || reservation.endTime) && (
-                          <span> - {reservation.GioKetThuc || reservation.endTime}</span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">{reservation.SoNguoi || reservation.partySize} người</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(reservation.TrangThai || reservation.status)}`}>
-                      {getStatusText(reservation.TrangThai || reservation.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      {(reservation.TrangThai || reservation.status) === 'Đã đặt' && (
-                        <>
-                          <button
-                            onClick={() => handleStatusChange(reservation.MaDat || reservation.id, 'Đã xác nhận')}
-                            className="text-green-600 hover:text-green-900 p-1 rounded-full hover:bg-green-50 transition-colors"
-                            title="Xác nhận đặt bàn"
-                          >
-                            <FiCheck className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleStatusChange(reservation.MaDat || reservation.id, 'Đã hủy')}
-                            className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition-colors"
-                            title="Hủy đặt bàn"
-                          >
-                            <FiX className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => handleEdit(reservation)}
-                        className="text-amber-600 hover:text-amber-900 p-1 rounded-full hover:bg-amber-50 transition-colors"
-                        title="Chỉnh sửa đặt bàn"
-                      >
-                        <FiEdit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(reservation)}
-                        className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition-colors"
-                        title="Xóa đặt bàn"
-                      >
-                        <FiTrash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
 
-        {Array.isArray(filteredReservations) && filteredReservations.length === 0 && (
+        {filteredReservations.length === 0 && (
           <div className="text-center py-12">
-            <FiSearch className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Không tìm thấy đặt bàn nào</h3>
-            <p className="text-gray-600">Thử thay đổi bộ lọc hoặc thêm đặt bàn mới</p>
+            <FiCalendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500">Không có đặt bàn nào</p>
           </div>
         )}
       </div>
 
-      {/* Modal */}
-      {showModal && (
+      {/* Detail Modal */}
+      {showDetailModal && selectedReservation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {editingReservation ? 'Chỉnh sửa đặt bàn' : 'Thêm đặt bàn mới'}
-            </h2>
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-96 overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Chi tiết đặt bàn</h2>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
             
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên khách hàng *
-                </label>
-                <input
-                  {...register('TenKhach', { required: 'Tên khách hàng là bắt buộc' })}
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-                {errors.TenKhach && (
-                  <p className="mt-1 text-sm text-red-600">{errors.TenKhach.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Số điện thoại *
-                </label>
-                <input
-                  {...register('SoDienThoai', { required: 'Số điện thoại là bắt buộc' })}
-                  type="tel"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-                {errors.SoDienThoai && (
-                  <p className="mt-1 text-sm text-red-600">{errors.SoDienThoai.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bàn *
-                </label>
-                <select
-                  {...register('MaBan', { required: 'Bàn là bắt buộc' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                >
-                  <option value="">Chọn bàn</option>
-                  {tables.map((table) => (
-                    <option key={table.MaBan || table.id} value={table.MaBan || table.id}>
-                      {table.TenBan || `Bàn ${table.SoBan || table.number}`} ({table.SoCho || table.capacity} người)
-                    </option>
-                  ))}
-                </select>
-                {errors.MaBan && (
-                  <p className="mt-1 text-sm text-red-600">{errors.MaBan.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ngày *
-                </label>
-                <input
-                  {...register('NgayDat', { required: 'Ngày là bắt buộc' })}
-                  type="date"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-                {errors.NgayDat && (
-                  <p className="mt-1 text-sm text-red-600">{errors.NgayDat.message}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Giờ bắt đầu *
-                  </label>
-                  <input
-                    {...register('GioDat', { required: 'Giờ bắt đầu là bắt buộc' })}
-                    type="time"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  />
-                  {errors.GioDat && (
-                    <p className="mt-1 text-sm text-red-600">{errors.GioDat.message}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h3 className="font-medium text-gray-900 border-b pb-2">Thông tin khách hàng</h3>
+                <div className="space-y-2 text-sm">
+                  <div><span className="text-gray-600">Tên:</span> {selectedReservation.TenKhach}</div>
+                  <div><span className="text-gray-600">Số điện thoại:</span> {selectedReservation.SoDienThoai}</div>
+                  {selectedReservation.EmailKhach && (
+                    <div><span className="text-gray-600">Email:</span> {selectedReservation.EmailKhach}</div>
                   )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Giờ kết thúc
-                  </label>
-                  <input
-                    {...register('GioKetThuc', {
-                      validate: (value, formValues) => {
-                        if (value && formValues.GioDat && value <= formValues.GioDat) {
-                          return 'Giờ kết thúc phải sau giờ bắt đầu';
-                        }
-                        return true;
-                      }
-                    })}
-                    type="time"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  />
-                  {errors.GioKetThuc && (
-                    <p className="mt-1 text-sm text-red-600">{errors.GioKetThuc.message}</p>
-                  )}
+                  <div><span className="text-gray-600">Số người:</span> {selectedReservation.SoNguoi}</div>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Số người *
-                </label>
-                <input
-                  {...register('SoNguoi', { 
-                    required: 'Số người là bắt buộc',
-                    min: { value: 1, message: 'Số người phải ít nhất 1' }
-                  })}
-                  type="number"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-                {errors.SoNguoi && (
-                  <p className="mt-1 text-sm text-red-600">{errors.SoNguoi.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ghi chú
-                </label>
-                <textarea
-                  {...register('GhiChu')}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  placeholder="Yêu cầu đặc biệt..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Trạng thái *
-                </label>
-                <select
-                  {...register('TrangThai', { required: 'Trạng thái là bắt buộc' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                >
-                  <option value="">Chọn trạng thái</option>
-                  <option value="Đã đặt">Đã đặt</option>
-                  <option value="Đã xác nhận">Đã xác nhận</option>
-                  <option value="Đã hủy">Đã hủy</option>
-                  <option value="Hoàn thành">Hoàn thành</option>
-                </select>
-                {errors.TrangThai && (
-                  <p className="mt-1 text-sm text-red-600">{errors.TrangThai.message}</p>
-                )}
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingReservation(null);
-                    reset();
-                  }}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Đang lưu...' : (editingReservation ? 'Cập nhật' : 'Thêm mới')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && deletingReservation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-            <div className="text-center">
-              {/* Warning Icon */}
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-                <FiTrash2 className="h-8 w-8 text-red-600" />
-              </div>
               
-              {/* Title */}
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Xác nhận xóa đặt bàn
-              </h3>
-              
-              {/* Content */}
-              <div className="mb-6">
-                <p className="text-gray-600 mb-4">
-                  Bạn có chắc chắn muốn xóa đặt bàn này không? Hành động này không thể hoàn tác.
-                </p>
-                
-                {/* Reservation Details */}
-                <div className="bg-gray-50 rounded-lg p-4 text-left">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Khách hàng:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {deletingReservation.TenKhach || deletingReservation.customerName}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Số điện thoại:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {deletingReservation.SoDienThoai || deletingReservation.customerPhone}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Bàn:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        Bàn {tables.find(table => (table.MaBan || table.id) === (deletingReservation.MaBan || deletingReservation.tableId))?.SoBan || 
-                             tables.find(table => (table.MaBan || table.id) === (deletingReservation.MaBan || deletingReservation.tableId))?.number || 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Thời gian:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {new Date(deletingReservation.NgayDat || deletingReservation.date).toLocaleDateString('vi-VN')}<br/>
-                        {deletingReservation.GioDat || deletingReservation.time}
-                        {(deletingReservation.GioKetThuc || deletingReservation.endTime) && (
-                          <span> - {deletingReservation.GioKetThuc || deletingReservation.endTime}</span>
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Số người:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {deletingReservation.SoNguoi || deletingReservation.partySize} người
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Trạng thái:</span>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(deletingReservation.TrangThai || deletingReservation.status)}`}>
-                        {getStatusText(deletingReservation.TrangThai || deletingReservation.status)}
-                      </span>
-                    </div>
+              <div className="space-y-4">
+                <h3 className="font-medium text-gray-900 border-b pb-2">Thông tin đặt bàn</h3>
+                <div className="space-y-2 text-sm">
+                  <div><span className="text-gray-600">Ngày:</span> {formatDate(selectedReservation.NgayDat)}</div>
+                  <div><span className="text-gray-600">Giờ:</span> {formatTime(selectedReservation.GioDat)} - {formatTime(selectedReservation.GioKetThuc)}</div>
+                  <div><span className="text-gray-600">Bàn:</span> {getTableName(selectedReservation.MaBan)}</div>
+                  <div>
+                    <span className="text-gray-600">Trạng thái:</span>
+                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedReservation.TrangThai)}`}>
+                      {selectedReservation.TrangThai}
+                    </span>
                   </div>
+                  <div><span className="text-gray-600">Ngày tạo:</span> {new Date(selectedReservation.NgayTaoDat).toLocaleString('vi-VN')}</div>
                 </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex space-x-3">
-                <button
-                  type="button"
-                  onClick={handleCancelDelete}
-                  disabled={deleting}
-                  className="flex-1 px-4 py-3 text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  {deleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      <span>Đang xóa...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FiTrash2 className="w-4 h-4" />
-                      <span>Xóa đặt bàn</span>
-                    </>
-                  )}
-                </button>
               </div>
             </div>
+            
+            {selectedReservation.GhiChu && (
+              <div className="mt-6">
+                <h3 className="font-medium text-gray-900 border-b pb-2 mb-2">Ghi chú</h3>
+                <p className="text-sm text-gray-600">{selectedReservation.GhiChu}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
