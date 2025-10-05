@@ -65,7 +65,9 @@ const createServiceProxy = (serviceName, port, requireAuth = false) => {
     
     try {
       const axios = require('axios');
-      const targetUrl = `http://localhost:${port}${req.originalUrl}`;
+      // Remove /api prefix for service routing
+      const servicePath = req.originalUrl.replace(/^\/api/, '');
+      const targetUrl = `http://localhost:${port}/api${servicePath}`;
       console.log(`🔄 [${serviceName}] Proxy: ${req.method} ${targetUrl}`);
       
       const headers = {
@@ -130,6 +132,7 @@ app.use('/api/categories', createServiceProxy('Menu Service', 3002));
 
 // User Service
 console.log('🔧 Setting up User Service proxy...');
+app.use('/api/auth', createServiceProxy('User Service', 3001)); // Auth routes (login/register) - no auth required
 app.use('/api/users', authMiddleware.authenticateToken, createServiceProxy('User Service', 3001, true));
 
 // Table Service
