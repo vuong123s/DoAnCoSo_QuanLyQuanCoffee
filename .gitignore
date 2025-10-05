@@ -1,0 +1,114 @@
+# ===================================
+# Coffee Shop Management System
+# Clean .gitignore - No Duplicates
+# ===================================
+
+# Dependencies
+node_modules/
+jspm_packages/
+bower_components/
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build Outputs
+dist/
+build/
+.next/
+.nuxt/
+.out/
+.vuepress/dist/
+
+# Cache Directories
+.cache/
+.parcel-cache/
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+.nyc_output/
+.eslintcache
+.stylelintcache
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime Data
+pids/
+*.pid
+*.seed
+*.pid.lock
+.node_repl_history
+
+# Temporary Files
+tmp/
+temp/
+.temp/
+
+# Coverage Reports
+coverage/
+*.lcov
+lib-cov/
+
+# Package Files
+*.tgz
+*.tar.gz
+.yarn-integrity
+.pnp.*
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vscode-test/
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database Files
+*.sqlite
+*.sqlite3
+*.db
+
+# Backup Files
+*.bak
+*.backup
+*.old
+
+# TypeScript
+*.tsbuildinfo
+
+# Build Tools
+.grunt/
+.lock-wscript
+build/Release
+
+# Serverless
+.serverless/
+
+# Other Tools
+.fusebox/
+.dynamodb/
+.tern-port
+.docusaurus/
