@@ -57,7 +57,9 @@ CREATE TABLE Ban (
 -- ======================
 CREATE TABLE LoaiMon (
     MaLoai INT AUTO_INCREMENT PRIMARY KEY,
-    TenLoai VARCHAR(100) NOT NULL
+    TenLoai VARCHAR(100) NOT NULL,
+    HinhAnh VARCHAR(255),        -- Hình ảnh đại diện cho loại món
+    MoTa TEXT                    -- Mô tả chi tiết về loại món
 );
 
 -- ======================
@@ -343,38 +345,38 @@ INSERT INTO Ban (TenBan, SoCho, MaKhuVuc, ViTri, TrangThai) VALUES
 ('Bàn 12', 12, 5, 'Phòng riêng 2', 'Trống');
 
 -- Thêm loại món
-INSERT INTO LoaiMon (TenLoai) VALUES
-('Cà phê'),
-('Trà'),
-('Nước ép'),
-('Bánh ngọt'),
-('Bánh mặn'),
-('Đồ uống đá xay'),
-('Món nóng'),
-('Salad');
+INSERT INTO LoaiMon (TenLoai, HinhAnh, MoTa) VALUES
+('Cà phê', 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400', 'Các loại cà phê truyền thống và hiện đại, từ espresso đến cà phê sữa đá'),
+('Trà', 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400', 'Trà xanh, trà đen, trà thảo mộc và các loại trà đặc biệt'),
+('Nước ép', 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=400', 'Nước ép tươi từ các loại trái cây tự nhiên, giàu vitamin'),
+('Bánh ngọt', 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=400', 'Bánh kem, bánh tart, cookies và các loại bánh ngọt thơm ngon'),
+('Bánh mặn', 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400', 'Sandwich, bánh mì, pizza mini và các món bánh mặn hấp dẫn'),
+('Đồ uống đá xay', 'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=400', 'Smoothie, frappuccino và các loại đồ uống đá xay mát lạnh'),
+('Món nóng', 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400', 'Súp, mì, cháo và các món ăn nóng bổ dưỡng'),
+('Salad', 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400', 'Salad tươi ngon với rau củ quả và các loại dressing đặc biệt');
 
 -- Thêm món ăn/uống
 INSERT INTO Mon (TenMon, DonGia, HinhAnh, MoTa, MaLoai, TrangThai) VALUES
-('Cà phê đen', 25000, 'ca-phe-den.jpg', 'Cà phê đen truyền thống Việt Nam', 1, 'Còn bán'),
-('Cà phê sữa', 30000, 'ca-phe-sua.jpg', 'Cà phê sữa đá thơm ngon', 1, 'Còn bán'),
-('Cappuccino', 45000, 'cappuccino.jpg', 'Cà phê Cappuccino Ý nguyên chất', 1, 'Còn bán'),
-('Americano', 35000, 'americano.jpg', 'Cà phê Americano đậm đà', 1, 'Còn bán'),
-('Latte', 40000, 'latte.jpg', 'Cà phê Latte với bọt sữa mịn', 1, 'Còn bán'),
-('Trà đào', 35000, 'tra-dao.jpg', 'Trà đào cam sả thơm mát', 2, 'Còn bán'),
-('Trà sữa trân châu', 40000, 'tra-sua-tran-chau.jpg', 'Trà sữa trân châu đen ngọt ngào', 2, 'Còn bán'),
-('Trà xanh', 25000, 'tra-xanh.jpg', 'Trà xanh thanh mát', 2, 'Còn bán'),
-('Nước cam', 25000, 'nuoc-cam.jpg', 'Nước cam tươi nguyên chất', 3, 'Còn bán'),
-('Sinh tố bơ', 35000, 'sinh-to-bo.jpg', 'Sinh tố bơ béo ngậy', 3, 'Còn bán'),
-('Bánh croissant', 40000, 'banh-croissant.jpg', 'Bánh croissant bơ thơm giòn', 4, 'Còn bán'),
-('Bánh tiramisu', 55000, 'banh-tiramisu.jpg', 'Bánh tiramisu Ý chính hiệu', 4, 'Còn bán'),
-('Bánh mì thịt nướng', 35000, 'banh-mi-thit-nuong.jpg', 'Bánh mì thịt nướng đặc biệt', 5, 'Còn bán'),
-('Sandwich gà', 45000, 'sandwich-ga.jpg', 'Sandwich gà phô mai', 5, 'Còn bán'),
-('Frappuccino', 50000, 'frappuccino.jpg', 'Đồ uống đá xay cà phê', 6, 'Còn bán'),
-('Chocolate đá xay', 45000, 'chocolate-da-xay.jpg', 'Chocolate đá xay thơm ngon', 6, 'Còn bán'),
-('Mì Ý sốt kem', 65000, 'mi-y-sot-kem.jpg', 'Mì Ý sốt kem nấm', 7, 'Còn bán'),
-('Cơm chiên hải sản', 70000, 'com-chien-hai-san.jpg', 'Cơm chiên hải sản đặc biệt', 7, 'Còn bán'),
-('Salad Caesar', 55000, 'salad-caesar.jpg', 'Salad Caesar với gà nướng', 8, 'Còn bán'),
-('Salad trái cây', 45000, 'salad-trai-cay.jpg', 'Salad trái cây tươi mát', 8, 'Còn bán');
+('Cà phê đen', 25000, 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400', 'Cà phê đen truyền thống Việt Nam', 1, 'Còn bán'),
+('Cà phê sữa', 30000, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400', 'Cà phê sữa đá thơm ngon', 1, 'Còn bán'),
+('Cappuccino', 45000, 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=400', 'Cà phê Cappuccino Ý nguyên chất', 1, 'Còn bán'),
+('Americano', 35000, 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400', 'Cà phê Americano đậm đà', 1, 'Còn bán'),
+('Latte', 40000, 'https://images.unsplash.com/photo-1561047029-3000c68339ca?w=400', 'Cà phê Latte với bọt sữa mịn', 1, 'Còn bán'),
+('Trà đào', 35000, 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400', 'Trà đào cam sả thơm mát', 2, 'Còn bán'),
+('Trà sữa trân châu', 40000, 'https://images.unsplash.com/photo-1525385133512-2f3bdd039054?w=400', 'Trà sữa trân châu đen ngọt ngào', 2, 'Còn bán'),
+('Trà xanh', 25000, 'https://images.unsplash.com/photo-1627435601361-ec25f5b1d0e5?w=400', 'Trà xanh thanh mát', 2, 'Còn bán'),
+('Nước cam', 25000, 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400', 'Nước cam tươi nguyên chất', 3, 'Còn bán'),
+('Sinh tố bơ', 35000, 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=400', 'Sinh tố bơ béo ngậy', 3, 'Còn bán'),
+('Bánh croissant', 40000, 'https://images.unsplash.com/photo-1555507036-ab794f4afe5a?w=400', 'Bánh croissant bơ thơm giòn', 4, 'Còn bán'),
+('Bánh tiramisu', 55000, 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400', 'Bánh tiramisu Ý chính hiệu', 4, 'Còn bán'),
+('Bánh mì thịt nướng', 35000, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400', 'Bánh mì thịt nướng đặc biệt', 5, 'Còn bán'),
+('Sandwich gà', 45000, 'https://images.unsplash.com/photo-1553909489-cd47e0ef937f?w=400', 'Sandwich gà phô mai', 5, 'Còn bán'),
+('Frappuccino', 50000, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400', 'Đồ uống đá xay cà phê', 6, 'Còn bán'),
+('Chocolate đá xay', 45000, 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400', 'Chocolate đá xay thơm ngon', 6, 'Còn bán'),
+('Mì Ý sốt kem', 65000, 'https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?w=400', 'Mì Ý sốt kem nấm', 7, 'Còn bán'),
+('Cơm chiên hải sản', 70000, 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400', 'Cơm chiên hải sản đặc biệt', 7, 'Còn bán'),
+('Salad Caesar', 55000, 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=400', 'Salad Caesar với gà nướng', 8, 'Còn bán'),
+('Salad trái cây', 45000, 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400', 'Salad trái cây tươi mát', 8, 'Còn bán');
 
 -- Thêm nguyên liệu kho
 INSERT INTO Kho (TenNL, DonVi, SoLuong, MucCanhBao, DonGiaNhap, NgayNhap, TrangThai) VALUES

@@ -29,10 +29,8 @@ import BookTable from "../pages/customer/BookTable";
 // Admin Pages
 import Dashboard from "../pages/admin/Dashboard";
 import MenuManagement from "../pages/admin/MenuManagement";
-import CategoryManagement from "../pages/admin/CategoryManagement";
 import TableManagement from "../pages/admin/TableManagement";
 import ReservationManagement from "../pages/admin/ReservationManagement";
-import GroupReservationManagement from "../pages/admin/GroupReservationManagement";
 import OrderManagement from "../pages/admin/OrderManagement";
 import OnlineOrderManagement from "../pages/admin/OnlineOrderManagement";
 import UserManagement from "../pages/admin/UserManagement";
@@ -90,10 +88,8 @@ function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="menu" element={<MenuManagement />} />
-            <Route path="categories" element={<CategoryManagement />} />
             <Route path="tables" element={<TableManagement />} />
             <Route path="reservations" element={<ReservationManagement />} />
-            <Route path="group-reservations" element={<GroupReservationManagement />} />
             <Route path="orders" element={<OrderManagement />} />
             <Route path="online-orders" element={<OnlineOrderManagement />} />
             <Route path="billing" element={<BillingManagement />} />

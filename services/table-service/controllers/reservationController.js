@@ -83,14 +83,12 @@ const getReservations = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        reservations: rows,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(count / limit),
-          total_items: count,
-          items_per_page: parseInt(limit)
-        }
+      reservations: rows,
+      pagination: {
+        current_page: parseInt(page),
+        total_pages: Math.ceil(count / limit),
+        total_items: count,
+        items_per_page: parseInt(limit)
       }
     });
 
@@ -756,18 +754,46 @@ const getReservationStats = async (req, res) => {
       ]
     });
 
+    // Calculate stats by status
+    const stats = {
+      total: totalReservations,
+      pending: 0,
+      confirmed: 0,
+      completed: 0,
+      cancelled: 0,
+      today: 0
+    };
+
+    statusCounts.forEach(s => {
+      const count = parseInt(s.dataValues.count);
+      switch(s.TrangThai) {
+        case 'Đã đặt':
+          stats.pending = count;
+          break;
+        case 'Đã xác nhận':
+          stats.confirmed = count;
+          break;
+        case 'Hoàn thành':
+          stats.completed = count;
+          break;
+        case 'Đã hủy':
+          stats.cancelled = count;
+          break;
+      }
+    });
+
+    // Get today's reservations
+    const today = new Date().toISOString().split('T')[0];
+    const todayCount = await DatBan.count({
+      where: {
+        NgayDat: today
+      }
+    });
+    stats.today = todayCount;
+
     res.json({
       success: true,
-      data: {
-        stats: {
-          total_reservations: totalReservations,
-          status_breakdown: statusCounts.map(s => ({
-            status: s.TrangThai,
-            count: parseInt(s.dataValues.count)
-          })),
-          average_party_size: parseFloat(averagePartySize[0]?.dataValues?.average || 0).toFixed(1)
-        }
-      }
+      stats: stats
     });
 
   } catch (error) {

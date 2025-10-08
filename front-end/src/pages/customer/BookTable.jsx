@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 
 const BookTable = () => {
   const { user, isAuthenticated } = useAuthStore();
+  const [bookingType, setBookingType] = useState('single'); // 'single' or 'group'
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedTables, setSelectedTables] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -85,11 +86,18 @@ const BookTable = () => {
       if (isAlreadySelected) {
         return prev.filter(t => (t.MaBan || t.id) !== tableId);
       } else {
-        if (prev.length >= 10) {
-          toast.error('Chỉ có thể chọn tối đa 10 bàn');
-          return prev;
+        // For single booking, only allow one table
+        if (bookingType === 'single') {
+          return [table];
         }
-        return [...prev, table];
+        // For group booking, allow up to 10 tables
+        else {
+          if (prev.length >= 10) {
+            toast.error('Chỉ có thể chọn tối đa 10 bàn');
+            return prev;
+          }
+          return [...prev, table];
+        }
       }
     });
   };
@@ -150,7 +158,7 @@ const BookTable = () => {
 
     try {
       // For single table reservation
-      if (selectedTables.length === 1) {
+      if (bookingType === 'single') {
         const reservationData = {
           ...data,
           MaKH: user?.MaKH || null,
@@ -360,16 +368,23 @@ const BookTable = () => {
     <div className="space-y-6">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          Chọn bàn ({selectedTables.length}/10)
+          {bookingType === 'single' 
+            ? `Chọn bàn (${selectedTables.length}/1)` 
+            : `Chọn bàn (${selectedTables.length}/10)`
+          }
         </h2>
-        <p className="text-gray-600">Chọn các bàn bạn muốn đặt</p>
+        <p className="text-gray-600">
+          {bookingType === 'single' 
+            ? 'Chọn một bàn bạn muốn đặt' 
+            : 'Chọn các bàn bạn muốn đặt cho nhóm (tối đa 10 bàn)'
+          }
+        </p>
       </div>
 
       {/* Time Conflict Warning */}
       {hasTimeConflicts() && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <div className="flex items-center">
-            <FiAlertCircle className="w-5 h-5 text-red-600 mr-2" />
             <h3 className="text-red-800 font-medium">Cảnh báo xung đột thời gian</h3>
           </div>
           <p className="text-red-700 text-sm mt-1">
@@ -449,6 +464,47 @@ const BookTable = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Booking Type Selection */}
+        <div className="mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4 text-center">
+              Chọn loại đặt bàn
+            </h2>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => {
+                  setBookingType('single');
+                  setSelectedTables([]);
+                  setCurrentStep(1);
+                }}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  bookingType === 'single'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <FiUsers className="w-5 h-5 inline mr-2" />
+                Đặt bàn đơn lẻ
+              </button>
+              <button
+                onClick={() => {
+                  setBookingType('group');
+                  setSelectedTables([]);
+                  setCurrentStep(1);
+                }}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  bookingType === 'group'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <FiUsers className="w-5 h-5 inline mr-2" />
+                Đặt bàn nhóm (nhiều bàn)
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-center">

@@ -34,20 +34,15 @@ const Dashboard = () => {
       // Wait for auth to be ready and avoid re-fetching
       if (isLoading || dataFetched) return;
       
-      // Check authentication before making API calls
       if (!isAuthenticated || !user?.id) {
         setLoading(false);
         return;
       }
       try {
-        const [billingResponse, healthResponse, tableStatsResponse, reservationStatsResponse] = await Promise.all([
+        const [billingResponse, tableStatsResponse, reservationStatsResponse] = await Promise.all([
           billingAPI.getBillingStats().catch((err) => {
             console.warn('Billing API error:', err.message);
-            return { data: {} };
-          }),
-          healthAPI.getServicesHealth().catch((err) => {
-            console.warn('Health API error:', err.message);
-            return { data: {} };
+            return { data: { stats: { totalRevenue: 0, totalOrders: 0, totalCustomers: 0, averageOrderValue: 0 } } };
           }),
           tableAPI.getTableStats().catch((err) => {
             console.warn('Table API error:', err.message);
@@ -59,7 +54,7 @@ const Dashboard = () => {
           })
         ]);
 
-        setStats(billingResponse.data.stats || {
+        setStats(billingResponse.data || {
           totalRevenue: 2450000,
           totalOrders: 156,
           totalCustomers: 89,
@@ -80,7 +75,7 @@ const Dashboard = () => {
           confirmed: 5
         });
 
-        setSystemHealth(healthResponse.data || {});
+        // setSystemHealth(healthResponse.data || {});
         
         // Mock recent orders
         setRecentOrders([
@@ -135,25 +130,25 @@ const Dashboard = () => {
   const tableStatCards = [
     {
       title: 'Tổng số bàn',
-      value: tableStats.total.toString(),
+      value: (tableStats?.total || 0).toString(),
       icon: FiGrid,
       color: 'bg-indigo-500'
     },
     {
       title: 'Bàn trống',
-      value: tableStats.available.toString(),
+      value: (tableStats?.available || 0).toString(),
       icon: FiGrid,
       color: 'bg-green-500'
     },
     {
       title: 'Bàn đã đặt',
-      value: tableStats.reserved.toString(),
+      value: (tableStats?.reserved || 0).toString(),
       icon: FiGrid,
       color: 'bg-yellow-500'
     },
     {
       title: 'Đang phục vụ',
-      value: tableStats.occupied.toString(),
+      value: (tableStats?.occupied || 0).toString(),
       icon: FiGrid,
       color: 'bg-red-500'
     }
@@ -162,30 +157,29 @@ const Dashboard = () => {
   const reservationStatCards = [
     {
       title: 'Đặt bàn hôm nay',
-      value: reservationStats.today.toString(),
+      value: (reservationStats?.today || 0).toString(),
       icon: FiCalendar,
       color: 'bg-blue-500'
     },
     {
       title: 'Chờ xác nhận',
-      value: reservationStats.pending.toString(),
+      value: (reservationStats?.pending || 0).toString(),
       icon: FiClock,
       color: 'bg-yellow-500'
     },
     {
       title: 'Đã xác nhận',
-      value: reservationStats.confirmed.toString(),
+      value: (reservationStats?.confirmed || 0).toString(),
       icon: FiCalendar,
       color: 'bg-green-500'
     },
     {
       title: 'Tổng đặt bàn',
-      value: reservationStats.total.toString(),
+      value: (reservationStats?.total || 0).toString(),
       icon: FiCalendar,
       color: 'bg-purple-500'
     }
   ];
-
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-800';

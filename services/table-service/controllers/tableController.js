@@ -234,18 +234,21 @@ const updateTable = async (req, res) => {
 const updateTableStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, TrangThai, notes } = req.body;
 
-    if (!status) {
+    // Support both English and Vietnamese field names
+    const statusValue = status || TrangThai;
+
+    if (!statusValue) {
       return res.status(400).json({
-        error: 'Status is required'
+        error: 'Status is required (status or TrangThai field)'
       });
     }
 
-    const validStatuses = ['Trống', 'Đã đặt', 'Đang phục vụ'];
-    if (!validStatuses.includes(status)) {
+    const validStatuses = ['Trống', 'Đã đặt', 'Đang phục vụ', 'Đang sử dụng', 'Bảo trì'];
+    if (!validStatuses.includes(statusValue)) {
       return res.status(400).json({
-        error: 'Invalid status. Valid values: Trống, Đã đặt, Đang phục vụ'
+        error: 'Invalid status. Valid values: Trống, Đã đặt, Đang phục vụ, Đang sử dụng, Bảo trì'
       });
     }
 
@@ -256,12 +259,12 @@ const updateTableStatus = async (req, res) => {
       });
     }
 
-    const updateData = { TrangThai: status };
+    const updateData = { TrangThai: statusValue };
 
     await table.update(updateData);
 
     res.json({
-      message: `Table status updated to ${status}`,
+      message: `Table status updated to ${statusValue}`,
       table
     });
 
@@ -286,21 +289,33 @@ const deleteTable = async (req, res) => {
       });
     }
 
-    // Check if table has active reservations
-    const activeReservations = await DatBan.count({
-      where: {
-        MaBan: id,
-        TrangThai: ['Đã đặt', 'Hoàn thành'],
-        NgayDat: {
-          [Op.gte]: new Date().toISOString().split('T')[0]
-        }
-      }
+    // Check if table has any reservations (active or historical)
+    const totalReservations = await DatBan.count({
+      where: { MaBan: id }
     });
 
-    if (activeReservations > 0) {
+    if (totalReservations > 0) {
+      // Check for active/future reservations
+      const activeReservations = await DatBan.count({
+        where: {
+          MaBan: id,
+          TrangThai: ['Đã đặt', 'Đã xác nhận'],
+          NgayDat: {
+            [Op.gte]: new Date().toISOString().split('T')[0]
+          }
+        }
+      });
+
+      const message = activeReservations > 0 
+        ? `Bàn này có ${activeReservations} đặt bàn đang hoạt động và ${totalReservations} đặt bàn tổng cộng. Không thể xóa để đảm bảo tính toàn vẹn dữ liệu.`
+        : `Bàn này có ${totalReservations} đặt bàn trong lịch sử. Không thể xóa để đảm bảo tính toàn vẹn dữ liệu.`;
+
       return res.status(400).json({
-        error: 'Cannot delete table with active reservations',
-        active_reservations: activeReservations
+        error: 'Cannot delete table with existing reservations',
+        message: message,
+        suggestion: 'Bạn có thể đánh dấu bàn là "Bảo trì" thay vì xóa, hoặc liên hệ quản trị viên để xử lý.',
+        active_reservations: activeReservations,
+        total_reservations: totalReservations
       });
     }
 
@@ -312,6 +327,33 @@ const deleteTable = async (req, res) => {
 
   } catch (error) {
     console.error('Error deleting table:', error);
+    
+    // Handle Sequelize foreign key constraint error
+    if (error.name === 'SequelizeForeignKeyConstraintError' || error.code === 'ER_ROW_IS_REFERENCED_2') {
+      // Get total reservations count for this table
+      try {
+        const totalReservations = await DatBan.count({
+          where: { MaBan: id }
+        });
+        
+        return res.status(400).json({
+          error: 'Cannot delete table with existing reservations',
+          message: `Bàn này có ${totalReservations} đặt bàn trong hệ thống. Không thể xóa để đảm bảo tính toàn vẹn dữ liệu.`,
+          suggestion: 'Bạn có thể đánh dấu bàn là "Bảo trì" thay vì xóa, hoặc liên hệ quản trị viên để xử lý.',
+          total_reservations: totalReservations,
+          constraint_error: true
+        });
+      } catch (countError) {
+        return res.status(400).json({
+          error: 'Cannot delete table with existing reservations',
+          message: 'Bàn này có đặt bàn trong hệ thống. Không thể xóa để đảm bảo tính toàn vẹn dữ liệu.',
+          suggestion: 'Bạn có thể đánh dấu bàn là "Bảo trì" thay vì xóa, hoặc liên hệ quản trị viên để xử lý.',
+          constraint_error: true
+        });
+      }
+    }
+    
+    // Handle other errors
     res.status(500).json({
       error: 'Failed to delete table',
       message: error.message

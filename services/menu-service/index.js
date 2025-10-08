@@ -34,6 +34,12 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`🔍 ${req.method} ${req.originalUrl} - Params:`, req.params, '- Query:', req.query);
+  next();
+});
+
 // Routes
 app.use('/api/menu', menuRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -49,7 +55,7 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
-    await sequelize.sync({ alter: true });
+    await sequelize.sync({ alter: false });
     console.log('Database synchronized successfully.');
     
     app.listen(PORT, () => {

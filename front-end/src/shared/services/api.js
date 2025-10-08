@@ -63,7 +63,9 @@ export const menuAPI = {
   getMenuItems: (params) => api.get('/api/menu', { params }),
   getMenuItem: (id) => api.get(`/api/menu/${id}`),
   createMenuItem: (itemData) => api.post('/api/menu', itemData),
+  updateMenuItem: (id, itemData) => api.put(`/api/menu/${id}`, itemData),
   deleteMenuItem: (id) => api.delete(`/api/menu/${id}`),
+  softDeleteMenuItem: (id) => api.patch(`/api/menu/${id}/soft-delete`),
   // Fallback featured items using filters (aligns with Vietnamese schema)
   getFeaturedItems: () => api.get('/api/menu', { params: { is_available: true, limit: 8 } }),
 };
@@ -116,17 +118,6 @@ export const reservationAPI = {
   getReservationStats: (params) => api.get('/api/reservations/stats', { params }),
 };
 
-// Group Reservation API - Using Vietnamese schema for group bookings
-export const groupReservationAPI = {
-  getGroupReservations: (params) => api.get('/api/group-reservations', { params }),
-  getGroupReservation: (id) => api.get(`/api/group-reservations/${id}`),
-  createGroupReservation: (reservationData) => api.post('/api/group-reservations', reservationData),
-  updateGroupReservation: (id, reservationData) => api.put(`/api/group-reservations/${id}`, reservationData),
-  updateGroupReservationStatus: (id, statusData) => api.patch(`/api/group-reservations/${id}/status`, statusData),
-  cancelGroupReservation: (id) => api.patch(`/api/group-reservations/${id}/cancel`),
-  deleteGroupReservation: (id) => api.delete(`/api/group-reservations/${id}`),
-  getGroupReservationStats: (params) => api.get('/api/group-reservations/stats', { params }),
-};
 
 // User API
 export const userAPI = {

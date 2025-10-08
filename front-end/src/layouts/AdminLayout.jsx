@@ -68,15 +68,8 @@ const AdminLayout = () => {
           path: '/admin/menu', 
           icon: FiCoffee, 
           label: 'Menu', 
-          description: 'Thức uống & món ăn',
+          description: 'Thức uống, món ăn & danh mục',
           color: 'from-amber-500 to-amber-600'
-        },
-        { 
-          path: '/admin/categories', 
-          icon: FiPackage, 
-          label: 'Danh mục', 
-          description: 'Phân loại sản phẩm',
-          color: 'from-green-500 to-green-600'
         },
         { 
           path: '/admin/tables', 
@@ -92,13 +85,6 @@ const AdminLayout = () => {
           description: 'Quản lý đặt chỗ',
           color: 'from-pink-500 to-pink-600'
         },
-        { 
-          path: '/admin/group-reservations', 
-          icon: FiUsers, 
-          label: 'Đặt bàn nhóm', 
-          description: 'Quản lý đặt bàn nhóm',
-          color: 'from-violet-500 to-violet-600'
-        }
       ]
     },
     {

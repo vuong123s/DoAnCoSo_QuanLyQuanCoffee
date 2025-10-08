@@ -77,8 +77,16 @@ const getMenuItems = async (req, res) => {
 const getMenuItemById = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Validate ID parameter
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        error: 'Invalid menu item ID',
+        message: 'ID must be a valid number'
+      });
+    }
 
-    const menuItem = await Mon.findByPk(id, {
+    const menuItem = await Mon.findByPk(parseInt(id), {
       include: [{
         model: LoaiMon,
         as: 'loaimon',
@@ -107,30 +115,37 @@ const getMenuItemById = async (req, res) => {
 const createMenuItem = async (req, res) => {
   try {
     const {
+      // Vietnamese schema fields
+      TenMon,
+      MoTa,
+      DonGia,
+      HinhAnh,
+      MaLoai,
+      TrangThai = 'Có sẵn',
+      // English fields for backward compatibility
       category_id,
       name,
       description,
       price,
       image_url,
-      is_available = true,
-      is_featured = false,
-      preparation_time,
-      ingredients,
-      allergens,
-      calories,
-      spice_level = 'none',
-      size_options,
-      sort_order = 0
+      is_available = true
     } = req.body;
 
-    if (!category_id || !name || !price) {
+    console.log('Create menu item data:', req.body);
+
+    // Use Vietnamese fields first, fallback to English
+    const tenMon = TenMon || name;
+    const donGia = DonGia || price;
+    const maLoai = MaLoai || category_id;
+
+    if (!maLoai || !tenMon || !donGia) {
       return res.status(400).json({
-        error: 'Missing required fields: category_id, name, and price'
+        error: 'Missing required fields: MaLoai/category_id, TenMon/name, and DonGia/price'
       });
     }
 
     // Check if category exists
-    const category = await Category.findByPk(category_id);
+    const category = await Category.findByPk(maLoai);
     if (!category) {
       return res.status(400).json({
         error: 'Category not found'
@@ -156,35 +171,21 @@ const createMenuItem = async (req, res) => {
         parsedSizeOptions = typeof size_options === 'string' ? size_options : JSON.stringify(size_options);
       } catch (err) {
         return res.status(400).json({
-          error: 'Invalid size_options format'
+          error: 'Invalid size options format'
         });
       }
     }
 
-    const menuItem = await MenuItem.create({
-      category_id,
-      name,
-      description,
-      price: parseFloat(price),
-      image_url,
-      is_available,
-      is_featured,
-      preparation_time: preparation_time ? parseInt(preparation_time) : null,
-      ingredients: parsedIngredients,
-      allergens,
-      calories: calories ? parseInt(calories) : null,
-      spice_level,
-      size_options: parsedSizeOptions,
-      sort_order: parseInt(sort_order)
+    const menuItem = await Mon.create({
+      TenMon: tenMon,
+      MoTa: MoTa || description,
+      DonGia: parseFloat(donGia),
+      HinhAnh: HinhAnh || image_url,
+      MaLoai: maLoai,
+      TrangThai: TrangThai || (is_available ? 'Có sẵn' : 'Hết hàng')
     });
 
-    const createdMenuItem = await MenuItem.findByPk(menuItem.id, {
-      include: [{
-        model: Category,
-        as: 'category',
-        attributes: ['id', 'name', 'description']
-      }]
-    });
+    const createdMenuItem = await Mon.findByPk(menuItem.MaMon);
 
     res.status(201).json({
       message: 'Menu item created successfully',
@@ -206,16 +207,26 @@ const updateMenuItem = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    const menuItem = await MenuItem.findByPk(id);
+    // Validate ID parameter
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        error: 'Invalid menu item ID',
+        message: 'ID must be a valid number'
+      });
+    }
+
+    console.log('Update menu item:', id, updateData);
+
+    const menuItem = await Mon.findByPk(parseInt(id));
     if (!menuItem) {
       return res.status(404).json({
         error: 'Menu item not found'
       });
     }
 
-    // If category_id is being updated, check if it exists
-    if (updateData.category_id) {
-      const category = await Category.findByPk(updateData.category_id);
+    // If MaLoai is being updated, check if it exists
+    if (updateData.MaLoai) {
+      const category = await LoaiMon.findByPk(updateData.MaLoai);
       if (!category) {
         return res.status(400).json({
           error: 'Category not found'
@@ -234,13 +245,7 @@ const updateMenuItem = async (req, res) => {
 
     await menuItem.update(updateData);
 
-    const updatedMenuItem = await MenuItem.findByPk(id, {
-      include: [{
-        model: Category,
-        as: 'category',
-        attributes: ['id', 'name', 'description']
-      }]
-    });
+    const updatedMenuItem = await Mon.findByPk(id);
 
     res.json({
       message: 'Menu item updated successfully',
@@ -259,23 +264,98 @@ const updateMenuItem = async (req, res) => {
 // Delete menu item
 const deleteMenuItem = async (req, res) => {
   try {
+    console.log('🗑️ DELETE request for menu item ID:', req.params.id);
     const { id } = req.params;
+    const { force = false } = req.query; // Allow force delete option
 
-    const menuItem = await MenuItem.findByPk(id);
+    // Validate ID parameter
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        error: 'Invalid menu item ID',
+        message: 'ID must be a valid number'
+      });
+    }
+
+    const menuItem = await Mon.findByPk(parseInt(id));
     if (!menuItem) {
       return res.status(404).json({
         error: 'Menu item not found'
       });
     }
 
+    // Check if menu item is referenced in orders
+    const { sequelize } = require('../config/database');
+    
+    // Check for references in various order tables
+    const references = await Promise.all([
+      // Check CTDonHangOnline (online order details)
+      sequelize.query(
+        'SELECT COUNT(*) as count FROM CTDonHangOnline WHERE MaMon = ?',
+        { replacements: [id], type: sequelize.QueryTypes.SELECT }
+      ),
+      // Check CTDonHang (regular order details)
+      sequelize.query(
+        'SELECT COUNT(*) as count FROM CTDonHang WHERE MaMon = ?',
+        { replacements: [id], type: sequelize.QueryTypes.SELECT }
+      ),
+      // Check CTOrder (order details)
+      sequelize.query(
+        'SELECT COUNT(*) as count FROM CTOrder WHERE MaMon = ?',
+        { replacements: [id], type: sequelize.QueryTypes.SELECT }
+      ),
+      // Check GioHang (shopping cart)
+      sequelize.query(
+        'SELECT COUNT(*) as count FROM GioHang WHERE MaMon = ?',
+        { replacements: [id], type: sequelize.QueryTypes.SELECT }
+      )
+    ]);
+
+    const totalReferences = references.reduce((sum, result) => sum + (result[0]?.count || 0), 0);
+
+    if (totalReferences > 0 && !force) {
+      return res.status(400).json({
+        error: 'Cannot delete menu item',
+        message: `Món ăn này đã được sử dụng trong ${totalReferences} đơn hàng. Không thể xóa để đảm bảo tính toàn vẹn dữ liệu.`,
+        suggestion: 'Bạn có thể đánh dấu món ăn là "Hết hàng" thay vì xóa, hoặc liên hệ quản trị viên để xử lý.',
+        references: totalReferences,
+        canSoftDelete: true
+      });
+    }
+
+    // If force delete is requested, we still can't delete due to foreign key constraints
+    if (force && totalReferences > 0) {
+      return res.status(400).json({
+        error: 'Cannot force delete menu item',
+        message: 'Không thể xóa món ăn này vì ràng buộc khóa ngoại trong cơ sở dữ liệu. Vui lòng đánh dấu là "Hết hàng" thay thế.',
+        suggestion: 'Sử dụng chức năng "Đánh dấu hết hàng" để ẩn món ăn khỏi menu.'
+      });
+    }
+
+    // If no references, proceed with deletion
     await menuItem.destroy();
 
     res.json({
-      message: 'Menu item deleted successfully'
+      message: 'Menu item deleted successfully',
+      deleted_item: {
+        MaMon: menuItem.MaMon,
+        TenMon: menuItem.TenMon
+      }
     });
 
   } catch (error) {
     console.error('Error deleting menu item:', error);
+    
+    // Handle specific foreign key constraint errors
+    if (error.name === 'SequelizeForeignKeyConstraintError') {
+      return res.status(400).json({
+        error: 'Cannot delete menu item',
+        message: 'Món ăn này đang được sử dụng trong hệ thống và không thể xóa.',
+        suggestion: 'Vui lòng đánh dấu món ăn là "Hết hàng" thay vì xóa để đảm bảo tính toàn vẹn dữ liệu.',
+        canSoftDelete: true,
+        technical_details: error.original?.sqlMessage || error.message
+      });
+    }
+
     res.status(500).json({
       error: 'Failed to delete menu item',
       message: error.message
@@ -353,12 +433,62 @@ const getFeaturedItems = async (req, res) => {
   }
 };
 
+// Soft delete menu item (mark as unavailable)
+const softDeleteMenuItem = async (req, res) => {
+  try {
+    console.log('🔄 SOFT DELETE request for menu item ID:', req.params.id);
+    const { id } = req.params;
+
+    // Validate ID parameter
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        error: 'Invalid menu item ID',
+        message: 'ID must be a valid number'
+      });
+    }
+
+    const menuItem = await Mon.findByPk(parseInt(id));
+    if (!menuItem) {
+      return res.status(404).json({
+        error: 'Menu item not found'
+      });
+    }
+
+    // Mark as unavailable instead of deleting
+    await menuItem.update({
+      TrangThai: 'Hết hàng'
+    });
+
+    const updatedMenuItem = await Mon.findByPk(id, {
+      include: [{
+        model: LoaiMon,
+        as: 'loaimon',
+        attributes: ['MaLoai', 'TenLoai', 'MoTa']
+      }]
+    });
+
+    res.json({
+      message: 'Menu item marked as unavailable successfully',
+      menu_item: updatedMenuItem,
+      action: 'soft_delete'
+    });
+
+  } catch (error) {
+    console.error('Error soft deleting menu item:', error);
+    res.status(500).json({
+      error: 'Failed to mark menu item as unavailable',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   getMenuItems,
   getMenuItemById,
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,
+  softDeleteMenuItem,
   toggleAvailability,
   getFeaturedItems
 };

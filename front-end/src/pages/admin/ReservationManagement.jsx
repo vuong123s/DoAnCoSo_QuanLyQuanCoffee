@@ -12,8 +12,8 @@ const ReservationManagement = () => {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [filters, setFilters] = useState({
     status: '',
-    date: '',
-    table: '',
+    startDate: '',
+    endDate: '',
     search: ''
   });
   const [stats, setStats] = useState({
@@ -35,24 +35,42 @@ const ReservationManagement = () => {
   const fetchData = async () => {
     try {
       const [reservationsResponse, tablesResponse, statsResponse] = await Promise.all([
-        reservationAPI.getReservations(),
-        tableAPI.getTables(),
-        reservationAPI.getReservationStats()
+        reservationAPI.getReservations().catch(err => ({ data: { success: false, reservations: [] } })),
+        tableAPI.getTables().catch(err => ({ data: { success: false, tables: [] } })),
+        reservationAPI.getReservationStats().catch(err => ({ data: { success: false, stats: null } }))
       ]);
 
       if (reservationsResponse.data.success) {
-        setReservations(reservationsResponse.data.reservations);
+        setReservations(reservationsResponse.data.reservations || []);
       }
       
       if (tablesResponse.data.success) {
-        setTables(tablesResponse.data.tables);
+        setTables(tablesResponse.data.tables || []);
       }
       
-      if (statsResponse.data.success) {
+      if (statsResponse.data.success && statsResponse.data.stats) {
         setStats(statsResponse.data.stats);
+      } else {
+        // Set default stats if API fails
+        setStats({
+          total: 0,
+          confirmed: 0,
+          pending: 0,
+          cancelled: 0,
+          completed: 0
+        });
       }
     } catch (error) {
+      console.error('Error fetching data:', error);
       toast.error('Lỗi khi tải dữ liệu');
+      // Set default values on error
+      setStats({
+        total: 0,
+        confirmed: 0,
+        pending: 0,
+        cancelled: 0,
+        completed: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -65,12 +83,12 @@ const ReservationManagement = () => {
       filtered = filtered.filter(reservation => reservation.TrangThai === filters.status);
     }
 
-    if (filters.date) {
-      filtered = filtered.filter(reservation => reservation.NgayDat === filters.date);
+    if (filters.startDate) {
+      filtered = filtered.filter(reservation => reservation.NgayDat >= filters.startDate);
     }
 
-    if (filters.table) {
-      filtered = filtered.filter(reservation => reservation.MaBan == filters.table);
+    if (filters.endDate) {
+      filtered = filtered.filter(reservation => reservation.NgayDat <= filters.endDate);
     }
 
     if (filters.search) {
@@ -184,7 +202,7 @@ const ReservationManagement = () => {
           </div>
           <div className="ml-3">
             <p className="text-sm text-gray-600">Tổng đặt bàn</p>
-            <p className="text-lg font-semibold">{stats.total}</p>
+            <p className="text-lg font-semibold">{stats?.total || 0}</p>
           </div>
         </div>
       </div>
@@ -196,7 +214,7 @@ const ReservationManagement = () => {
           </div>
           <div className="ml-3">
             <p className="text-sm text-gray-600">Chờ xác nhận</p>
-            <p className="text-lg font-semibold">{stats.pending}</p>
+            <p className="text-lg font-semibold">{stats?.pending || 0}</p>
           </div>
         </div>
       </div>
@@ -208,7 +226,7 @@ const ReservationManagement = () => {
           </div>
           <div className="ml-3">
             <p className="text-sm text-gray-600">Đã xác nhận</p>
-            <p className="text-lg font-semibold">{stats.confirmed}</p>
+            <p className="text-lg font-semibold">{stats?.confirmed || 0}</p>
           </div>
         </div>
       </div>
@@ -220,7 +238,7 @@ const ReservationManagement = () => {
           </div>
           <div className="ml-3">
             <p className="text-sm text-gray-600">Hoàn thành</p>
-            <p className="text-lg font-semibold">{stats.completed}</p>
+            <p className="text-lg font-semibold">{stats?.completed || 0}</p>
           </div>
         </div>
       </div>
@@ -232,7 +250,7 @@ const ReservationManagement = () => {
           </div>
           <div className="ml-3">
             <p className="text-sm text-gray-600">Đã hủy</p>
-            <p className="text-lg font-semibold">{stats.cancelled}</p>
+            <p className="text-lg font-semibold">{stats?.cancelled || 0}</p>
           </div>
         </div>
       </div>
@@ -252,25 +270,25 @@ const ReservationManagement = () => {
           />
         </div>
         
-        <input
-          type="date"
-          value={filters.date}
-          onChange={(e) => setFilters(prev => ({ ...prev, date: e.target.value }))}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-        />
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 whitespace-nowrap">Từ ngày:</label>
+          <input
+            type="date"
+            value={filters.startDate}
+            onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          />
+        </div>
         
-        <select
-          value={filters.table}
-          onChange={(e) => setFilters(prev => ({ ...prev, table: e.target.value }))}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-        >
-          <option value="">Tất cả bàn</option>
-          {tables.map(table => (
-            <option key={table.MaBan} value={table.MaBan}>
-              {table.TenBan}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 whitespace-nowrap">Đến ngày:</label>
+          <input
+            type="date"
+            value={filters.endDate}
+            onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          />
+        </div>
         
         <select
           value={filters.status}
@@ -283,6 +301,14 @@ const ReservationManagement = () => {
           <option value="Đã hủy">Đã hủy</option>
           <option value="Hoàn thành">Hoàn thành</option>
         </select>
+        
+        <button
+          onClick={() => setFilters({ status: '', startDate: '', endDate: '', search: '' })}
+          className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors flex items-center"
+        >
+          <FiX className="w-4 h-4 mr-2" />
+          Xóa bộ lọc
+        </button>
         
         <button
           onClick={exportReservations}

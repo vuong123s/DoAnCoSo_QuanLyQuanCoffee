@@ -38,6 +38,67 @@ router.post('/migrate-database', async (req, res) => {
 // Get reservation statistics
 router.get('/stats', getReservationStats);
 
+// Create sample data for testing
+router.post('/create-sample-data', async (req, res) => {
+  try {
+    const { DatBan } = require('../models');
+    
+    const sampleReservations = [
+      {
+        MaBan: 1,
+        NgayDat: new Date().toISOString().split('T')[0],
+        GioDat: '10:00:00',
+        GioKetThuc: '12:00:00',
+        SoNguoi: 4,
+        TenKhach: 'Nguyễn Văn A',
+        SoDienThoai: '0901234567',
+        EmailKhach: 'nguyenvana@email.com',
+        TrangThai: 'Đã đặt',
+        GhiChu: 'Đặt bàn sinh nhật'
+      },
+      {
+        MaBan: 2,
+        NgayDat: new Date().toISOString().split('T')[0],
+        GioDat: '14:00:00',
+        GioKetThuc: '16:00:00',
+        SoNguoi: 2,
+        TenKhach: 'Trần Thị B',
+        SoDienThoai: '0902345678',
+        EmailKhach: 'tranthib@email.com',
+        TrangThai: 'Đã xác nhận',
+        GhiChu: 'Hẹn hò'
+      },
+      {
+        MaBan: 3,
+        NgayDat: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
+        GioDat: '18:00:00',
+        GioKetThuc: '20:00:00',
+        SoNguoi: 6,
+        TenKhach: 'Lê Văn C',
+        SoDienThoai: '0903456789',
+        EmailKhach: 'levanc@email.com',
+        TrangThai: 'Đã đặt',
+        GhiChu: 'Tiệc công ty'
+      }
+    ];
+
+    const created = await DatBan.bulkCreate(sampleReservations);
+    
+    res.json({
+      success: true,
+      message: `Đã tạo ${created.length} đặt bàn mẫu`,
+      data: created
+    });
+  } catch (error) {
+    console.error('Error creating sample data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Không thể tạo dữ liệu mẫu',
+      message: error.message
+    });
+  }
+});
+
 // Check time conflicts for reservation
 router.post('/check-conflict', async (req, res) => {
   try {

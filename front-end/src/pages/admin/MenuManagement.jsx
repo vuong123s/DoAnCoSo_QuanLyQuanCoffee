@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { menuAPI } from '../../shared/services/api';
 import { useForm } from 'react-hook-form';
-import { FiPlus, FiEdit, FiTrash2, FiSearch, FiFilter, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiSearch, FiFilter, FiEye, FiEyeOff, FiPackage } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const MenuManagement = () => {
+  const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'categories'
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [filteredItems, setFilteredItems] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const {
@@ -20,6 +23,14 @@ const MenuManagement = () => {
     reset,
     setValue,
     formState: { errors, isSubmitting },
+  } = useForm();
+
+  const {
+    register: registerCategory,
+    handleSubmit: handleSubmitCategory,
+    reset: resetCategory,
+    setValue: setValueCategory,
+    formState: { errors: categoryErrors, isSubmitting: isCategorySubmitting },
   } = useForm();
 
   useEffect(() => {
@@ -33,13 +44,40 @@ const MenuManagement = () => {
   const fetchData = async () => {
     try {
       const [itemsResponse, categoriesResponse] = await Promise.all([
-        menuAPI.getMenuItems(),
+        menuAPI.getMenuItems({ limit: 100 }), // Get all items
         menuAPI.getCategories()
       ]);
-      setMenuItems(itemsResponse.data.items || []);
-      setCategories(categoriesResponse.data.categories || []);
+      
+      
+      // Handle menu items - check multiple formats
+      let items = [];
+      if (itemsResponse.data.menu_items) {
+        items = itemsResponse.data.menu_items;
+      } else if (itemsResponse.data.success && itemsResponse.data.items) {
+        items = itemsResponse.data.items;
+      } else if (Array.isArray(itemsResponse.data)) {
+        items = itemsResponse.data;
+      } else if (itemsResponse.data.items) {
+        items = itemsResponse.data.items;
+      } else if (itemsResponse.data.menuItems) {
+        items = itemsResponse.data.menuItems;
+      }
+      
+      // Handle categories - check multiple formats
+      let categories = [];
+      if (categoriesResponse.data.categories) {
+        categories = categoriesResponse.data.categories;
+      } else if (categoriesResponse.data.success && categoriesResponse.data.categories) {
+        categories = categoriesResponse.data.categories;
+      } else if (Array.isArray(categoriesResponse.data)) {
+        categories = categoriesResponse.data;
+      }
+      
+      setMenuItems(items);
+      setCategories(categories);
     } catch (error) {
-      toast.error('Lỗi khi tải dữ liệu');
+      console.error('Menu fetch error:', error);
+      toast.error('Lỗi khi tải dữ liệu: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -49,13 +87,15 @@ const MenuManagement = () => {
     let filtered = menuItems;
 
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(item => item.categoryId === parseInt(selectedCategory));
+      filtered = filtered.filter(item => 
+        (item.MaLoai) === parseInt(selectedCategory)
+      );
     }
 
     if (searchQuery) {
       filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase())
+        (item.TenMon || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.MoTa || '').toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -64,12 +104,12 @@ const MenuManagement = () => {
 
   const handleEdit = (item) => {
     setEditingItem(item);
-    setValue('name', item.name);
-    setValue('description', item.description);
-    setValue('price', item.price);
-    setValue('categoryId', item.categoryId);
-    setValue('available', item.available);
-    setValue('featured', item.featured);
+    setValue('name', item.TenMon);
+    setValue('description', item.MoTa);
+    setValue('price', item.DonGia);
+    setValue('categoryId', item.MaLoai);
+    setValue('image', item.HinhAnh);
+    setValue('available', item.TrangThai === 'Có sẵn');
     setShowModal(true);
   };
 
@@ -87,11 +127,21 @@ const MenuManagement = () => {
 
   const onSubmit = async (data) => {
     try {
+      // Map English form fields to Vietnamese schema
+      const vietnameseData = {
+        TenMon: data.name,
+        MoTa: data.description,
+        DonGia: parseFloat(data.price),
+        MaLoai: parseInt(data.categoryId),
+        TrangThai: data.available ? 'Có sẵn' : 'Hết hàng',
+        HinhAnh: data.image || ''
+      };
+
       if (editingItem) {
-        await menuAPI.updateMenuItem(editingItem.id, data);
+        await menuAPI.updateMenuItem(editingItem.MaMon, vietnameseData);
         toast.success('Cập nhật món thành công');
       } else {
-        await menuAPI.createMenuItem(data);
+        await menuAPI.createMenuItem(vietnameseData);
         toast.success('Thêm món mới thành công');
       }
       setShowModal(false);
@@ -99,17 +149,67 @@ const MenuManagement = () => {
       reset();
       fetchData();
     } catch (error) {
-      toast.error('Có lỗi xảy ra');
+      console.error('Submit error:', error);
+      toast.error('Có lỗi xảy ra: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const toggleAvailability = async (item) => {
     try {
-      await menuAPI.updateMenuItem(item.id, { ...item, available: !item.available });
+      const currentAvailable = item.TrangThai === 'Có sẵn';
+      const vietnameseData = {
+        TenMon: item.TenMon,
+        MoTa: item.MoTa,
+        DonGia: item.DonGia,
+        MaLoai: item.MaLoai,
+        TrangThai: currentAvailable ? 'Hết hàng' : 'Có sẵn',
+        HinhAnh: item.HinhAnh || ''
+      };
+      
+      await menuAPI.updateMenuItem(item.MaMon, vietnameseData);
       toast.success('Cập nhật trạng thái thành công');
       fetchData();
     } catch (error) {
       toast.error('Lỗi khi cập nhật trạng thái');
+    }
+  };
+
+  // Category management functions
+  const handleEditCategory = (category) => {
+    setEditingCategory(category);
+    setValueCategory('TenLoai', category.TenLoai);
+    setValueCategory('MoTa', category.MoTa);
+    setValueCategory('HinhAnh', category.HinhAnh);
+    setShowCategoryModal(true);
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa danh mục này?')) {
+      try {
+        await menuAPI.deleteCategory(id);
+        toast.success('Xóa danh mục thành công');
+        fetchData();
+      } catch (error) {
+        toast.error('Lỗi khi xóa danh mục');
+      }
+    }
+  };
+
+  const onSubmitCategory = async (data) => {
+    try {
+      if (editingCategory) {
+        await menuAPI.updateCategory(editingCategory.MaLoai, data);
+        toast.success('Cập nhật danh mục thành công');
+      } else {
+        await menuAPI.createCategory(data);
+        toast.success('Thêm danh mục mới thành công');
+      }
+      setShowCategoryModal(false);
+      setEditingCategory(null);
+      resetCategory();
+      fetchData();
+    } catch (error) {
+      toast.error('Có lỗi xảy ra');
     }
   };
 
@@ -128,22 +228,59 @@ const MenuManagement = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Quản lý Menu</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Quản lý Menu & Danh mục</h1>
         <button
           onClick={() => {
-            setEditingItem(null);
-            reset();
-            setShowModal(true);
+            if (activeTab === 'menu') {
+              setEditingItem(null);
+              reset();
+              setShowModal(true);
+            } else {
+              setEditingCategory(null);
+              resetCategory();
+              setShowCategoryModal(true);
+            }
           }}
           className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center space-x-2"
         >
           <FiPlus className="w-4 h-4" />
-          <span>Thêm món mới</span>
+          <span>{activeTab === 'menu' ? 'Thêm món mới' : 'Thêm danh mục'}</span>
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-6 rounded-lg shadow-sm">
+      {/* Tabs */}
+      <div className="bg-white rounded-lg shadow-sm">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8 px-6">
+            <button
+              onClick={() => setActiveTab('menu')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'menu'
+                  ? 'border-amber-500 text-amber-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Món ăn & Thức uống
+            </button>
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'categories'
+                  ? 'border-amber-500 text-amber-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Danh mục
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Menu Tab Content */}
+      {activeTab === 'menu' && (
+        <>
+          {/* Filters */}
+          <div className="bg-white p-6 rounded-lg shadow-sm">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
@@ -165,14 +302,37 @@ const MenuManagement = () => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
             >
               <option value="all">Tất cả danh mục</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
+              {categories.map((category, index) => (
+                <option key={category.MaLoai || index} value={category.MaLoai}>
+                  {category.TenLoai}
                 </option>
               ))}
             </select>
           </div>
         </div>
+      </div>
+
+      {/* Results Info */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-sm text-gray-600">
+          Hiển thị <span className="font-medium">{filteredItems.length}</span> trong tổng số <span className="font-medium">{menuItems.length}</span> món
+          {selectedCategory !== 'all' && (
+            <span className="ml-2 text-amber-600">
+              • Lọc theo: {categories.find(cat => cat.MaLoai === parseInt(selectedCategory))?.TenLoai}
+            </span>
+          )}
+        </div>
+        {(selectedCategory !== 'all' || searchQuery) && (
+          <button
+            onClick={() => {
+              setSelectedCategory('all');
+              setSearchQuery('');
+            }}
+            className="text-sm text-gray-500 hover:text-gray-700 underline"
+          >
+            Xóa bộ lọc
+          </button>
+        )}
       </div>
 
       {/* Menu Items Table */}
@@ -199,8 +359,8 @@ const MenuManagement = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
+              {filteredItems.map((item, index) => (
+                <tr key={item.id || item.MaMon || index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <img
@@ -209,36 +369,31 @@ const MenuManagement = () => {
                         className="w-12 h-12 rounded-lg object-cover mr-4"
                       />
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                        <div className="text-sm text-gray-500 line-clamp-1">{item.description}</div>
-                        {item.featured && (
-                          <span className="inline-block bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full mt-1">
-                            Nổi bật
-                          </span>
-                        )}
+                        <div className="text-sm font-medium text-gray-900">{item.TenMon}</div>
+                        <div className="text-sm text-gray-500 line-clamp-1">{item.MoTa}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-900">
-                      {categories.find(cat => cat.id === item.categoryId)?.name || 'N/A'}
+                      {categories.find(cat => (cat.MaLoai) === (item.MaLoai))?.TenLoai}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm font-medium text-gray-900">
-                      {item.price?.toLocaleString('vi-VN')}đ
+                      {(item.DonGia)?.toLocaleString('vi-VN')}đ
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => toggleAvailability(item)}
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        item.available
+                        (item.TrangThai !== undefined ? item.TrangThai : item.TrangThai === 'Có sẵn')
                           ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
                       }`}
                     >
-                      {item.available ? (
+                      {(item.TrangThai !== undefined ? item.TrangThai : item.TrangThai === 'Có sẵn') ? (
                         <>
                           <FiEye className="w-3 h-3 mr-1" />
                           Có sẵn
@@ -260,7 +415,7 @@ const MenuManagement = () => {
                         <FiEdit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => handleDelete(item.MaMon)}
                         className="text-red-600 hover:text-red-900"
                       >
                         <FiTrash2 className="w-4 h-4" />
@@ -277,7 +432,23 @@ const MenuManagement = () => {
           <div className="text-center py-12">
             <FiSearch className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Không tìm thấy món nào</h3>
-            <p className="text-gray-600">Thử thay đổi bộ lọc hoặc thêm món mới</p>
+            <p className="text-gray-600 mb-4">
+              {selectedCategory !== 'all' || searchQuery 
+                ? 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm' 
+                : 'Thử thêm món mới vào menu'
+              }
+            </p>
+            {(selectedCategory !== 'all' || searchQuery) && (
+              <button
+                onClick={() => {
+                  setSelectedCategory('all');
+                  setSearchQuery('');
+                }}
+                className="text-amber-600 hover:text-amber-700 font-medium"
+              >
+                Xóa tất cả bộ lọc
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -342,15 +513,27 @@ const MenuManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
                   <option value="">Chọn danh mục</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
+                  {categories.map((category, index) => (
+                    <option key={category.MaLoai || index} value={category.MaLoai}>
+                      {category.TenLoai}
                     </option>
                   ))}
                 </select>
                 {errors.categoryId && (
                   <p className="mt-1 text-sm text-red-600">{errors.categoryId.message}</p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hình ảnh (URL)
+                </label>
+                <input
+                  {...register('image')}
+                  type="url"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  placeholder="https://example.com/image.jpg"
+                />
               </div>
 
               <div className="flex items-center space-x-4">
@@ -361,15 +544,6 @@ const MenuManagement = () => {
                     className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
                   />
                   <span className="ml-2 text-sm text-gray-700">Có sẵn</span>
-                </label>
-
-                <label className="flex items-center">
-                  <input
-                    {...register('featured')}
-                    type="checkbox"
-                    className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Nổi bật</span>
                 </label>
               </div>
 
@@ -394,6 +568,169 @@ const MenuManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* Categories Tab Content */}
+      {activeTab === 'categories' && (
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Hình ảnh
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tên danh mục
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Mô tả
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Số món
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Thao tác
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {categories.map((category) => (
+                  <tr key={category.MaLoai || category.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
+                        {(category.HinhAnh || category.image) ? (
+                          <img
+                            src={category.HinhAnh || category.image}
+                            alt={category.TenLoai || category.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <FiPackage className="w-6 h-6" />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {category.TenLoai || category.name}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-600 max-w-xs truncate">
+                        {category.MoTa || 'Chưa có mô tả'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        {menuItems.filter(item => 
+                          (item.MaLoai || item.categoryId) === (category.MaLoai || category.id)
+                        ).length} món
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEditCategory(category)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <FiEdit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(category.MaLoai)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <FiTrash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-lg font-semibold mb-4">
+                {editingCategory ? 'Cập nhật danh mục' : 'Thêm danh mục mới'}
+              </h2>
+              
+              <form onSubmit={handleSubmitCategory(onSubmitCategory)} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tên danh mục *
+                  </label>
+                  <input
+                    {...registerCategory('TenLoai', { 
+                      required: 'Tên danh mục là bắt buộc',
+                      minLength: { value: 2, message: 'Tên danh mục phải có ít nhất 2 ký tự' }
+                    })}
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    placeholder="Nhập tên danh mục"
+                  />
+                  {categoryErrors.TenLoai && (
+                    <p className="text-red-500 text-sm mt-1">{categoryErrors.TenLoai.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hình ảnh (URL)
+                  </label>
+                  <input
+                    {...registerCategory('HinhAnh')}
+                    type="url"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mô tả
+                  </label>
+                  <textarea
+                    {...registerCategory('MoTa')}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    placeholder="Mô tả về danh mục này..."
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCategoryModal(false);
+                      setEditingCategory(null);
+                      resetCategory();
+                    }}
+                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCategorySubmitting}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {isCategorySubmitting ? 'Đang lưu...' : (editingCategory ? 'Cập nhật' : 'Thêm mới')}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

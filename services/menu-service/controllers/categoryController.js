@@ -6,7 +6,7 @@ const getCategories = async (req, res) => {
   try {
     const { 
       page = 1, 
-      limit = 10, 
+      limit = 100, // Increased default limit to get all categories
       is_active,
       include_items = false,
       search 
@@ -14,7 +14,7 @@ const getCategories = async (req, res) => {
 
     // Parse query parameters to integers
     const parsedPage = parseInt(page) || 1;
-    const parsedLimit = parseInt(limit) || 10;
+    const parsedLimit = parseInt(limit) || 100;
     const offset = (parsedPage - 1) * parsedLimit;
 
     console.log(`📊 Categories query params: page=${parsedPage}, limit=${parsedLimit}, offset=${offset}`);
@@ -108,6 +108,8 @@ const createCategory = async (req, res) => {
   try {
     const {
       TenLoai,
+      HinhAnh,
+      MoTa,
       name // fallback for English API compatibility
     } = req.body;
 
@@ -130,9 +132,14 @@ const createCategory = async (req, res) => {
       });
     }
 
-    const category = await LoaiMon.create({
+    const categoryData = {
       TenLoai: categoryName.trim()
-    });
+    };
+    
+    if (HinhAnh) categoryData.HinhAnh = HinhAnh;
+    if (MoTa) categoryData.MoTa = MoTa;
+
+    const category = await LoaiMon.create(categoryData);
 
     res.status(201).json({
       message: 'Category created successfully',
@@ -152,7 +159,7 @@ const createCategory = async (req, res) => {
 const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { TenLoai, name } = req.body;
+    const { TenLoai, HinhAnh, MoTa, name } = req.body;
     
     const categoryName = TenLoai || name;
 
@@ -181,6 +188,8 @@ const updateCategory = async (req, res) => {
 
     const updateData = {};
     if (categoryName) updateData.TenLoai = categoryName.trim();
+    if (HinhAnh !== undefined) updateData.HinhAnh = HinhAnh;
+    if (MoTa !== undefined) updateData.MoTa = MoTa;
 
     await category.update(updateData);
 

@@ -6,6 +6,7 @@ const {
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,
+  softDeleteMenuItem,
   toggleAvailability,
   getFeaturedItems
 } = require('../controllers/menuController');
@@ -27,6 +28,9 @@ router.put('/:id', updateMenuItem);
 
 // Toggle menu item availability
 router.patch('/:id/toggle-availability', toggleAvailability);
+
+// Soft delete menu item (mark as unavailable)
+router.patch('/:id/soft-delete', softDeleteMenuItem);
 
 // Delete menu item
 router.delete('/:id', deleteMenuItem);

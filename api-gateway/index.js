@@ -70,7 +70,7 @@ const createServiceProxy = (serviceName, port, requireAuth = false) => {
       const targetUrl = `http://localhost:${port}/api${servicePath}`;
       console.log(`🔄 [${serviceName}] Proxy: ${req.method} ${targetUrl}`);
       
-      const headers = {
+      const headers = { 
         ...req.headers,
         host: `localhost:${port}`
       };
@@ -147,7 +147,7 @@ app.use('/api/auto-cancel', createServiceProxy('Table Service', 3003)); // Auto 
 
 // Billing Service
 console.log('🔧 Setting up Billing Service proxy...');
-app.use('/api/billing', authMiddleware.requireStaff, createServiceProxy('Billing Service', 3004, true));
+app.use('/api/billing', createServiceProxy('Billing Service', 3004));
 console.log('🔧 Setting up Online Order Service proxy...');
 app.use('/api/cart', createServiceProxy('Online Order Service', 3005));
 app.use('/api/online-orders', createServiceProxy('Online Order Service', 3005));

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { tableAPI } from '../../shared/services/api';
 import TablesByArea from '../../components/tables/TablesByArea';
-import { FiPlus, FiEdit, FiTrash2, FiGrid, FiList, FiMapPin, FiUsers, FiBarChart2 } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiList, FiMapPin, FiUsers, FiBarChart2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const TableManagement = () => {
@@ -9,11 +9,10 @@ const TableManagement = () => {
   const [areas, setAreas] = useState([]);
   const [filteredTables, setFilteredTables] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('area'); // 'area', 'grid', 'list'
+  const [viewMode, setViewMode] = useState('area'); // 'area', 'list'
   const [showModal, setShowModal] = useState(false);
   const [editingTable, setEditingTable] = useState(null);
   const [filters, setFilters] = useState({
-    area: '',
     status: '',
     search: ''
   });
@@ -49,19 +48,59 @@ const TableManagement = () => {
         tableAPI.getTableStats()
       ]);
 
+      console.log('=== FETCH DATA DEBUG ===');
+      console.log('Tables Response:', tablesResponse);
+      console.log('Tables Response Data:', tablesResponse.data);
+      console.log('Areas Response:', areasResponse);
+      console.log('Areas Response Data:', areasResponse.data);
+      console.log('Stats Response:', statsResponse);
+
       if (tablesResponse.data.success) {
-        setTables(tablesResponse.data.tables);
+        const tables = tablesResponse.data.tables;
+        console.log('Tables from success path:', tables);
+        setTables(tables);
+        setFilteredTables(tables);
+        calculateStats(tables);
+      } else {
+        console.log('No success flag, checking direct data...');
+        console.log('Direct tablesResponse.data:', tablesResponse.data);
+        
+        // Try direct array or tables property
+        let tables = null;
+        if (Array.isArray(tablesResponse.data)) {
+          tables = tablesResponse.data;
+          console.log('Using direct array:', tables);
+        } else if (tablesResponse.data.tables) {
+          tables = tablesResponse.data.tables;
+          console.log('Using data.tables:', tables);
+        }
+        
+        if (tables) {
+          setTables(tables);
+          setFilteredTables(tables);
+          calculateStats(tables);
+        }
       }
       
       if (areasResponse.data.success) {
         setAreas(areasResponse.data.areas);
-      }
-      
-      if (statsResponse.data.success) {
-        setStats(statsResponse.data.stats);
+      } else {
+        console.log('No areas success flag, checking direct data...');
+        let areas = null;
+        if (Array.isArray(areasResponse.data)) {
+          areas = areasResponse.data;
+        } else if (areasResponse.data.areas) {
+          areas = areasResponse.data.areas;
+        }
+        
+        if (areas) {
+          console.log('Setting areas:', areas);
+          setAreas(areas);
+        }
       }
     } catch (error) {
-      toast.error('Lỗi khi tải dữ liệu');
+      console.error('Fetch error:', error);
+      toast.error('Lỗi khi tải dữ liệu: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -69,12 +108,6 @@ const TableManagement = () => {
 
   const filterTables = () => {
     let filtered = tables;
-
-    if (filters.area) {
-      filtered = filtered.filter(table => 
-        table.KhuVuc?.TenKhuVuc === filters.area || table.MaKhuVuc == filters.area
-      );
-    }
 
     if (filters.status) {
       filtered = filtered.filter(table => table.TrangThai === filters.status);
@@ -88,6 +121,18 @@ const TableManagement = () => {
     }
 
     setFilteredTables(filtered);
+    calculateStats(filtered);
+  };
+
+  const calculateStats = (tablesToCalculate = tables) => {
+    const stats = {
+      total: tablesToCalculate.length,
+      available: tablesToCalculate.filter(t => t.TrangThai === 'Trống').length,
+      occupied: tablesToCalculate.filter(t => t.TrangThai === 'Đang phục vụ').length,
+      reserved: tablesToCalculate.filter(t => t.TrangThai === 'Đã đặt').length,
+      maintenance: tablesToCalculate.filter(t => t.TrangThai === 'Bảo trì').length
+    };
+    setStats(stats);
   };
 
   const handleSubmit = async (e) => {
@@ -135,24 +180,53 @@ const TableManagement = () => {
 
     try {
       const response = await tableAPI.deleteTable(table.MaBan);
-      if (response.data.success) {
+      // API returns message on success
+      if (response.data.message) {
         toast.success('Xóa bàn thành công');
         fetchData();
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+      console.error('Delete table error:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Có lỗi xảy ra';
+      const suggestion = error.response?.data?.suggestion;
+      
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        toast.error('Bàn không tồn tại hoặc đã bị xóa. Đang làm mới danh sách...');
+        fetchData(); // Refresh the list to remove stale data
+      } else if (error.response?.status === 400 && suggestion) {
+        // Table has active reservations - offer alternative
+        const changeToMaintenance = window.confirm(
+          `${errorMessage}\n\n${suggestion}\n\nBạn có muốn đánh dấu bàn này là "Bảo trì" thay vì xóa không?`
+        );
+        
+        if (changeToMaintenance) {
+          try {
+            await tableAPI.updateTableStatus(table.MaBan, { TrangThai: 'Bảo trì' });
+            toast.success('Đã đánh dấu bàn là "Bảo trì"');
+            fetchData();
+          } catch (statusError) {
+            toast.error('Lỗi khi cập nhật trạng thái bàn');
+          }
+        }
+      } else {
+        toast.error(errorMessage);
+      }
     }
   };
 
   const handleStatusChange = async (table, newStatus) => {
     try {
       const response = await tableAPI.updateTableStatus(table.MaBan, { TrangThai: newStatus });
-      if (response.data.success) {
+      // API returns message on success
+      if (response.data.message) {
         toast.success('Cập nhật trạng thái thành công');
         fetchData();
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+      console.error('Status update error:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Có lỗi xảy ra';
+      toast.error(errorMessage);
     }
   };
 
@@ -254,19 +328,6 @@ const TableManagement = () => {
         </div>
         
         <select
-          value={filters.area}
-          onChange={(e) => setFilters(prev => ({ ...prev, area: e.target.value }))}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-        >
-          <option value="">Tất cả khu vực</option>
-          {areas.map(area => (
-            <option key={area.MaKhuVuc} value={area.MaKhuVuc}>
-              {area.TenKhuVuc}
-            </option>
-          ))}
-        </select>
-        
-        <select
           value={filters.status}
           onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
           className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
@@ -284,12 +345,6 @@ const TableManagement = () => {
             className={`p-2 rounded-lg ${viewMode === 'area' ? 'bg-amber-100 text-amber-600' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             <FiMapPin className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-amber-100 text-amber-600' : 'text-gray-600 hover:bg-gray-100'}`}
-          >
-            <FiGrid className="w-5 h-5" />
           </button>
           <button
             onClick={() => setViewMode('list')}
@@ -316,59 +371,6 @@ const TableManagement = () => {
     </div>
   );
 
-  const renderGridView = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {filteredTables.map(table => (
-        <div key={table.MaBan} className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold">{table.TenBan}</h3>
-            <div className="flex space-x-1">
-              <button
-                onClick={() => handleEdit(table)}
-                className="p-1 text-blue-600 hover:bg-blue-100 rounded"
-              >
-                <FiEdit className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleDelete(table)}
-                className="p-1 text-red-600 hover:bg-red-100 rounded"
-              >
-                <FiTrash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center">
-              <FiUsers className="w-4 h-4 mr-2 text-gray-500" />
-              <span>{table.SoCho} chỗ</span>
-            </div>
-            {table.ViTri && (
-              <div className="flex items-center">
-                <FiMapPin className="w-4 h-4 mr-2 text-gray-500" />
-                <span>{table.ViTri}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(table.TrangThai)}`}>
-                {table.TrangThai}
-              </span>
-              <select
-                value={table.TrangThai}
-                onChange={(e) => handleStatusChange(table, e.target.value)}
-                className="text-xs border border-gray-300 rounded px-2 py-1"
-              >
-                <option value="Trống">Trống</option>
-                <option value="Đã đặt">Đã đặt</option>
-                <option value="Đang phục vụ">Đang phục vụ</option>
-                <option value="Bảo trì">Bảo trì</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 
   const renderListView = () => (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -445,7 +447,6 @@ const TableManagement = () => {
       {renderFilters()}
 
       {viewMode === 'area' && renderAreaView()}
-      {viewMode === 'grid' && renderGridView()}
       {viewMode === 'list' && renderListView()}
 
       {/* Modal */}
