@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { billingAPI, menuAPI } from '../../shared/services/api';
+import { billingAPI, menuAPI, tableAPI } from '../../shared/services/api';
 import { useForm } from 'react-hook-form';
 import { FiPlus, FiEdit, FiTrash2, FiEye, FiPrinter, FiClock, FiDollarSign, FiUser, FiMapPin } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 const OrderManagement = () => {
   const [orders, setOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
+  const [tables, setTables] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
@@ -34,14 +35,21 @@ const OrderManagement = () => {
 
   const fetchData = async () => {
     try {
-      const [ordersResponse, menuResponse] = await Promise.all([
+      const [ordersResponse, menuResponse, tablesResponse] = await Promise.all([
         billingAPI.getBills(),
-        menuAPI.getMenuItems()
+        menuAPI.getMenuItems(),
+        tableAPI.getTables()
       ]);
-      setOrders(ordersResponse.data.bills || []);
-      setMenuItems(menuResponse.data.items || []);
+      
+      // Handle DonHang table only - simplified schema
+      // DonHang: MaDH, MaBan, MaNV, NgayLap, TongTien, TrangThai
+      setOrders(ordersResponse.data.donhangs || ordersResponse.data.bills || []);
+      setMenuItems(menuResponse.data.menus || menuResponse.data.menu_items || menuResponse.data.items || []);
+      setTables(tablesResponse.data.tables || tablesResponse.data.bans || []);
     } catch (error) {
-      toast.error('Lỗi khi tải dữ liệu');
+      console.error('Error fetching data:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi tải dữ liệu';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -51,13 +59,21 @@ const OrderManagement = () => {
     let filtered = orders;
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(order => order.status === statusFilter);
+      filtered = filtered.filter(order => {
+        // Handle both English and Vietnamese status fields
+        const status = order.TrangThai || order.status || order.payment_status;
+        return status === statusFilter;
+      });
     }
 
     if (dateFilter) {
-      filtered = filtered.filter(order => 
-        order.createdAt.startsWith(dateFilter)
-      );
+      filtered = filtered.filter(order => {
+        // Handle both English and Vietnamese date fields
+        const dateField = order.NgayLap || order.NgayOrder || order.createdAt || order.created_at;
+        if (!dateField) return false;
+        const orderDate = new Date(dateField).toISOString().split('T')[0];
+        return orderDate === dateFilter;
+      });
     }
 
     setFilteredOrders(filtered);
@@ -65,10 +81,11 @@ const OrderManagement = () => {
 
   const handleEdit = (order) => {
     setEditingOrder(order);
-    setValue('tableId', order.tableId);
-    setValue('customerName', order.customerName);
-    setValue('status', order.status);
-    setValue('notes', order.notes);
+    // Handle DonHang schema fields
+    setValue('tableId', order.MaBan || order.tableId || order.table_id);
+    setValue('staffId', order.MaNV || ''); // DonHang MaNV field
+    setValue('status', order.TrangThai || order.status || 'Đang xử lý');
+    setValue('notes', order.GhiChu || order.notes || '');
     setShowModal(true);
   };
 
@@ -84,28 +101,56 @@ const OrderManagement = () => {
         toast.success('Xóa đơn hàng thành công');
         fetchData();
       } catch (error) {
-        toast.error('Lỗi khi xóa đơn hàng');
+        console.error('Delete error:', error);
+        
+        // Handle different error scenarios
+        if (error.response?.status === 404) {
+          toast.error('Đơn hàng không tồn tại hoặc đã bị xóa. Đang làm mới danh sách...');
+          fetchData(); // Auto-refresh to remove stale data
+        } else if (error.response?.status === 400) {
+          const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Không thể xóa đơn hàng này';
+          toast.error(errorMessage);
+        } else {
+          const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi xóa đơn hàng';
+          toast.error(errorMessage);
+        }
       }
     }
   };
 
   const handleStatusChange = async (id, newStatus) => {
     try {
-      await billingAPI.updateOrder(id, { status: newStatus });
+      // Update DonHang status
+      await billingAPI.updateOrderStatus(id, { TrangThai: newStatus });
       toast.success('Cập nhật trạng thái thành công');
       fetchData();
     } catch (error) {
-      toast.error('Lỗi khi cập nhật trạng thái');
+      console.error('Status update error:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi cập nhật trạng thái';
+      toast.error(errorMessage);
     }
   };
 
   const onSubmit = async (data) => {
     try {
       if (editingOrder) {
-        await billingAPI.updateOrder(editingOrder.id, data);
+        // For updates, update DonHang status
+        const orderId = editingOrder.MaDH || editingOrder.id;
+        await billingAPI.updateOrderStatus(orderId, { 
+          TrangThai: data.status,
+          GhiChu: data.notes 
+        });
         toast.success('Cập nhật đơn hàng thành công');
       } else {
-        await billingAPI.createOrder(data);
+        // For new orders, create DonHang with Vietnamese schema
+        const orderData = {
+          MaBan: data.tableId,
+          MaNV: data.staffId || null,
+          TrangThai: data.status || 'Đang xử lý',
+          TongTien: 0, // Will be calculated when items are added
+          GhiChu: data.notes
+        };
+        await billingAPI.createOrder(orderData);
         toast.success('Thêm đơn hàng mới thành công');
       }
       setShowModal(false);
@@ -113,23 +158,19 @@ const OrderManagement = () => {
       reset();
       fetchData();
     } catch (error) {
-      toast.error('Có lỗi xảy ra');
+      console.error('Form submission error:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Có lỗi xảy ra';
+      toast.error(errorMessage);
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending':
+      case 'Đang xử lý':
         return 'bg-yellow-100 text-yellow-800';
-      case 'preparing':
-        return 'bg-blue-100 text-blue-800';
-      case 'ready':
+      case 'Hoàn thành':
         return 'bg-green-100 text-green-800';
-      case 'served':
-        return 'bg-purple-100 text-purple-800';
-      case 'paid':
-        return 'bg-gray-100 text-gray-800';
-      case 'cancelled':
+      case 'Đã hủy':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -138,25 +179,67 @@ const OrderManagement = () => {
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'pending':
-        return 'Chờ xử lý';
-      case 'preparing':
-        return 'Đang chuẩn bị';
-      case 'ready':
-        return 'Sẵn sàng';
-      case 'served':
-        return 'Đã phục vụ';
-      case 'paid':
-        return 'Đã thanh toán';
-      case 'cancelled':
+      case 'Đang xử lý':
+        return 'Đang xử lý';
+      case 'Hoàn thành':
+        return 'Hoàn thành';
+      case 'Đã hủy':
         return 'Đã hủy';
       default:
-        return status;
+        return status || 'Không xác định';
     }
   };
 
-  const calculateTotal = (items) => {
-    return items?.reduce((total, item) => total + (item.price * item.quantity), 0) || 0;
+  const calculateTotal = (items, order) => {
+    // If order has TongTien, use it directly
+    if (order && (order.TongTien || order.TongThanhToan)) {
+      return order.TongTien || order.TongThanhToan;
+    }
+    
+    if (!items || !Array.isArray(items)) return 0;
+    return items.reduce((total, item) => {
+      // Handle Vietnamese schema fields from CTDonHang, CTOrder, CTDonHangOnline
+      const price = item.DonGia || item.price || item.unit_price || 0;
+      const quantity = item.SoLuong || item.quantity || 0;
+      const subtotal = item.ThanhTien || (price * quantity) || 0;
+      return total + subtotal;
+    }, 0);
+  };
+
+  // Helper function to get order ID - DonHang table only
+  const getOrderId = (order) => {
+    return order.MaDH || order.id;
+  };
+
+  // Helper function to get table info
+  const getTableInfo = (order) => {
+    const tableId = order.MaBan || order.tableId || order.table_id;
+    const table = tables.find(t => (t.MaBan || t.id) === tableId);
+    return table ? (table.TenBan || table.number || `Bàn ${tableId}`) : 'N/A';
+  };
+
+  // Helper function to get staff name - DonHang.MaNV field
+  const getStaffName = (order) => {
+    const staffId = order.MaNV || order.staff_id;
+    // You would typically look up staff name from a staff list
+    // For now, just show the staff ID
+    return staffId ? `NV${staffId}` : 'Chưa gán';
+  };
+
+  // Helper function to get order date - DonHang.NgayLap field
+  const getOrderDate = (order) => {
+    const dateField = order.NgayLap || order.createdAt || order.created_at;
+    return dateField ? new Date(dateField).toLocaleString('vi-VN') : 'N/A';
+  };
+
+  // Helper function to get order status - DonHang.TrangThai field
+  const getOrderStatus = (order) => {
+    return order.TrangThai || order.status || 'Đang xử lý';
+  };
+
+  // Helper function to get order total - DonHang.TongTien field
+  const getOrderTotal = (order) => {
+    return order.TongTien || order.total || 0;
   };
 
   if (loading) {
@@ -227,10 +310,10 @@ const OrderManagement = () => {
                   Đơn hàng
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Khách hàng
+                  Bàn
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Bàn
+                  Nhân viên
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tổng tiền
@@ -244,51 +327,51 @@ const OrderManagement = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50">
+              {filteredOrders.map((order) => {
+                const orderId = getOrderId(order);
+                const orderStatus = getOrderStatus(order);
+                return (
+                <tr key={orderId} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">#{order.id}</div>
+                      <div className="text-sm font-medium text-gray-900">#{orderId}</div>
                       <div className="flex items-center text-sm text-gray-500">
                         <FiClock className="w-4 h-4 mr-1" />
-                        {new Date(order.createdAt).toLocaleString('vi-VN')}
+                        {getOrderDate(order)}
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <FiUser className="w-4 h-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">{order.customerName || 'Khách vãng lai'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <FiMapPin className="w-4 h-4 text-gray-400 mr-2" />
                       <span className="text-sm text-gray-900">
-                        Bàn {tables.find(table => table.id === order.tableId)?.number || 'N/A'}
+                        {getTableInfo(order)}
                       </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <FiUser className="w-4 h-4 text-gray-400 mr-2" />
+                      <span className="text-sm text-gray-900">{getStaffName(order)}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <FiDollarSign className="w-4 h-4 text-gray-400 mr-1" />
                       <span className="text-sm font-medium text-gray-900">
-                        {calculateTotal(order.items).toLocaleString('vi-VN')}đ
+                        {getOrderTotal(order).toLocaleString('vi-VN')}đ
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <select
-                      value={order.status}
-                      onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                      className={`text-xs font-medium px-2.5 py-0.5 rounded-full border-0 ${getStatusColor(order.status)}`}
+                      value={orderStatus}
+                      onChange={(e) => handleStatusChange(orderId, e.target.value)}
+                      className={`text-xs font-medium px-2.5 py-0.5 rounded-full border-0 ${getStatusColor(orderStatus)}`}
                     >
-                      <option value="pending">Chờ xử lý</option>
-                      <option value="preparing">Đang chuẩn bị</option>
-                      <option value="ready">Sẵn sàng</option>
-                      <option value="served">Đã phục vụ</option>
-                      <option value="paid">Đã thanh toán</option>
-                      <option value="cancelled">Đã hủy</option>
+                      <option value="Đang xử lý">Đang xử lý</option>
+                      <option value="Hoàn thành">Hoàn thành</option>
+                      <option value="Đã hủy">Đã hủy</option>
                     </select>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -315,7 +398,7 @@ const OrderManagement = () => {
                         <FiPrinter className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(order.id)}
+                        onClick={() => handleDelete(orderId)}
                         className="text-red-600 hover:text-red-900"
                         title="Xóa"
                       >
@@ -324,7 +407,8 @@ const OrderManagement = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -356,11 +440,15 @@ const OrderManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
                   <option value="">Chọn bàn</option>
-                  {tables.map((table) => (
-                    <option key={table.id} value={table.id}>
-                      Bàn {table.number}
-                    </option>
-                  ))}
+                  {tables.map((table) => {
+                    const tableId = table.MaBan || table.id;
+                    const tableName = table.TenBan || table.number || `Bàn ${tableId}`;
+                    return (
+                      <option key={tableId} value={tableId}>
+                        {tableName}
+                      </option>
+                    );
+                  })}
                 </select>
                 {errors.tableId && (
                   <p className="mt-1 text-sm text-red-600">{errors.tableId.message}</p>
@@ -369,13 +457,13 @@ const OrderManagement = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên khách hàng
+                  Nhân viên phục vụ
                 </label>
                 <input
-                  {...register('customerName')}
                   type="text"
+                  {...register('staffId')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  placeholder="Để trống nếu là khách vãng lai"
+                  placeholder="Mã nhân viên"
                 />
               </div>
 
@@ -388,12 +476,9 @@ const OrderManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
                   <option value="">Chọn trạng thái</option>
-                  <option value="pending">Chờ xử lý</option>
-                  <option value="preparing">Đang chuẩn bị</option>
-                  <option value="ready">Sẵn sàng</option>
-                  <option value="served">Đã phục vụ</option>
-                  <option value="paid">Đã thanh toán</option>
-                  <option value="cancelled">Đã hủy</option>
+                  <option value="Đang xử lý">Đang xử lý</option>
+                  <option value="Hoàn thành">Hoàn thành</option>
+                  <option value="Đã hủy">Đã hủy</option>
                 </select>
                 {errors.status && (
                   <p className="mt-1 text-sm text-red-600">{errors.status.message}</p>
@@ -442,7 +527,7 @@ const OrderManagement = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Chi tiết đơn hàng #{selectedOrder.id}</h2>
+              <h2 className="text-xl font-bold text-gray-900">Chi tiết đơn hàng #{getOrderId(selectedOrder)}</h2>
               <button
                 onClick={() => setShowDetailModal(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -457,16 +542,16 @@ const OrderManagement = () => {
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Thông tin đơn hàng</h3>
                   <div className="space-y-1 text-sm">
-                    <p><span className="font-medium">Mã đơn:</span> #{selectedOrder.id}</p>
-                    <p><span className="font-medium">Thời gian:</span> {new Date(selectedOrder.createdAt).toLocaleString('vi-VN')}</p>
-                    <p><span className="font-medium">Bàn:</span> {tables.find(table => table.id === selectedOrder.tableId)?.number || 'N/A'}</p>
-                    <p><span className="font-medium">Khách hàng:</span> {selectedOrder.customerName || 'Khách vãng lai'}</p>
+                    <p><span className="font-medium">Mã đơn:</span> #{getOrderId(selectedOrder)}</p>
+                    <p><span className="font-medium">Thời gian:</span> {getOrderDate(selectedOrder)}</p>
+                    <p><span className="font-medium">Bàn:</span> {getTableInfo(selectedOrder)}</p>
+                    <p><span className="font-medium">Nhân viên:</span> {getStaffName(selectedOrder)}</p>
                   </div>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Trạng thái</h3>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
-                    {getStatusText(selectedOrder.status)}
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(getOrderStatus(selectedOrder))}`}>
+                    {getStatusText(getOrderStatus(selectedOrder))}
                   </span>
                 </div>
               </div>
@@ -485,31 +570,37 @@ const OrderManagement = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {selectedOrder.items?.map((item, index) => (
+                      {(selectedOrder.chitiet || selectedOrder.items || selectedOrder.CTDonHang || []).map((item, index) => {
+                        const itemName = item.TenMon || item.name || 'N/A';
+                        const quantity = item.SoLuong || item.quantity || 0;
+                        const price = item.DonGia || item.price || item.unit_price || 0;
+                        const subtotal = item.ThanhTien || (price * quantity) || 0;
+                        return (
                         <tr key={index}>
-                          <td className="px-4 py-2 text-sm text-gray-900">{item.name}</td>
-                          <td className="px-4 py-2 text-sm text-gray-900">{item.quantity}</td>
-                          <td className="px-4 py-2 text-sm text-gray-900">{item.price.toLocaleString('vi-VN')}đ</td>
+                          <td className="px-4 py-2 text-sm text-gray-900">{itemName}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900">{quantity}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900">{price.toLocaleString('vi-VN')}đ</td>
                           <td className="px-4 py-2 text-sm font-medium text-gray-900">
-                            {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                            {subtotal.toLocaleString('vi-VN')}đ
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
                 <div className="mt-4 text-right">
                   <p className="text-lg font-bold text-gray-900">
-                    Tổng cộng: {calculateTotal(selectedOrder.items).toLocaleString('vi-VN')}đ
+                    Tổng cộng: {getOrderTotal(selectedOrder).toLocaleString('vi-VN')}đ
                   </p>
                 </div>
               </div>
 
               {/* Notes */}
-              {selectedOrder.notes && (
+              {(selectedOrder.GhiChu || selectedOrder.notes) && (
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Ghi chú</h3>
-                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">{selectedOrder.notes}</p>
+                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">{selectedOrder.GhiChu || selectedOrder.notes}</p>
                 </div>
               )}
             </div>

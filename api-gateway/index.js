@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 const helmet = require('helmet');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+require('dotenv').config();
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 
@@ -87,39 +90,27 @@ const createServiceProxy = (serviceName, port, requireAuth = false) => {
         data: req.body,
         params: req.query,
         headers,
-        timeout: 10000,
-        validateStatus: (status) => status >= 200 && status < 500
+        timeout: 10000
       });
       
       console.log(`✅ [${serviceName}] Response: ${response.status}`);
-      
-      // Handle 304 Not Modified
-      if (response.status === 304) {
-        return res.status(304).end();
-      }
-      
-      // Forward response headers
-      Object.keys(response.headers).forEach(key => {
-        if (key !== 'content-encoding' && key !== 'transfer-encoding') {
-          res.setHeader(key, response.headers[key]);
-        }
-      });
-      
       res.status(response.status).json(response.data);
-      
     } catch (error) {
       console.error(`❌ [${serviceName}] Error:`, error.message);
-      if (error.response && error.response.status < 500) {
-        res.status(error.response.status).json(error.response.data || { error: 'Client error' });
+      if (error.response) {
+        res.status(error.response.status).json(error.response.data);
       } else {
-        res.status(503).json({
+        res.status(503).json({ 
           error: `${serviceName} unavailable`,
-          message: error.message
+          message: `Không thể kết nối đến dịch vụ ${serviceName.toLowerCase()}`
         });
       }
     }
   };
 };
+
+// Authentication middleware shortcuts
+const { authenticateToken, requireStaff, requireAdmin, requireManager } = authMiddleware;
 
 // ======================= PROXY ROUTES =======================
 
@@ -133,7 +124,29 @@ app.use('/api/categories', createServiceProxy('Menu Service', 3002));
 // User Service
 console.log('🔧 Setting up User Service proxy...');
 app.use('/api/auth', createServiceProxy('User Service', 3001)); // Auth routes (login/register) - no auth required
-app.use('/api/users', authMiddleware.authenticateToken, createServiceProxy('User Service', 3001, true));
+
+// Temporary bypass for testing - REMOVE IN PRODUCTION
+app.get('/api/users-test/test', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const response = await axios.get('http://localhost:3001/api/users/test');
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch users', message: error.message });
+  }
+});
+
+app.get('/api/users-test/test-stats', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const response = await axios.get('http://localhost:3001/api/users/test-stats');
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch user stats', message: error.message });
+  }
+});
+
+app.use('/api/users', ...requireStaff, createServiceProxy('User Service', 3001, true)); // User management requires staff auth
 
 // Table Service
 console.log('🔧 Setting up Table Service proxy...');
@@ -141,13 +154,37 @@ app.use('/api/tables', createServiceProxy('Table Service', 3003));
 app.use('/api/ban', createServiceProxy('Table Service', 3003)); // Vietnamese route
 app.use('/api/reservations', createServiceProxy('Table Service', 3003));
 app.use('/api/dat-ban', createServiceProxy('Table Service', 3003)); // Vietnamese route
+app.use('/api/group-reservations', createServiceProxy('Table Service', 3003)); // Group reservations
 app.use('/api/areas', createServiceProxy('Table Service', 3003));
 app.use('/api/khu-vuc', createServiceProxy('Table Service', 3003)); // Vietnamese route
-app.use('/api/auto-cancel', createServiceProxy('Table Service', 3003)); // Auto cancel expired reservations for areas
 
-// Billing Service
-console.log('🔧 Setting up Billing Service proxy...');
-app.use('/api/billing', createServiceProxy('Billing Service', 3004));
+// Billing Service (staff access required)
+console.log('Setting up Billing Service proxy...');
+
+// Temporary test routes without auth (REMOVE IN PRODUCTION)
+app.get('/api/billing-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Billing test route working!',
+    note: 'This bypasses authentication for testing',
+    timestamp: new Date()
+  });
+});
+
+app.get('/api/orders-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Orders test route working!',
+    note: 'This bypasses authentication for testing',
+    timestamp: new Date()
+  });
+});
+
+app.use('/api/billing', ...requireStaff, createServiceProxy('Billing Service', 3004, true));
+app.use('/api/orders', ...requireStaff, createServiceProxy('Billing Service', 3004, true));
+app.use('/api/revenue', ...requireStaff, createServiceProxy('Billing Service', 3004, true)); // Revenue analytics
+
+// Online Order Service
 console.log('🔧 Setting up Online Order Service proxy...');
 app.use('/api/cart', createServiceProxy('Online Order Service', 3005));
 app.use('/api/online-orders', createServiceProxy('Online Order Service', 3005));
@@ -157,9 +194,9 @@ app.use('/api/order-tracking', createServiceProxy('Online Order Service', 3005))
 console.log('🔧 Setting up Voucher Service proxy...');
 app.use('/api/vouchers', createServiceProxy('Voucher Service', 3006));
 
-// Inventory Service
+// Inventory Service (staff access required)
 console.log('🔧 Setting up Inventory Service proxy...');
-app.use('/api/inventory', authMiddleware.requireStaff, createServiceProxy('Inventory Service', 3007, true));
+app.use('/api/inventory', ...requireStaff, createServiceProxy('Inventory Service', 3007, true));
 
 console.log('✅ All proxy routes configured!');
 
@@ -177,6 +214,24 @@ app.get('/test', (req, res) => {
   });
 });
 
+// Test auth route
+app.get('/test-auth', authenticateToken, (req, res) => {
+  res.json({
+    message: 'Authentication working!',
+    user: req.user,
+    timestamp: new Date()
+  });
+});
+
+// Test staff auth route
+app.get('/test-staff', ...requireStaff, (req, res) => {
+  res.json({
+    message: 'Staff authentication working!',
+    user: req.user,
+    timestamp: new Date()
+  });
+});
+
 
 // API Documentation
 app.get('/api', (req, res) => {
@@ -186,7 +241,7 @@ app.get('/api', (req, res) => {
     services: {
       userService: { 
         url: services.userService.url, 
-        routes: ['/api/auth', '/api/users'] 
+        routes: ['/api/auth', '/api/users (staff auth required)'] 
       },
       menuService: { 
         url: services.menuService.url, 
@@ -194,11 +249,11 @@ app.get('/api', (req, res) => {
       },
       tableService: { 
         url: services.tableService.url, 
-        routes: ['/api/tables', '/api/ban', '/api/reservations', '/api/dat-ban', '/api/areas', '/api/khu-vuc', '/api/auto-cancel'] 
+        routes: ['/api/tables', '/api/ban', '/api/reservations', '/api/dat-ban', '/api/group-reservations', '/api/dat-ban-nhom', '/api/areas', '/api/khu-vuc'] 
       },
       billingService: { 
         url: services.billingService.url, 
-        routes: ['/api/billing'] 
+        routes: ['/api/billing (staff auth)', '/api/orders (staff auth)', '/api/revenue (staff auth)'] 
       },
       onlineOrderService: { 
         url: services.onlineOrderService.url, 
@@ -210,7 +265,7 @@ app.get('/api', (req, res) => {
       },
       inventoryService: { 
         url: services.inventoryService.url, 
-        routes: ['/api/inventory'] 
+        routes: ['/api/inventory (staff auth required)'] 
       }
     }
   });

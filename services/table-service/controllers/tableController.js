@@ -118,6 +118,7 @@ const getTableById = async (req, res) => {
 const createTable = async (req, res) => {
   try {
     const {
+      // English field names
       table_number,
       capacity,
       location = 'indoor',
@@ -128,35 +129,62 @@ const createTable = async (req, res) => {
       description,
       features,
       position_x,
-      position_y
+      position_y,
+      // Vietnamese field names
+      TenBan,
+      SoCho,
+      MaKhuVuc,
+      ViTri,
+      TrangThai
     } = req.body;
 
-    if (!table_number || !capacity) {
+    // Support both English and Vietnamese field names
+    const tableNumber = table_number || TenBan;
+    const tableCapacity = capacity || SoCho;
+    const tableArea = area || MaKhuVuc || khu_vuc || 1;
+    const tablePosition = position || vi_tri || ViTri || null;
+    const tableStatus = TrangThai || 'Trống';
+
+    if (!tableNumber || !tableCapacity) {
       return res.status(400).json({
-        error: 'Missing required fields: table_number and capacity'
+        error: 'Missing required fields: table_number/TenBan and capacity/SoCho'
       });
     }
 
     // Check if table number already exists
     const existingTable = await Ban.findOne({
-      where: { TenBan: table_number.trim() }
+      where: { TenBan: tableNumber.trim() }
     });
 
     if (existingTable) {
       return res.status(400).json({
-        error: 'Table number already exists'
+        error: 'Table number already exists',
+        message: `Bàn "${tableNumber}" đã tồn tại trong hệ thống`
       });
     }
 
+    // Validate area exists (if provided)
+    if (tableArea && tableArea !== 1) {
+      const { KhuVuc } = require('../models');
+      const areaExists = await KhuVuc.findByPk(tableArea);
+      if (!areaExists) {
+        return res.status(400).json({
+          error: 'Invalid area',
+          message: `Khu vực ${tableArea} không tồn tại`
+        });
+      }
+    }
+
     const table = await Ban.create({
-      TenBan: table_number.trim(),
-      SoCho: parseInt(capacity),
-      TrangThai: 'Trống',
-      MaKhuVuc: area || khu_vuc || 1,
-      ViTri: position || vi_tri || null
+      TenBan: tableNumber.trim(),
+      SoCho: parseInt(tableCapacity),
+      TrangThai: tableStatus,
+      MaKhuVuc: parseInt(tableArea),
+      ViTri: tablePosition
     });
 
     res.status(201).json({
+      success: true,
       message: 'Table created successfully',
       table
     });
@@ -493,21 +521,41 @@ const getTableStats = async (req, res) => {
 // Get all areas/khu_vuc
 const getAreas = async (req, res) => {
   try {
-    const areas = await Ban.findAll({
+    // Import KhuVuc model
+    const { KhuVuc } = require('../models');
+    
+    // Get areas with table count
+    const areas = await KhuVuc.findAll({
       attributes: [
         'MaKhuVuc',
-        [sequelize.fn('COUNT', sequelize.col('MaBan')), 'table_count']
+        'TenKhuVuc', 
+        'MoTa',
+        'TrangThai',
+        [sequelize.fn('COUNT', sequelize.col('tables.MaBan')), 'table_count']
       ],
-      group: ['MaKhuVuc'],
+      include: [{
+        model: Ban,
+        as: 'tables',
+        attributes: [],
+        required: false
+      }],
+      group: ['KhuVuc.MaKhuVuc', 'KhuVuc.TenKhuVuc', 'KhuVuc.MoTa', 'KhuVuc.TrangThai'],
       order: [['MaKhuVuc', 'ASC']]
     });
 
     const areaList = areas.map(area => ({
+      MaKhuVuc: area.MaKhuVuc,
+      TenKhuVuc: area.TenKhuVuc,
+      MoTa: area.MoTa,
+      TrangThai: area.TrangThai,
+      table_count: parseInt(area.dataValues.table_count) || 0,
+      // Legacy support
       name: area.MaKhuVuc,
-      table_count: parseInt(area.dataValues.table_count)
+      id: area.MaKhuVuc
     }));
 
     res.json({
+      success: true,
       areas: areaList
     });
 

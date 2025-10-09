@@ -1,5 +1,9 @@
-const { DonHang, Orders, ThanhToan } = require('./Bill');
+const { DonHang, ThanhToan } = require('./Bill');
 const { CTDonHang, CTOrder } = require('./BillItem');
+const Orders = require('./Order');
+const CTOrderModel = require('./CTOrder');
+const DonHangOnline = require('./DonHangOnline');
+const CTDonHangOnline = require('./CTDonHangOnline');
 
 // Define associations
 CTDonHang.belongsTo(DonHang, {
@@ -12,12 +16,13 @@ DonHang.hasMany(CTDonHang, {
   as: 'chitiet'
 });
 
-CTOrder.belongsTo(Orders, {
+// Orders table associations
+CTOrderModel.belongsTo(Orders, {
   foreignKey: 'MaOrder',
   as: 'order'
 });
 
-Orders.hasMany(CTOrder, {
+Orders.hasMany(CTOrderModel, {
   foreignKey: 'MaOrder',
   as: 'chitiet'
 });
@@ -32,10 +37,34 @@ DonHang.hasMany(ThanhToan, {
   as: 'thanhtoan'
 });
 
+// ThanhToan associations with Orders
+ThanhToan.belongsTo(Orders, {
+  foreignKey: 'MaOrder',
+  as: 'order'
+});
+
+Orders.hasMany(ThanhToan, {
+  foreignKey: 'MaOrder',
+  as: 'thanhtoan'
+});
+
+// Online order associations
+CTDonHangOnline.belongsTo(DonHangOnline, {
+  foreignKey: 'MaDHOnline',
+  as: 'donhangonline'
+});
+
+DonHangOnline.hasMany(CTDonHangOnline, {
+  foreignKey: 'MaDHOnline',
+  as: 'chitiet'
+});
+
 module.exports = {
   DonHang,
   Orders,
   ThanhToan,
   CTDonHang,
-  CTOrder
+  CTOrder: CTOrderModel,
+  DonHangOnline,
+  CTDonHangOnline
 };

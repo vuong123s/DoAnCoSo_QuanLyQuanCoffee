@@ -6,7 +6,12 @@ const {
   getBillById,
   updatePaymentStatus,
   getBillingStats,
-  deleteBill
+  deleteBill,
+  // Order items management (bán hàng)
+  addItemToOrder,
+  updateOrderItem,
+  removeOrderItem,
+  getOrderItems
 } = require('../controllers/billingController');
 
 // Create a new bill
@@ -14,6 +19,15 @@ router.post('/', createBill);
 
 // Get all bills with optional filters
 router.get('/', getBills);
+
+// Test route (REMOVE IN PRODUCTION)
+router.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Billing service is working!',
+    timestamp: new Date()
+  });
+});
 
 // Get billing statistics
 router.get('/stats', (req, res) => {
@@ -45,5 +59,18 @@ router.patch('/:id/payment', updatePaymentStatus);
 
 // Delete/Cancel bill
 router.delete('/:id', deleteBill);
+
+// Order items management routes (bán hàng)
+// Add item to order
+router.post('/:orderId/items', addItemToOrder);
+
+// Get order items
+router.get('/:orderId/items', getOrderItems);
+
+// Update item in order
+router.patch('/:orderId/items/:itemId', updateOrderItem);
+
+// Remove item from order
+router.delete('/:orderId/items/:itemId', removeOrderItem);
 
 module.exports = router;

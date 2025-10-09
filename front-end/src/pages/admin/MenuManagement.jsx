@@ -120,7 +120,32 @@ const MenuManagement = () => {
         toast.success('Xóa món thành công');
         fetchData();
       } catch (error) {
-        toast.error('Lỗi khi xóa món');
+        console.error('Delete error:', error);
+        const errorData = error.response?.data;
+        
+        // Handle case where item is referenced in orders
+        if (errorData?.canSoftDelete && errorData?.references > 0) {
+          const message = errorData.message || 'Món ăn này đã được sử dụng trong đơn hàng';
+          const shouldSoftDelete = window.confirm(
+            `${message}\n\nBạn có muốn đánh dấu món ăn là "Hết hàng" thay vì xóa không?`
+          );
+          
+          if (shouldSoftDelete) {
+            try {
+              // Call soft delete API
+              await menuAPI.softDeleteMenuItem(id);
+              toast.success('Đã đánh dấu món ăn là "Hết hàng"');
+              fetchData();
+            } catch (softDeleteError) {
+              console.error('Soft delete error:', softDeleteError);
+              toast.error('Lỗi khi đánh dấu hết hàng');
+            }
+          }
+        } else {
+          // Handle other errors
+          const errorMessage = errorData?.message || errorData?.error || 'Lỗi khi xóa món';
+          toast.error(errorMessage);
+        }
       }
     }
   };

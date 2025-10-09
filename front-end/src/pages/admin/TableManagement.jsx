@@ -82,21 +82,52 @@ const TableManagement = () => {
         }
       }
       
-      if (areasResponse.data.success) {
-        setAreas(areasResponse.data.areas);
-      } else {
-        console.log('No areas success flag, checking direct data...');
-        let areas = null;
-        if (Array.isArray(areasResponse.data)) {
-          areas = areasResponse.data;
-        } else if (areasResponse.data.areas) {
-          areas = areasResponse.data.areas;
-        }
+      // Handle areas data - API returns different structure
+      let areas = null;
+      if (areasResponse.data.success && areasResponse.data.areas) {
+        areas = areasResponse.data.areas;
+      } else if (areasResponse.data.areas) {
+        areas = areasResponse.data.areas;
+      } else if (Array.isArray(areasResponse.data)) {
+        areas = areasResponse.data;
+      }
+      
+      if (areas) {
+        console.log('Raw areas data:', areas);
         
-        if (areas) {
-          console.log('Setting areas:', areas);
-          setAreas(areas);
-        }
+        // Transform areas data to match frontend expectations
+        const transformedAreas = areas.map(area => {
+          // Handle different API response formats
+          if (area.MaKhuVuc && area.TenKhuVuc) {
+            // Already in correct format
+            return area;
+          } else if (area.name) {
+            // Legacy format with name/table_count
+            return {
+              MaKhuVuc: area.name,
+              TenKhuVuc: area.TenKhuVuc || `Khu vực ${area.name}`,
+              table_count: area.table_count
+            };
+          } else {
+            // Fallback
+            return {
+              MaKhuVuc: area.id || area.MaKhuVuc || 1,
+              TenKhuVuc: area.TenKhuVuc || area.name || 'Khu vực',
+              table_count: area.table_count || 0
+            };
+          }
+        });
+        
+        console.log('Transformed areas:', transformedAreas);
+        setAreas(transformedAreas);
+      } else {
+        console.log('No areas data found, using fallback');
+        // Fallback areas if API fails
+        setAreas([
+          { MaKhuVuc: 1, TenKhuVuc: 'Khu vực 1' },
+          { MaKhuVuc: 2, TenKhuVuc: 'Khu vực 2' },
+          { MaKhuVuc: 3, TenKhuVuc: 'Khu vực 3' }
+        ]);
       }
     } catch (error) {
       console.error('Fetch error:', error);
@@ -157,7 +188,11 @@ const TableManagement = () => {
       resetForm();
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+      console.error('Form submission error:', error);
+      console.error('Error response:', error.response?.data);
+      
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Có lỗi xảy ra';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

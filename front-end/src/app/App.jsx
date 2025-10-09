@@ -33,8 +33,8 @@ import TableManagement from "../pages/admin/TableManagement";
 import ReservationManagement from "../pages/admin/ReservationManagement";
 import OrderManagement from "../pages/admin/OrderManagement";
 import OnlineOrderManagement from "../pages/admin/OnlineOrderManagement";
+import SalesManagement from "../pages/admin/SalesManagement";
 import UserManagement from "../pages/admin/UserManagement";
-import BillingManagement from "../pages/admin/BillingManagement";
 import Analytics from "../pages/admin/Analytics";
 
 // Components
@@ -92,7 +92,7 @@ function App() {
             <Route path="reservations" element={<ReservationManagement />} />
             <Route path="orders" element={<OrderManagement />} />
             <Route path="online-orders" element={<OnlineOrderManagement />} />
-            <Route path="billing" element={<BillingManagement />} />
+            <Route path="sales" element={<SalesManagement />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="users" element={<UserManagement />} />
           </Route>

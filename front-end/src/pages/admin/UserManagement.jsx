@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { userAPI } from '../../shared/services/api';
 import { useForm } from 'react-hook-form';
-import { FiPlus, FiEdit, FiTrash2, FiSearch, FiFilter, FiUser, FiMail, FiPhone, FiShield } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiSearch, FiFilter, FiUser, FiMail, FiPhone, FiShield, FiUsers, FiUserCheck, FiUserX, FiDownload } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalEmployees: 0,
+    totalCustomers: 0,
+    activeUsers: 0
+  });
   const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -23,42 +30,53 @@ const UserManagement = () => {
 
   useEffect(() => {
     fetchUsers();
+    fetchStats();
   }, []);
 
   useEffect(() => {
     filterUsers();
-  }, [users, roleFilter, searchQuery]);
+  }, [users, roleFilter, statusFilter, searchQuery]);
 
   const fetchUsers = async () => {
     try {
       const response = await userAPI.getUsers();
       
-      // Combine employees and customers into a single array
-      const employees = (response.data.employees || []).map(emp => ({
-        id: emp.MaNV,
-        name: emp.HoTen,
-        email: emp.Email,
-        phone: emp.SDT,
-        role: emp.ChucVu?.toLowerCase() || 'staff',
+      // Handle Vietnamese schema response
+      let allUsers = [];
+      
+      // Process employees (NhanVien)
+      const employees = (response.data.nhanviens || response.data.employees || []).map(emp => ({
+        id: emp.MaNV || emp.id,
+        name: emp.HoTen || emp.name,
+        email: emp.Email || emp.email,
+        phone: emp.SDT || emp.phone,
+        role: emp.ChucVu || emp.role || 'Nhân viên',
         type: 'employee',
-        active: true,
-        createdAt: emp.NgayVaoLam || new Date(),
-        salary: emp.Luong
+        status: emp.TrangThai || 'Hoạt động',
+        createdAt: emp.NgayVaoLam || emp.createdAt || new Date(),
+        salary: emp.Luong || emp.salary,
+        address: emp.DiaChi || emp.address,
+        birthDate: emp.NgaySinh || emp.birthDate
       }));
 
-      const customers = (response.data.customers || []).map(cust => ({
-        id: cust.MaKH,
-        name: cust.HoTen,
-        email: cust.Email,
-        phone: cust.SDT,
-        role: 'customer',
+      // Process customers (KhachHang)
+      const customers = (response.data.khachhangs || response.data.customers || []).map(cust => ({
+        id: cust.MaKH || cust.id,
+        name: cust.HoTen || cust.name,
+        email: cust.Email || cust.email,
+        phone: cust.SDT || cust.phone,
+        role: 'Khách hàng',
         type: 'customer',
-        active: true,
-        createdAt: new Date(),
-        points: cust.DiemTichLuy
+        status: cust.TrangThai || 'Hoạt động',
+        createdAt: cust.NgayDangKy || cust.createdAt || new Date(),
+        points: cust.DiemTichLuy || cust.points || 0,
+        address: cust.DiaChi || cust.address,
+        birthDate: cust.NgaySinh || cust.birthDate,
+        gender: cust.GioiTinh || cust.gender
       }));
 
-      setUsers([...employees, ...customers]);
+      allUsers = [...employees, ...customers];
+      setUsers(allUsers);
     } catch (error) {
       console.error('Fetch users error:', error);
       toast.error('Lỗi khi tải danh sách người dùng');
@@ -67,18 +85,46 @@ const UserManagement = () => {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const response = await userAPI.getUserStats();
+      setStats(response.data || {
+        totalUsers: 0,
+        totalEmployees: 0,
+        totalCustomers: 0,
+        activeUsers: 0
+      });
+    } catch (error) {
+      console.error('Fetch stats error:', error);
+    }
+  };
+
   const filterUsers = () => {
     let filtered = users;
 
+    // Filter by role
     if (roleFilter !== 'all') {
-      filtered = filtered.filter(user => user.role === roleFilter);
+      if (roleFilter === 'employee') {
+        filtered = filtered.filter(user => user.type === 'employee');
+      } else if (roleFilter === 'customer') {
+        filtered = filtered.filter(user => user.type === 'customer');
+      } else {
+        filtered = filtered.filter(user => user.role === roleFilter);
+      }
     }
 
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(user => user.status === statusFilter);
+    }
+
+    // Search filter
     if (searchQuery) {
       filtered = filtered.filter(user =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+        user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.role?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -91,79 +137,125 @@ const UserManagement = () => {
     setValue('email', user.email);
     setValue('phone', user.phone);
     setValue('role', user.role);
-    setValue('active', user.active);
+    setValue('status', user.status);
+    setValue('salary', user.salary);
     setShowModal(true);
   };
 
   const handleDelete = async (user) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa người dùng này?')) {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa ${user.type === 'employee' ? 'nhân viên' : 'khách hàng'} "${user.name}"?`)) {
       try {
-        await userAPI.deleteUser(user.type, user.id);
-        toast.success('Xóa người dùng thành công');
+        if (user.type === 'employee') {
+          await userAPI.deleteEmployee(user.id);
+        } else {
+          await userAPI.deleteCustomer(user.id);
+        }
+        toast.success(`Xóa ${user.type === 'employee' ? 'nhân viên' : 'khách hàng'} thành công`);
         fetchUsers();
+        fetchStats();
       } catch (error) {
-        toast.error('Lỗi khi xóa người dùng');
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi xóa người dùng';
+        toast.error(errorMessage);
       }
     }
   };
 
   const handlePromoteToEmployee = async (customer) => {
     const chucVu = prompt('Nhập chức vụ (Nhân viên, Quản lý, Admin):', 'Nhân viên');
-    const luong = prompt('Nhập lương:', '8000000');
+    const luong = prompt('Nhập lương (VNĐ):', '8000000');
     
     if (chucVu && luong) {
       try {
-        await userAPI.promoteToEmployee(customer.id, { chucVu, luong: parseInt(luong) });
-        toast.success('Thăng chức thành công');
+        await userAPI.promoteToEmployee(customer.id, { 
+          ChucVu: chucVu, 
+          Luong: parseInt(luong),
+          NgayVaoLam: new Date().toISOString().split('T')[0]
+        });
+        toast.success(`Đã thăng chức "${customer.name}" thành nhân viên`);
         fetchUsers();
+        fetchStats();
       } catch (error) {
-        toast.error('Lỗi khi thăng chức');
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi thăng chức';
+        toast.error(errorMessage);
       }
     }
   };
 
   const handleUpdateRole = async (employee) => {
     const chucVu = prompt('Nhập chức vụ mới:', employee.role || '');
-    const luong = prompt('Nhập lương mới:', (employee.salary ? employee.salary.toString() : '8000000'));
+    const luong = prompt('Nhập lương mới (VNĐ):', (employee.salary ? employee.salary.toString() : '8000000'));
     
     if (chucVu && luong) {
       try {
-        await userAPI.updateUserRole(employee.id, { chucVu, luong: parseInt(luong) });
-        toast.success('Cập nhật vai trò thành công');
+        await userAPI.updateUserRole(employee.id, { 
+          ChucVu: chucVu, 
+          Luong: parseInt(luong) 
+        });
+        toast.success(`Cập nhật vai trò cho "${employee.name}" thành công`);
         fetchUsers();
+        fetchStats();
       } catch (error) {
-        toast.error('Lỗi khi cập nhật vai trò');
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi cập nhật vai trò';
+        toast.error(errorMessage);
       }
     }
   };
 
   const onSubmit = async (data) => {
     try {
+      // Convert form data to Vietnamese schema
+      const userData = {
+        HoTen: data.name,
+        Email: data.email,
+        SDT: data.phone,
+        MatKhau: data.password,
+        TrangThai: data.status || 'Hoạt động',
+        ...(data.role !== 'Khách hàng' && {
+          ChucVu: data.role,
+          Luong: data.salary || 8000000,
+          NgayVaoLam: new Date().toISOString().split('T')[0]
+        }),
+        ...(data.role === 'Khách hàng' && {
+          DiemTichLuy: 0,
+          NgayDangKy: new Date().toISOString().split('T')[0]
+        })
+      };
+
       if (editingUser) {
-        await userAPI.updateUser(editingUser.id, data);
+        if (editingUser.type === 'employee') {
+          await userAPI.updateEmployee(editingUser.id, userData);
+        } else {
+          await userAPI.updateCustomer(editingUser.id, userData);
+        }
         toast.success('Cập nhật người dùng thành công');
       } else {
-        await userAPI.createUser(data);
+        if (data.role === 'Khách hàng') {
+          await userAPI.createCustomer(userData);
+        } else {
+          await userAPI.createEmployee(userData);
+        }
         toast.success('Thêm người dùng mới thành công');
       }
       setShowModal(false);
       setEditingUser(null);
       reset();
       fetchUsers();
+      fetchStats();
     } catch (error) {
-      toast.error('Có lỗi xảy ra');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Có lỗi xảy ra';
+      toast.error(errorMessage);
     }
   };
 
   const getRoleColor = (role) => {
     switch (role) {
-      case 'admin':
+      case 'Admin':
         return 'bg-red-100 text-red-800';
-      case 'manager':
+      case 'Quản lý':
         return 'bg-purple-100 text-purple-800';
-      case 'staff':
+      case 'Nhân viên':
         return 'bg-blue-100 text-blue-800';
-      case 'customer':
+      case 'Khách hàng':
         return 'bg-green-100 text-green-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -171,18 +263,53 @@ const UserManagement = () => {
   };
 
   const getRoleText = (role) => {
-    switch (role) {
-      case 'admin':
-        return 'Quản trị viên';
-      case 'manager':
-        return 'Quản lý';
-      case 'staff':
-        return 'Nhân viên';
-      case 'customer':
-        return 'Khách hàng';
+    // Role is already in Vietnamese from backend
+    return role || 'Chưa xác định';
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Hoạt động':
+        return 'bg-green-100 text-green-800';
+      case 'Tạm khóa':
+        return 'bg-red-100 text-red-800';
+      case 'Chờ duyệt':
+        return 'bg-yellow-100 text-yellow-800';
       default:
-        return role;
+        return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const exportToCSV = () => {
+    const csvData = filteredUsers.map(user => ({
+      'ID': user.id,
+      'Họ tên': user.name,
+      'Email': user.email,
+      'SĐT': user.phone || '',
+      'Vai trò': user.role,
+      'Loại': user.type === 'employee' ? 'Nhân viên' : 'Khách hàng',
+      'Trạng thái': user.status,
+      'Ngày tạo': new Date(user.createdAt).toLocaleDateString('vi-VN'),
+      'Lương': user.salary ? user.salary.toLocaleString('vi-VN') + ' VNĐ' : '',
+      'Điểm tích lũy': user.points || ''
+    }));
+
+    const csv = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `danh-sach-nguoi-dung-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Xuất file thành công');
   };
 
   if (loading) {
@@ -201,17 +328,85 @@ const UserManagement = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Quản lý Người dùng</h1>
-        <button
-          onClick={() => {
-            setEditingUser(null);
-            reset();
-            setShowModal(true);
-          }}
-          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center space-x-2"
-        >
-          <FiPlus className="w-4 h-4" />
-          <span>Thêm người dùng</span>
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={exportToCSV}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+          >
+            <FiDownload className="w-4 h-4" />
+            <span>Xuất CSV</span>
+          </button>
+          <button
+            onClick={() => {
+              setEditingUser(null);
+              reset();
+              setShowModal(true);
+            }}
+            className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center space-x-2"
+          >
+            <FiPlus className="w-4 h-4" />
+            <span>Thêm người dùng</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <FiUsers className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Tổng người dùng</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.totalUsers || users.length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                <FiUserCheck className="w-5 h-5 text-purple-600" />
+              </div>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Nhân viên</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.totalEmployees || users.filter(u => u.type === 'employee').length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                <FiUser className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Khách hàng</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.totalCustomers || users.filter(u => u.type === 'customer').length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <FiUserCheck className="w-5 h-5 text-emerald-600" />
+              </div>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Đang hoạt động</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.activeUsers || users.filter(u => u.status === 'Hoạt động').length}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -222,26 +417,41 @@ const UserManagement = () => {
               <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Tìm kiếm theo tên, email, số điện thoại..."
+                placeholder="Tìm kiếm theo tên, email, số điện thoại, vai trò..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               />
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <FiFilter className="text-gray-400 w-5 h-5" />
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            >
-              <option value="all">Tất cả vai trò</option>
-              <option value="admin">Quản trị viên</option>
-              <option value="manager">Quản lý</option>
-              <option value="staff">Nhân viên</option>
-              <option value="customer">Khách hàng</option>
-            </select>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <FiFilter className="text-gray-400 w-5 h-5" />
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              >
+                <option value="all">Tất cả vai trò</option>
+                <option value="employee">Nhân viên</option>
+                <option value="customer">Khách hàng</option>
+                <option value="Admin">Quản trị viên</option>
+                <option value="Quản lý">Quản lý</option>
+                <option value="Nhân viên">Nhân viên</option>
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="Hoạt động">Hoạt động</option>
+                <option value="Tạm khóa">Tạm khóa</option>
+                <option value="Chờ duyệt">Chờ duyệt</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -284,7 +494,11 @@ const UserManagement = () => {
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        <div className="text-sm text-gray-500">ID: {user.id}</div>
+                        <div className="text-sm text-gray-500">
+                          ID: {user.id} • {user.type === 'employee' ? 'Nhân viên' : 'Khách hàng'}
+                          {user.salary && <span className="ml-2 text-blue-600">• {user.salary.toLocaleString('vi-VN')} VNĐ</span>}
+                          {user.points !== undefined && <span className="ml-2 text-green-600">• {user.points} điểm</span>}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -309,10 +523,8 @@ const UserManagement = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {user.active ? 'Hoạt động' : 'Tạm khóa'}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
+                      {user.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -444,24 +656,46 @@ const UserManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
                   <option value="">Chọn vai trò</option>
-                  <option value="admin">Quản trị viên</option>
-                  <option value="manager">Quản lý</option>
-                  <option value="staff">Nhân viên</option>
-                  <option value="customer">Khách hàng</option>
+                  <option value="Admin">Quản trị viên</option>
+                  <option value="Quản lý">Quản lý</option>
+                  <option value="Nhân viên">Nhân viên</option>
+                  <option value="Khách hàng">Khách hàng</option>
                 </select>
                 {errors.role && (
                   <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
                 )}
               </div>
 
-              <div className="flex items-center">
-                <input
-                  {...register('active')}
-                  type="checkbox"
-                  className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-                  defaultChecked={true}
-                />
-                <span className="ml-2 text-sm text-gray-700">Tài khoản hoạt động</span>
+              {/* Salary field for employees */}
+              {(register('role').value !== 'Khách hàng' && !editingUser) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Lương (VNĐ)
+                  </label>
+                  <input
+                    {...register('salary')}
+                    type="number"
+                    min="0"
+                    step="100000"
+                    placeholder="8000000"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Trạng thái
+                </label>
+                <select
+                  {...register('status')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  defaultValue="Hoạt động"
+                >
+                  <option value="Hoạt động">Hoạt động</option>
+                  <option value="Tạm khóa">Tạm khóa</option>
+                  <option value="Chờ duyệt">Chờ duyệt</option>
+                </select>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">

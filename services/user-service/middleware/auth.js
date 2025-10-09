@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { NhanVien, KhachHang } = require('../models');
+const { NhanVien, KhachHang } = require('../models/User');
 
 // Verify JWT token
 const authenticateToken = async (req, res, next) => {
@@ -87,14 +87,14 @@ const requireRole = (roles) => {
   };
 };
 
-// Check if user is admin
-const requireAdmin = requireRole(['admin']);
+// Check if user is admin (supporting Vietnamese roles)
+const requireAdmin = requireRole(['admin', 'Admin']);
 
-// Check if user is admin or manager
-const requireManager = requireRole(['admin', 'manager']);
+// Check if user is admin or manager (supporting Vietnamese roles)
+const requireManager = requireRole(['admin', 'manager', 'Admin', 'Quản lý']);
 
-// Check if user is staff (admin, manager, or staff)
-const requireStaff = requireRole(['admin', 'manager', 'staff']);
+// Check if user is staff (admin, manager, or staff) (supporting Vietnamese roles)
+const requireStaff = requireRole(['admin', 'manager', 'staff', 'Admin', 'Quản lý', 'Nhân viên']);
 
 // Optional authentication - doesn't fail if no token
 const optionalAuth = async (req, res, next) => {

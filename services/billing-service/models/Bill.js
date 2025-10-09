@@ -96,19 +96,71 @@ const ThanhToan = sequelize.define('ThanhToan', {
       key: 'MaDH'
     }
   },
+  MaOrder: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Orders',
+      key: 'MaOrder'
+    }
+  },
+  MaDHOnline: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'DonHangOnline',
+      key: 'MaDHOnline'
+    }
+  },
   HinhThuc: {
     type: DataTypes.STRING(50),
-    allowNull: true,
-    comment: 'Tiền mặt, Thẻ, Ví điện tử'
+    allowNull: false,
+    comment: 'Tiền mặt, Thẻ, Ví điện tử, Chuyển khoản'
   },
   SoTien: {
     type: DataTypes.DECIMAL(12, 2),
-    allowNull: true
+    allowNull: false
+  },
+  SoTienNhan: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: true,
+    comment: 'Số tiền nhận (cho tiền mặt)'
+  },
+  SoTienThua: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: true,
+    defaultValue: 0,
+    comment: 'Số tiền thừa'
+  },
+  MaGiaoDich: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: 'Mã giao dịch (cho thanh toán điện tử)'
+  },
+  TrangThai: {
+    type: DataTypes.STRING(20),
+    allowNull: false,
+    defaultValue: 'Thành công',
+    comment: 'Thành công, Thất bại, Chờ xử lý'
   },
   NgayTT: {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW
+  },
+  MaNVXuLy: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'NhanVien',
+      key: 'MaNV'
+    },
+    comment: 'Nhân viên xử lý thanh toán'
+  },
+  GhiChu: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Ghi chú thanh toán'
   }
 }, {
   tableName: 'ThanhToan',

@@ -118,24 +118,75 @@ export const reservationAPI = {
   getReservationStats: (params) => api.get('/api/reservations/stats', { params }),
 };
 
-
-// User API
+// User API - Enhanced for comprehensive user management
 export const userAPI = {
-  getUsers: () => api.get('/api/auth/users'),
-  promoteToEmployee: (customerId, data) => api.post(`/api/auth/promote/${customerId}`, data),
-  updateUserRole: (employeeId, data) => api.put(`/api/auth/role/${employeeId}`, data),
-  deleteUser: (userType, userId) => api.delete(`/api/auth/${userType}/${userId}`),
+  // Get all users (employees + customers) - using test route temporarily
+  getUsers: (params) => api.get('/api/users-test/test', { params }),
+  getUser: (id) => api.get(`/api/users/${id}`),
+  
+  // Employee management
+  getEmployees: (params) => api.get('/api/users/employees', { params }),
+  getEmployee: (id) => api.get(`/api/users/employees/${id}`),
+  updateEmployee: (id, employeeData) => api.put(`/api/users/employees/${id}`, employeeData),
+  deleteEmployee: (id) => api.delete(`/api/users/employees/${id}`),
+  
+  // Customer management
+  getCustomers: (params) => api.get('/api/users/customers', { params }),
+  getCustomer: (id) => api.get(`/api/users/customers/${id}`),
+  createCustomer: (customerData) => api.post('/api/users/customers', customerData),
+  updateCustomer: (id, customerData) => api.put(`/api/users/customers/${id}`, customerData),
+  deleteCustomer: (id) => api.delete(`/api/users/customers/${id}`),
+  
+  // Role and promotion management
+  promoteToEmployee: (customerId, data) => api.post(`/api/users/promote/${customerId}`, data),
+  updateUserRole: (employeeId, data) => api.put(`/api/users/employees/${employeeId}/role`, data),
+  updateUserStatus: (userType, userId, statusData) => api.patch(`/api/users/${userType}/${userId}/status`, statusData),
+  
+  // Statistics - using test route temporarily
+  getUserStats: () => api.get('/api/users-test/test-stats'),
+  
+  // Generic user operations (backward compatibility)
+  createUser: (userData) => api.post('/api/users', userData),
+  updateUser: (id, userData) => api.put(`/api/users/${id}`, userData),
+  deleteUser: (userType, userId) => api.delete(`/api/users/${userType}/${userId}`),
 };
 
 // Billing API
 export const billingAPI = {
-  getBills: (params) => api.get('/api/billing', { params }),
+  getBills: (params) => api.get('/api/billing-test', { params }),
   getBill: (id) => api.get(`/api/billing/${id}`),
   createBill: (billData) => api.post('/api/billing', billData),
   updateBill: (id, billData) => api.put(`/api/billing/${id}`, billData),
   deleteBill: (id) => api.delete(`/api/billing/${id}`),
   updatePaymentStatus: (id, paymentData) => api.put(`/api/billing/${id}/payment`, paymentData),
   getBillingStats: () => api.get('/api/billing/stats'),
+  
+  // Order management (DonHang schema)
+  createOrder: (orderData) => api.post('/api/billing', orderData),
+  updateOrderStatus: (id, statusData) => api.put(`/api/billing/${id}/payment`, statusData),
+  deleteOrder: (id) => api.delete(`/api/billing/${id}`),
+  
+  // Order items management (bán hàng)
+  addItemToOrder: (orderId, itemData) => api.post(`/api/billing/${orderId}/items`, itemData),
+  getOrderItems: (orderId) => api.get(`/api/billing/${orderId}/items`),
+  updateOrderItem: (orderId, itemId, itemData) => api.patch(`/api/billing/${orderId}/items/${itemId}`, itemData),
+  removeOrderItem: (orderId, itemId) => api.delete(`/api/billing/${orderId}/items/${itemId}`),
+};
+
+// Orders API (for in-store dining - using Orders table)
+export const ordersAPI = {
+  // Order management
+  getOrders: (params) => api.get('/api/orders-test', { params }),
+  getOrder: (id) => api.get(`/api/orders/${id}`),
+  createOrder: (orderData) => api.post('/api/orders', orderData),
+  updateOrderStatus: (id, statusData) => api.patch(`/api/orders/${id}/status`, statusData),
+  deleteOrder: (id) => api.delete(`/api/orders/${id}`),
+  
+  // Order items management (bán hàng tại chỗ)
+  addItemToOrder: (orderId, itemData) => api.post(`/api/orders/${orderId}/items`, itemData),
+  getOrderItems: (orderId) => api.get(`/api/orders/${orderId}/items`),
+  updateOrderItem: (orderId, itemId, itemData) => api.patch(`/api/orders/${orderId}/items/${itemId}`, itemData),
+  removeOrderItem: (orderId, itemId) => api.delete(`/api/orders/${orderId}/items/${itemId}`),
 };
 
 // Online Order API

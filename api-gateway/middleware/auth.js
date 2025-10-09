@@ -33,18 +33,24 @@ const authenticateToken = async (req, res, next) => {
       req.token = token;
       next();
     } catch (userServiceError) {
+      console.log('User service error:', userServiceError.message);
+      
       if (userServiceError.response && userServiceError.response.status === 401) {
         return res.status(401).json({
           error: 'Invalid or expired token'
         });
       }
       
-      // If user service is down, use token data
+      // If user service is down, use token data with fallback role mapping
+      const fallbackRole = decoded.role || decoded.ChucVu || 'customer';
       req.user = {
-        id: decoded.userId,
-        role: decoded.role
+        id: decoded.userId || decoded.MaNV || decoded.MaKH,
+        role: fallbackRole,
+        name: decoded.name || decoded.HoTen,
+        email: decoded.email || decoded.Email
       };
       req.token = token;
+      console.log('Using fallback user data:', req.user);
       next();
     }
 
@@ -91,10 +97,10 @@ const requireRole = (roles) => {
   };
 };
 
-// Middleware for different role requirements
-const requireAdmin = [authenticateToken, requireRole(['admin'])];
-const requireManager = [authenticateToken, requireRole(['admin', 'manager'])];
-const requireStaff = [authenticateToken, requireRole(['admin', 'manager', 'staff'])];
+// Middleware for different role requirements (supporting both English and Vietnamese roles)
+const requireAdmin = [authenticateToken, requireRole(['admin', 'Admin'])];
+const requireManager = [authenticateToken, requireRole(['admin', 'manager', 'Admin', 'Quản lý'])];
+const requireStaff = [authenticateToken, requireRole(['admin', 'manager', 'staff', 'Admin', 'Quản lý', 'Nhân viên'])];
 
 // Optional authentication - doesn't fail if no token
 const optionalAuth = async (req, res, next) => {

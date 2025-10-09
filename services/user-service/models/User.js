@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 const bcrypt = require('bcryptjs');
 
-// NhanVien model matching SQL schema
+// NhanVien model matching SQL schema exactly
 const NhanVien = sequelize.define('NhanVien', {
   MaNV: {
     type: DataTypes.INTEGER,
@@ -90,7 +90,7 @@ NhanVien.prototype.toJSON = function() {
   return values;
 };
 
-// Also create KhachHang model for customers
+// KhachHang model matching SQL schema exactly
 const KhachHang = sequelize.define('KhachHang', {
   MaKH: {
     type: DataTypes.INTEGER,
@@ -99,11 +99,19 @@ const KhachHang = sequelize.define('KhachHang', {
   },
   HoTen: {
     type: DataTypes.STRING(100),
+    allowNull: false
+  },
+  GioiTinh: {
+    type: DataTypes.STRING(10),
+    allowNull: true
+  },
+  NgaySinh: {
+    type: DataTypes.DATEONLY,
     allowNull: true
   },
   SDT: {
     type: DataTypes.STRING(20),
-    allowNull: true,
+    allowNull: false,
     unique: true
   },
   Email: {
@@ -116,12 +124,26 @@ const KhachHang = sequelize.define('KhachHang', {
   },
   MatKhau: {
     type: DataTypes.STRING(255),
+    allowNull: false
+  },
+  DiaChi: {
+    type: DataTypes.TEXT,
     allowNull: true
   },
   DiemTichLuy: {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 0
+  },
+  NgayDangKy: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  TrangThai: {
+    type: DataTypes.STRING(20),
+    allowNull: false,
+    defaultValue: 'Hoạt động'
   }
 }, {
   tableName: 'KhachHang',

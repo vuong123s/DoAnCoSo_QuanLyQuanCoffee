@@ -105,11 +105,11 @@ const AdminLayout = () => {
           color: 'from-blue-500 to-blue-600'
         },
         { 
-          path: '/admin/billing', 
+          path: '/admin/sales', 
           icon: FiCreditCard, 
-          label: 'Thanh toán', 
-          description: 'Hóa đơn & doanh thu',
-          color: 'from-emerald-500 to-emerald-600'
+          label: 'Bán hàng tại chỗ', 
+          description: 'Quản lý đơn hàng Orders tại chỗ',
+          color: 'from-green-500 to-green-600'
         }
       ]
     },

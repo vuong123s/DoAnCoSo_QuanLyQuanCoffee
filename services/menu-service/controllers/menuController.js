@@ -55,7 +55,9 @@ const getMenuItems = async (req, res) => {
     });
 
     res.json({
-      menu_items: rows,
+      success: true,
+      menus: rows, // Changed from menu_items to menus for frontend compatibility
+      menu_items: rows, // Keep for backward compatibility
       pagination: {
         current_page: parsedPage,
         total_pages: Math.ceil(count / parsedLimit),

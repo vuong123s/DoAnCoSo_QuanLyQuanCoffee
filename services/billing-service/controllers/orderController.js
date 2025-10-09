@@ -1,34 +1,36 @@
-const { DonHang, CTDonHang } = require('../models');
+const { Orders, CTOrder } = require('../models');
 const { Op } = require('sequelize');
 
-// Create a new order (DonHang schema)
+// Create a new order (Orders table for in-store dining)
 const createOrder = async (req, res) => {
   try {
     const { 
       MaBan, 
       MaNV,
-      TrangThai = 'Đang xử lý',
+      TrangThai = 'Đang phục vụ',
       TongTien = 0,
       GhiChu
     } = req.body;
 
-    if (!MaBan) {
+    if (!MaBan || !MaNV) {
       return res.status(400).json({
-        error: 'Missing required field: MaBan'
+        error: 'Missing required fields',
+        message: 'Thiếu thông tin: MaBan và MaNV là bắt buộc'
       });
     }
 
-    // Create DonHang record
-    const donHang = await DonHang.create({
+    // Create Orders record
+    const order = await Orders.create({
       MaBan: parseInt(MaBan),
-      MaNV: MaNV ? parseInt(MaNV) : null,
+      MaNV: parseInt(MaNV),
       TongTien: parseFloat(TongTien),
-      TrangThai: TrangThai
+      TrangThai: TrangThai,
+      GhiChu: GhiChu
     });
 
     res.status(201).json({
       message: 'Order created successfully',
-      order: donHang
+      order: order
     });
 
   } catch (error) {
@@ -40,8 +42,8 @@ const createOrder = async (req, res) => {
   }
 };
 
-// Get all orders (DonHang schema)
-const getBills = async (req, res) => {
+// Get all orders with filters
+const getOrders = async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -62,25 +64,24 @@ const getBills = async (req, res) => {
     if (TrangThai) whereClause.TrangThai = TrangThai;
     
     if (start_date || end_date) {
-      whereClause.NgayLap = {};
-      if (start_date) whereClause.NgayLap[Op.gte] = new Date(start_date);
-      if (end_date) whereClause.NgayLap[Op.lte] = new Date(end_date);
+      whereClause.NgayOrder = {};
+      if (start_date) whereClause.NgayOrder[Op.gte] = new Date(start_date);
+      if (end_date) whereClause.NgayOrder[Op.lte] = new Date(end_date);
     }
 
-    const { count, rows } = await DonHang.findAndCountAll({
+    const { count, rows } = await Orders.findAndCountAll({
       where: whereClause,
       include: [{
-        model: CTDonHang,
+        model: CTOrder,
         as: 'chitiet'
       }],
-      order: [['NgayLap', 'DESC']],
+      order: [['NgayOrder', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
 
     res.json({
-      donhangs: rows,
-      bills: rows, // Alias for compatibility
+      orders: rows,
       pagination: {
         current_page: parseInt(page),
         total_pages: Math.ceil(count / limit),
@@ -98,14 +99,14 @@ const getBills = async (req, res) => {
   }
 };
 
-// Get order by ID (DonHang schema)
-const getBillById = async (req, res) => {
+// Get order by ID
+const getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const order = await DonHang.findByPk(id, {
+    const order = await Orders.findByPk(id, {
       include: [{
-        model: CTDonHang,
+        model: CTOrder,
         as: 'chitiet'
       }]
     });
@@ -118,7 +119,6 @@ const getBillById = async (req, res) => {
     }
 
     res.json({ 
-      bill: order, // For compatibility
       order: order 
     });
 
@@ -131,7 +131,7 @@ const getBillById = async (req, res) => {
   }
 };
 
-// Update order status (DonHang schema)
+// Update order status
 const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -144,15 +144,15 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    const validStatuses = ['Đang xử lý', 'Hoàn thành', 'Đã hủy'];
+    const validStatuses = ['Đang phục vụ', 'Đã hoàn thành', 'Đã hủy'];
     if (!validStatuses.includes(TrangThai)) {
       return res.status(400).json({
         error: 'Invalid status',
-        message: 'Trạng thái không hợp lệ. Chỉ chấp nhận: Đang xử lý, Hoàn thành, Đã hủy'
+        message: 'Trạng thái không hợp lệ. Chỉ chấp nhận: Đang phục vụ, Đã hoàn thành, Đã hủy'
       });
     }
 
-    const order = await DonHang.findByPk(id);
+    const order = await Orders.findByPk(id);
     if (!order) {
       return res.status(404).json({
         error: 'Order not found',
@@ -160,19 +160,21 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    await order.update({ TrangThai });
+    const updateData = { TrangThai };
+    if (GhiChu !== undefined) updateData.GhiChu = GhiChu;
 
-    const updatedOrder = await DonHang.findByPk(id, {
+    await order.update(updateData);
+
+    const updatedOrder = await Orders.findByPk(id, {
       include: [{
-        model: CTDonHang,
+        model: CTOrder,
         as: 'chitiet'
       }]
     });
 
     res.json({
       message: 'Order status updated successfully',
-      order: updatedOrder,
-      bill: updatedOrder // For compatibility
+      order: updatedOrder
     });
 
   } catch (error) {
@@ -184,72 +186,12 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Get billing statistics (Vietnamese schema)
-const getBillingStats = async (req, res) => {
-  try {
-    const { start_date, end_date, NgayBatDau, NgayKetThuc } = req.query;
-    const whereClause = {};
-
-    const startDate = NgayBatDau || start_date;
-    const endDate = NgayKetThuc || end_date;
-
-    if (startDate || endDate) {
-      whereClause.NgayLap = {};
-      if (startDate) whereClause.NgayLap[Op.gte] = new Date(startDate);
-      if (endDate) whereClause.NgayLap[Op.lte] = new Date(endDate);
-    }
-
-    const totalBills = await DonHang.count({ where: whereClause });
-    
-    const paidBills = await DonHang.count({
-      where: { ...whereClause, TrangThai: 'Hoàn thành' }
-    });
-
-    const pendingBills = await DonHang.count({
-      where: { ...whereClause, TrangThai: 'Đang xử lý' }
-    });
-
-    const cancelledBills = await DonHang.count({
-      where: { ...whereClause, TrangThai: 'Đã hủy' }
-    });
-
-    const totalRevenue = await DonHang.sum('TongTien', {
-      where: { ...whereClause, TrangThai: 'Hoàn thành' }
-    });
-
-    const averageBillAmount = await DonHang.findAll({
-      where: { ...whereClause, TrangThai: 'Hoàn thành' },
-      attributes: [
-        [require('sequelize').fn('AVG', require('sequelize').col('TongTien')), 'average']
-      ]
-    });
-
-    res.json({
-      stats: {
-        total_bills: totalBills,
-        paid_bills: paidBills,
-        pending_bills: pendingBills,
-        cancelled_bills: cancelledBills,
-        total_revenue: totalRevenue || 0,
-        average_bill_amount: averageBillAmount[0]?.dataValues?.average || 0
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching billing stats:', error);
-    res.status(500).json({
-      error: 'Failed to fetch billing statistics',
-      message: error.message
-    });
-  }
-};
-
-// Delete order (soft delete by updating status) - DonHang schema
+// Delete order (soft delete by updating status)
 const deleteOrder = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const order = await DonHang.findByPk(id);
+    const order = await Orders.findByPk(id);
     if (!order) {
       return res.status(404).json({
         error: 'Order not found',
@@ -257,7 +199,7 @@ const deleteOrder = async (req, res) => {
       });
     }
 
-    if (order.TrangThai === 'Hoàn thành') {
+    if (order.TrangThai === 'Đã hoàn thành') {
       return res.status(400).json({
         error: 'Cannot delete a completed order',
         message: 'Không thể xóa đơn hàng đã hoàn thành. Bạn có thể đánh dấu đơn hàng là "Đã hủy" thay vì xóa.',
@@ -284,7 +226,7 @@ const deleteOrder = async (req, res) => {
 const addItemToOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { MaMon, SoLuong, DonGia, GhiChu } = req.body;
+    const { MaMon, SoLuong, DonGia, GhiChu, TrangThaiMon = 'Chờ xử lý' } = req.body;
 
     if (!MaMon || !SoLuong || !DonGia) {
       return res.status(400).json({
@@ -294,7 +236,7 @@ const addItemToOrder = async (req, res) => {
     }
 
     // Check if order exists
-    const order = await DonHang.findByPk(orderId);
+    const order = await Orders.findByPk(orderId);
     if (!order) {
       return res.status(404).json({
         error: 'Order not found',
@@ -302,7 +244,7 @@ const addItemToOrder = async (req, res) => {
       });
     }
 
-    if (order.TrangThai === 'Hoàn thành' || order.TrangThai === 'Đã hủy') {
+    if (order.TrangThai === 'Đã hoàn thành' || order.TrangThai === 'Đã hủy') {
       return res.status(400).json({
         error: 'Cannot modify completed or cancelled order',
         message: 'Không thể thêm món vào đơn hàng đã hoàn thành hoặc đã hủy'
@@ -312,8 +254,8 @@ const addItemToOrder = async (req, res) => {
     const thanhTien = parseFloat(DonGia) * parseInt(SoLuong);
 
     // Check if item already exists in order
-    const existingItem = await CTDonHang.findOne({
-      where: { MaDH: orderId, MaMon: MaMon }
+    const existingItem = await CTOrder.findOne({
+      where: { MaOrder: orderId, MaMon: MaMon }
     });
 
     let orderItem;
@@ -325,31 +267,35 @@ const addItemToOrder = async (req, res) => {
       orderItem = await existingItem.update({
         SoLuong: newQuantity,
         DonGia: parseFloat(DonGia),
-        ThanhTien: newTotal
+        ThanhTien: newTotal,
+        GhiChu: GhiChu || existingItem.GhiChu,
+        TrangThaiMon: TrangThaiMon
       });
     } else {
       // Create new item
-      orderItem = await CTDonHang.create({
-        MaDH: orderId,
+      orderItem = await CTOrder.create({
+        MaOrder: orderId,
         MaMon: parseInt(MaMon),
         SoLuong: parseInt(SoLuong),
         DonGia: parseFloat(DonGia),
-        ThanhTien: thanhTien
+        ThanhTien: thanhTien,
+        GhiChu: GhiChu,
+        TrangThaiMon: TrangThaiMon
       });
     }
 
     // Update order total
-    const orderItems = await CTDonHang.findAll({
-      where: { MaDH: orderId }
+    const orderItems = await CTOrder.findAll({
+      where: { MaOrder: orderId }
     });
     
     const newTotal = orderItems.reduce((sum, item) => sum + parseFloat(item.ThanhTien), 0);
     await order.update({ TongTien: newTotal });
 
     // Get updated order with items
-    const updatedOrder = await DonHang.findByPk(orderId, {
+    const updatedOrder = await Orders.findByPk(orderId, {
       include: [{
-        model: CTDonHang,
+        model: CTOrder,
         as: 'chitiet'
       }]
     });
@@ -373,10 +319,10 @@ const addItemToOrder = async (req, res) => {
 const updateOrderItem = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
-    const { SoLuong, DonGia, GhiChu } = req.body;
+    const { SoLuong, DonGia, GhiChu, TrangThaiMon } = req.body;
 
     // Check if order exists
-    const order = await DonHang.findByPk(orderId);
+    const order = await Orders.findByPk(orderId);
     if (!order) {
       return res.status(404).json({
         error: 'Order not found',
@@ -384,7 +330,7 @@ const updateOrderItem = async (req, res) => {
       });
     }
 
-    if (order.TrangThai === 'Hoàn thành' || order.TrangThai === 'Đã hủy') {
+    if (order.TrangThai === 'Đã hoàn thành' || order.TrangThai === 'Đã hủy') {
       return res.status(400).json({
         error: 'Cannot modify completed or cancelled order',
         message: 'Không thể sửa món trong đơn hàng đã hoàn thành hoặc đã hủy'
@@ -392,8 +338,8 @@ const updateOrderItem = async (req, res) => {
     }
 
     // Find the item
-    const orderItem = await CTDonHang.findOne({
-      where: { MaDH: orderId, MaMon: itemId }
+    const orderItem = await CTOrder.findOne({
+      where: { MaOrder: orderId, MaMon: itemId }
     });
 
     if (!orderItem) {
@@ -410,6 +356,12 @@ const updateOrderItem = async (req, res) => {
     if (DonGia !== undefined) {
       updateData.DonGia = parseFloat(DonGia);
     }
+    if (GhiChu !== undefined) {
+      updateData.GhiChu = GhiChu;
+    }
+    if (TrangThaiMon !== undefined) {
+      updateData.TrangThaiMon = TrangThaiMon;
+    }
     
     // Calculate new ThanhTien
     const finalQuantity = updateData.SoLuong || orderItem.SoLuong;
@@ -419,17 +371,17 @@ const updateOrderItem = async (req, res) => {
     await orderItem.update(updateData);
 
     // Update order total
-    const orderItems = await CTDonHang.findAll({
-      where: { MaDH: orderId }
+    const orderItems = await CTOrder.findAll({
+      where: { MaOrder: orderId }
     });
     
     const newTotal = orderItems.reduce((sum, item) => sum + parseFloat(item.ThanhTien), 0);
     await order.update({ TongTien: newTotal });
 
     // Get updated order with items
-    const updatedOrder = await DonHang.findByPk(orderId, {
+    const updatedOrder = await Orders.findByPk(orderId, {
       include: [{
-        model: CTDonHang,
+        model: CTOrder,
         as: 'chitiet'
       }]
     });
@@ -454,7 +406,7 @@ const removeOrderItem = async (req, res) => {
     const { orderId, itemId } = req.params;
 
     // Check if order exists
-    const order = await DonHang.findByPk(orderId);
+    const order = await Orders.findByPk(orderId);
     if (!order) {
       return res.status(404).json({
         error: 'Order not found',
@@ -462,7 +414,7 @@ const removeOrderItem = async (req, res) => {
       });
     }
 
-    if (order.TrangThai === 'Hoàn thành' || order.TrangThai === 'Đã hủy') {
+    if (order.TrangThai === 'Đã hoàn thành' || order.TrangThai === 'Đã hủy') {
       return res.status(400).json({
         error: 'Cannot modify completed or cancelled order',
         message: 'Không thể xóa món khỏi đơn hàng đã hoàn thành hoặc đã hủy'
@@ -470,8 +422,8 @@ const removeOrderItem = async (req, res) => {
     }
 
     // Find and remove the item
-    const orderItem = await CTDonHang.findOne({
-      where: { MaDH: orderId, MaMon: itemId }
+    const orderItem = await CTOrder.findOne({
+      where: { MaOrder: orderId, MaMon: itemId }
     });
 
     if (!orderItem) {
@@ -484,17 +436,17 @@ const removeOrderItem = async (req, res) => {
     await orderItem.destroy();
 
     // Update order total
-    const orderItems = await CTDonHang.findAll({
-      where: { MaDH: orderId }
+    const orderItems = await CTOrder.findAll({
+      where: { MaOrder: orderId }
     });
     
     const newTotal = orderItems.reduce((sum, item) => sum + parseFloat(item.ThanhTien), 0);
     await order.update({ TongTien: newTotal });
 
     // Get updated order with items
-    const updatedOrder = await DonHang.findByPk(orderId, {
+    const updatedOrder = await Orders.findByPk(orderId, {
       include: [{
-        model: CTDonHang,
+        model: CTOrder,
         as: 'chitiet'
       }]
     });
@@ -518,9 +470,9 @@ const getOrderItems = async (req, res) => {
   try {
     const { orderId } = req.params;
 
-    const order = await DonHang.findByPk(orderId, {
+    const order = await Orders.findByPk(orderId, {
       include: [{
-        model: CTDonHang,
+        model: CTOrder,
         as: 'chitiet'
       }]
     });
@@ -546,21 +498,74 @@ const getOrderItems = async (req, res) => {
   }
 };
 
+// Get order statistics
+const getOrderStats = async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+    const whereClause = {};
+
+    if (start_date || end_date) {
+      whereClause.NgayOrder = {};
+      if (start_date) whereClause.NgayOrder[Op.gte] = new Date(start_date);
+      if (end_date) whereClause.NgayOrder[Op.lte] = new Date(end_date);
+    }
+
+    const totalOrders = await Orders.count({ where: whereClause });
+    
+    const completedOrders = await Orders.count({
+      where: { ...whereClause, TrangThai: 'Đã hoàn thành' }
+    });
+
+    const activeOrders = await Orders.count({
+      where: { ...whereClause, TrangThai: 'Đang phục vụ' }
+    });
+
+    const cancelledOrders = await Orders.count({
+      where: { ...whereClause, TrangThai: 'Đã hủy' }
+    });
+
+    const totalRevenue = await Orders.sum('TongTien', {
+      where: { ...whereClause, TrangThai: 'Đã hoàn thành' }
+    });
+
+    const averageOrderAmount = await Orders.findAll({
+      where: { ...whereClause, TrangThai: 'Đã hoàn thành' },
+      attributes: [
+        [require('sequelize').fn('AVG', require('sequelize').col('TongTien')), 'average']
+      ]
+    });
+
+    res.json({
+      stats: {
+        total_orders: totalOrders,
+        completed_orders: completedOrders,
+        active_orders: activeOrders,
+        cancelled_orders: cancelledOrders,
+        total_revenue: totalRevenue || 0,
+        average_order_amount: averageOrderAmount[0]?.dataValues?.average || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching order stats:', error);
+    res.status(500).json({
+      error: 'Failed to fetch order statistics',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
-  // New DonHang schema methods
+  // Order management
   createOrder,
-  getBills,
-  getBillById,
+  getOrders,
+  getOrderById,
   updateOrderStatus,
   deleteOrder,
-  getBillingStats,
+  getOrderStats,
   // Order items management (bán hàng)
   addItemToOrder,
   updateOrderItem,
   removeOrderItem,
-  getOrderItems,
-  // Legacy aliases for compatibility
-  createBill: createOrder,
-  updatePaymentStatus: updateOrderStatus,
-  deleteBill: deleteOrder
+  getOrderItems
 };
