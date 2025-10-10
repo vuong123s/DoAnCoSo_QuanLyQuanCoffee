@@ -4,7 +4,6 @@ require('dotenv').config();
 
 const { sequelize } = require('./config/database');
 const billingRoutes = require('./routes/billingRoutes');
-const orderRoutes = require('./routes/orderRoutes');
 const onlineOrderRoutes = require('./routes/onlineOrderRoutes');
 const revenueRoutes = require('./routes/revenueRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
@@ -16,6 +15,12 @@ const PORT = process.env.PORT || 3004;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`📡 ${req.method} ${req.path} - Body:`, req.body);
+  next();
+});
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -30,7 +35,6 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/api/billing', billingRoutes);
-app.use('/api/orders', orderRoutes);
 app.use('/api/online-orders', onlineOrderRoutes);
 app.use('/api/revenue', revenueRoutes);
 app.use('/api/payments', paymentRoutes);

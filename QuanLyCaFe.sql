@@ -99,6 +99,7 @@ CREATE TABLE CTDonHang (
     SoLuong INT NOT NULL,
     DonGia DECIMAL(12,2) NOT NULL,
     ThanhTien DECIMAL(12,2) NOT NULL,
+    GhiChu VARCHAR(255),         -- Ghi chú đặc biệt cho món (VD: ít đá, thêm đường)
     PRIMARY KEY (MaDH, MaMon),
     FOREIGN KEY (MaDH) REFERENCES DonHang(MaDH),
     FOREIGN KEY (MaMon) REFERENCES Mon(MaMon)
@@ -252,34 +253,6 @@ CREATE TABLE TheoDoiDonHang (
     FOREIGN KEY (MaNVCapNhat) REFERENCES NhanVien(MaNV)
 );
 
--- ======================
--- BẢNG ORDER TẠI CHỖ
--- ======================
-CREATE TABLE Orders (
-    MaOrder INT AUTO_INCREMENT PRIMARY KEY,
-    MaBan INT NOT NULL,
-    MaNV INT NOT NULL,                       -- Nhân viên phục vụ tạo order
-    NgayOrder DATETIME DEFAULT CURRENT_TIMESTAMP,
-    TongTien DECIMAL(12,2) DEFAULT 0,       -- Tổng tiền order
-    TrangThai VARCHAR(20) DEFAULT 'Đang phục vụ', -- Đang phục vụ, Đã hoàn thành, Đã hủy
-    GhiChu TEXT,                             -- Ghi chú cho order
-    FOREIGN KEY (MaBan) REFERENCES Ban(MaBan),
-    FOREIGN KEY (MaNV) REFERENCES NhanVien(MaNV)
-);
-
--- ======================
--- BẢNG CHI TIẾT ORDER TẠI CHỖ
--- ======================
-CREATE TABLE CTOrder (
-    MaOrder INT,
-    MaMon INT,
-    SoLuong INT NOT NULL,
-    GhiChu VARCHAR(255),                     -- VD: ít đá, thêm đường
-    TrangThaiMon VARCHAR(20) DEFAULT 'Chờ xử lý', -- Chờ xử lý, Đang làm, Hoàn thành
-    PRIMARY KEY (MaOrder, MaMon),
-    FOREIGN KEY (MaOrder) REFERENCES Orders(MaOrder),
-    FOREIGN KEY (MaMon) REFERENCES Mon(MaMon)
-);
 
 -- ======================
 -- BẢNG THANH TOÁN
@@ -287,7 +260,6 @@ CREATE TABLE CTOrder (
 CREATE TABLE ThanhToan (
     MaTT INT AUTO_INCREMENT PRIMARY KEY,
     MaDH INT,
-    MaOrder INT,                             -- Liên kết với order tại chỗ (nếu có)
     MaDHOnline INT,                          -- Liên kết với đơn hàng online (nếu có)
     HinhThuc VARCHAR(50) NOT NULL,           -- Tiền mặt, Thẻ, Ví điện tử, Chuyển khoản
     SoTien DECIMAL(12,2) NOT NULL,
@@ -299,7 +271,6 @@ CREATE TABLE ThanhToan (
     MaNVXuLy INT,                            -- Nhân viên xử lý thanh toán
     GhiChu TEXT,                             -- Ghi chú thanh toán
     FOREIGN KEY (MaDH) REFERENCES DonHang(MaDH),
-    FOREIGN KEY (MaOrder) REFERENCES Orders(MaOrder),
     FOREIGN KEY (MaDHOnline) REFERENCES DonHangOnline(MaDHOnline),
     FOREIGN KEY (MaNVXuLy) REFERENCES NhanVien(MaNV)
 );
@@ -429,34 +400,20 @@ INSERT INTO DonHang (MaBan, MaNV, NgayLap, TongTien, TrangThai) VALUES
 (5, 4, '2024-01-17 11:10:00', 150000, 'Hoàn thành');
 
 -- Thêm chi tiết đơn hàng
-INSERT INTO CTDonHang (MaDH, MaMon, SoLuong, DonGia, ThanhTien) VALUES
-(1, 1, 2, 25000, 50000),
-(1, 11, 1, 40000, 40000),
-(1, 9, 1, 25000, 25000),
-(2, 3, 1, 45000, 45000),
-(2, 12, 1, 55000, 55000),
-(3, 5, 2, 40000, 80000),
-(3, 7, 2, 40000, 80000),
-(3, 13, 1, 35000, 35000),
-(4, 2, 1, 30000, 30000),
-(4, 6, 1, 35000, 35000),
-(5, 15, 2, 50000, 100000),
-(5, 14, 1, 45000, 45000);
+INSERT INTO CTDonHang (MaDH, MaMon, SoLuong, DonGia, ThanhTien, GhiChu) VALUES
+(1, 1, 2, 25000, 50000, 'Ít đường'),
+(1, 11, 1, 40000, 40000, 'Nóng'),
+(1, 9, 1, 25000, 25000, NULL),
+(2, 3, 1, 45000, 45000, 'Thêm sữa'),
+(2, 12, 1, 55000, 55000, 'Không cay'),
+(3, 5, 2, 40000, 80000, 'Ít đá'),
+(3, 7, 2, 40000, 80000, 'Thêm trân châu'),
+(3, 13, 1, 35000, 35000, 'Không hành'),
+(4, 2, 1, 30000, 30000, 'Đậm đà'),
+(4, 6, 1, 35000, 35000, 'Ít đá'),
+(5, 15, 2, 50000, 100000, NULL),
+(5, 14, 1, 45000, 45000, 'Thêm kem');
 
--- Thêm orders mẫu (cho hệ thống order riêng)
-INSERT INTO Orders (MaBan, MaNV, NgayOrder, TrangThai) VALUES
-(6, 3, '2024-01-18 10:00:00', 'Đang phục vụ'),
-(7, 4, '2024-01-18 11:30:00', 'Đã hoàn thành'),
-(8, 5, '2024-01-18 14:45:00', 'Đang phục vụ');
-
--- Thêm chi tiết orders
-INSERT INTO CTOrder (MaOrder, MaMon, SoLuong, GhiChu) VALUES
-(1, 1, 2, 'Ít đường'),
-(1, 4, 1, 'Nóng'),
-(2, 7, 1, 'Ít đá'),
-(2, 11, 2, 'Thêm bơ'),
-(3, 17, 1, 'Không cay'),
-(3, 19, 1, 'Thêm sốt');
 
 -- Thêm thanh toán mẫu
 INSERT INTO ThanhToan (MaDH, HinhThuc, SoTien, NgayTT) VALUES

@@ -3,8 +3,36 @@ import axios from 'axios';
 // Base API configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Create different API instances for different services
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 5000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Billing service API (port 3004)
+const billingApi = axios.create({
+  baseURL: 'http://localhost:3004',
+  timeout: 5000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Menu service API (port 3002)
+const menuApi = axios.create({
+  baseURL: 'http://localhost:3002',
+  timeout: 5000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Table service API (port 3003)
+const tableApi = axios.create({
+  baseURL: 'http://localhost:3003',
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json',
@@ -42,7 +70,6 @@ api.interceptors.response.use(
   }
 );
 
-
 // Auth API
 export const authAPI = {
   login: (credentials) => api.post('/api/auth/login', credentials),
@@ -53,31 +80,29 @@ export const authAPI = {
   refreshToken: () => api.post('/api/auth/refresh'),
 };
 
+
 // Menu API
 export const menuAPI = {
-  getCategories: () => api.get('/api/categories'),
-  createCategory: (categoryData) => api.post('/api/categories', categoryData),
-  updateCategory: (id, categoryData) => api.put(`/api/categories/${id}`, categoryData),
-  deleteCategory: (id) => api.delete(`/api/categories/${id}`),
-  
-  getMenuItems: (params) => api.get('/api/menu', { params }),
-  getMenuItem: (id) => api.get(`/api/menu/${id}`),
-  createMenuItem: (itemData) => api.post('/api/menu', itemData),
-  updateMenuItem: (id, itemData) => api.put(`/api/menu/${id}`, itemData),
-  deleteMenuItem: (id) => api.delete(`/api/menu/${id}`),
-  softDeleteMenuItem: (id) => api.patch(`/api/menu/${id}/soft-delete`),
-  // Fallback featured items using filters (aligns with Vietnamese schema)
-  getFeaturedItems: () => api.get('/api/menu', { params: { is_available: true, limit: 8 } }),
+  getMenuItems: (params) => menuApi.get('/api/menu', { params }),
+  getMenuItem: (id) => menuApi.get(`/api/menu/${id}`),
+  createMenuItem: (itemData) => menuApi.post('/api/menu', itemData),
+  updateMenuItem: (id, itemData) => menuApi.put(`/api/menu/${id}`, itemData),
+  deleteMenuItem: (id) => menuApi.delete(`/api/menu/${id}`),
+  getCategories: () => menuApi.get('/api/categories'),
+  createCategory: (categoryData) => menuApi.post('/api/categories', categoryData),
+  updateCategory: (id, categoryData) => menuApi.put(`/api/categories/${id}`, categoryData),
+  deleteCategory: (id) => menuApi.delete(`/api/categories/${id}`),
+  getMenuStats: () => menuApi.get('/api/menu/stats'),
 };
 
 // Table API - Using Vietnamese schema
 export const tableAPI = {
-  getTables: (params) => api.get('/api/tables', { params }),
-  getTable: (id) => api.get(`/api/tables/${id}`),
-  createTable: (tableData) => api.post('/api/tables', tableData),
-  updateTable: (id, tableData) => api.put(`/api/tables/${id}`, tableData),
-  deleteTable: (id) => api.delete(`/api/tables/${id}`),
-  updateTableStatus: (id, statusData) => api.patch(`/api/tables/${id}/status`, statusData),
+  getTables: (params) => tableApi.get('/api/tables', { params }),
+  getTable: (id) => tableApi.get(`/api/tables/${id}`),
+  createTable: (tableData) => tableApi.post('/api/tables', tableData),
+  updateTable: (id, tableData) => tableApi.put(`/api/tables/${id}`, tableData),
+  deleteTable: (id) => tableApi.delete(`/api/tables/${id}`),
+  updateTableStatus: (id, statusData) => tableApi.patch(`/api/tables/${id}/status`, statusData),
   getTableStats: () => api.get('/api/tables/stats'),
   
   // Legacy area endpoints (for backward compatibility)
@@ -153,41 +178,26 @@ export const userAPI = {
 
 // Billing API
 export const billingAPI = {
-  getBills: (params) => api.get('/api/billing-test', { params }),
-  getBill: (id) => api.get(`/api/billing/${id}`),
-  createBill: (billData) => api.post('/api/billing', billData),
-  updateBill: (id, billData) => api.put(`/api/billing/${id}`, billData),
-  deleteBill: (id) => api.delete(`/api/billing/${id}`),
-  updatePaymentStatus: (id, paymentData) => api.put(`/api/billing/${id}/payment`, paymentData),
-  getBillingStats: () => api.get('/api/billing/stats'),
+  getBills: (params) => billingApi.get('/api/billing/test-orders', { params }),
+  getBill: (id) => billingApi.get(`/api/billing/${id}`),
+  createBill: (billData) => billingApi.post('/api/billing', billData),
+  updateBill: (id, billData) => billingApi.put(`/api/billing/${id}`, billData),
+  deleteBill: (id) => billingApi.delete(`/api/billing/${id}`),
+  updatePaymentStatus: (id, paymentData) => billingApi.put(`/api/billing/${id}/payment`, paymentData),
+  getBillingStats: () => billingApi.get('/api/billing/stats'),
   
   // Order management (DonHang schema)
-  createOrder: (orderData) => api.post('/api/billing', orderData),
-  updateOrderStatus: (id, statusData) => api.put(`/api/billing/${id}/payment`, statusData),
-  deleteOrder: (id) => api.delete(`/api/billing/${id}`),
+  createOrder: (orderData) => billingApi.post('/api/billing', orderData),
+  updateOrderStatus: (id, statusData) => billingApi.put(`/api/billing/${id}/payment`, statusData),
+  deleteOrder: (id) => billingApi.delete(`/api/billing/${id}`),
   
   // Order items management (bán hàng)
-  addItemToOrder: (orderId, itemData) => api.post(`/api/billing/${orderId}/items`, itemData),
-  getOrderItems: (orderId) => api.get(`/api/billing/${orderId}/items`),
-  updateOrderItem: (orderId, itemId, itemData) => api.patch(`/api/billing/${orderId}/items/${itemId}`, itemData),
-  removeOrderItem: (orderId, itemId) => api.delete(`/api/billing/${orderId}/items/${itemId}`),
+  addItemToOrder: (orderId, itemData) => billingApi.post(`/api/billing/${orderId}/items`, itemData),
+  getOrderItems: (orderId) => billingApi.get(`/api/billing/${orderId}/items`),
+  updateOrderItem: (orderId, itemId, itemData) => billingApi.patch(`/api/billing/${orderId}/items/${itemId}`, itemData),
+  removeOrderItem: (orderId, itemId) => billingApi.delete(`/api/billing/${orderId}/items/${itemId}`),
 };
 
-// Orders API (for in-store dining - using Orders table)
-export const ordersAPI = {
-  // Order management
-  getOrders: (params) => api.get('/api/orders-test', { params }),
-  getOrder: (id) => api.get(`/api/orders/${id}`),
-  createOrder: (orderData) => api.post('/api/orders', orderData),
-  updateOrderStatus: (id, statusData) => api.patch(`/api/orders/${id}/status`, statusData),
-  deleteOrder: (id) => api.delete(`/api/orders/${id}`),
-  
-  // Order items management (bán hàng tại chỗ)
-  addItemToOrder: (orderId, itemData) => api.post(`/api/orders/${orderId}/items`, itemData),
-  getOrderItems: (orderId) => api.get(`/api/orders/${orderId}/items`),
-  updateOrderItem: (orderId, itemId, itemData) => api.patch(`/api/orders/${orderId}/items/${itemId}`, itemData),
-  removeOrderItem: (orderId, itemId) => api.delete(`/api/orders/${orderId}/items/${itemId}`),
-};
 
 // Online Order API
 export const onlineOrderAPI = {

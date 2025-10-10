@@ -6,7 +6,7 @@ const getMenuItems = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 10,
+      limit,
       category_id,
       is_available,
       search,
@@ -16,8 +16,8 @@ const getMenuItems = async (req, res) => {
 
     // Parse query parameters to integers
     const parsedPage = parseInt(page) || 1;
-    const parsedLimit = parseInt(limit) || 10;
-    const offset = (parsedPage - 1) * parsedLimit;
+    const parsedLimit = limit ? parseInt(limit) : null; // No limit if not specified
+    const offset = parsedLimit ? (parsedPage - 1) * parsedLimit : 0;
 
     console.log(`📊 Menu query params: page=${parsedPage}, limit=${parsedLimit}, offset=${offset}`);
     const whereClause = {};
@@ -42,27 +42,36 @@ const getMenuItems = async (req, res) => {
     const mappedSortField = sortFieldMap[sort_by] || 'TenMon';
     const sortDirection = String(sort_order).toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    const { count, rows } = await Mon.findAndCountAll({
+    const queryOptions = {
       where: whereClause,
       include: [{
         model: LoaiMon,
         as: 'loaimon',
         attributes: ['MaLoai', 'TenLoai']
       }],
-      order: [[mappedSortField, sortDirection]],
-      limit: parsedLimit,
-      offset: offset
-    });
+      order: [[mappedSortField, sortDirection]]
+    };
+    
+    // Only add limit and offset if limit is specified
+    if (parsedLimit) {
+      queryOptions.limit = parsedLimit;
+      queryOptions.offset = offset;
+    }
+    
+    const { count, rows } = await Mon.findAndCountAll(queryOptions);
 
     res.json({
       success: true,
       menus: rows, // Changed from menu_items to menus for frontend compatibility
       menu_items: rows, // Keep for backward compatibility
-      pagination: {
+      pagination: parsedLimit ? {
         current_page: parsedPage,
         total_pages: Math.ceil(count / parsedLimit),
         total_items: count,
         items_per_page: parsedLimit
+      } : {
+        total_items: count,
+        all_items_loaded: true
       }
     });
 

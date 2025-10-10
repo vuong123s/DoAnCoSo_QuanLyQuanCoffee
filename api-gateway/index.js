@@ -171,17 +171,8 @@ app.get('/api/billing-test', (req, res) => {
   });
 });
 
-app.get('/api/orders-test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Orders test route working!',
-    note: 'This bypasses authentication for testing',
-    timestamp: new Date()
-  });
-});
 
 app.use('/api/billing', ...requireStaff, createServiceProxy('Billing Service', 3004, true));
-app.use('/api/orders', ...requireStaff, createServiceProxy('Billing Service', 3004, true));
 app.use('/api/revenue', ...requireStaff, createServiceProxy('Billing Service', 3004, true)); // Revenue analytics
 
 // Online Order Service
@@ -253,7 +244,7 @@ app.get('/api', (req, res) => {
       },
       billingService: { 
         url: services.billingService.url, 
-        routes: ['/api/billing (staff auth)', '/api/orders (staff auth)', '/api/revenue (staff auth)'] 
+        routes: ['/api/billing (staff auth)', '/api/revenue (staff auth)'] 
       },
       onlineOrderService: { 
         url: services.onlineOrderService.url, 

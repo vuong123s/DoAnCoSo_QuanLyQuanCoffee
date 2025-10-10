@@ -134,6 +134,7 @@ const getBillById = async (req, res) => {
 // Update order status (DonHang schema)
 const updateOrderStatus = async (req, res) => {
   try {
+    console.log('🔄 updateOrderStatus called with:', { id: req.params.id, body: req.body });
     const { id } = req.params;
     const { TrangThai, GhiChu } = req.body;
 
@@ -325,7 +326,8 @@ const addItemToOrder = async (req, res) => {
       orderItem = await existingItem.update({
         SoLuong: newQuantity,
         DonGia: parseFloat(DonGia),
-        ThanhTien: newTotal
+        ThanhTien: newTotal,
+        GhiChu: GhiChu || existingItem.GhiChu // Keep existing note if no new note provided
       });
     } else {
       // Create new item
@@ -334,7 +336,8 @@ const addItemToOrder = async (req, res) => {
         MaMon: parseInt(MaMon),
         SoLuong: parseInt(SoLuong),
         DonGia: parseFloat(DonGia),
-        ThanhTien: thanhTien
+        ThanhTien: thanhTien,
+        GhiChu: GhiChu || null // Add GhiChu field
       });
     }
 
@@ -409,6 +412,9 @@ const updateOrderItem = async (req, res) => {
     }
     if (DonGia !== undefined) {
       updateData.DonGia = parseFloat(DonGia);
+    }
+    if (GhiChu !== undefined) {
+      updateData.GhiChu = GhiChu;
     }
     
     // Calculate new ThanhTien

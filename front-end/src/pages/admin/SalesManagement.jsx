@@ -1,22 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { ordersAPI, menuAPI, tableAPI } from '../../shared/services/api';
+import { FiSearch, FiPlus, FiRefreshCw, FiClock, FiMapPin, FiTrash2, FiMinus, FiEdit3 } from 'react-icons/fi';
+import { billingAPI, menuAPI, tableAPI } from '../../shared/services/api';
 import LoadingSpinner from '../../components/common/ui/LoadingSpinner';
+import SalesStats from '../../components/SalesStats';
+import { useAuthStore } from '../../app/stores/authStore';
 
+// Sales Management Component - Updated with 3-column layout
 const SalesManagement = () => {
+  const { user } = useAuthStore(); // Get current user from auth store
   const [orders, setOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [tables, setTables] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [currentOrder, setCurrentOrder] = useState({ items: [], total: 0 });
   const [orderItems, setOrderItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   
+  // Filter states for menu
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredMenuItems, setFilteredMenuItems] = useState([]);
+  
+  // Filter states for orders
+  const [orderStatusFilter, setOrderStatusFilter] = useState(''); // All, Đang xử lý, Hoàn thành, Đã hủy
+  const [orderDateFilter, setOrderDateFilter] = useState(''); // Today, Yesterday, This week, etc.
+  const [orderEmployeeFilter, setOrderEmployeeFilter] = useState(''); // Filter by employee
+  const [filteredOrders, setFilteredOrders] = useState([]);
+  
   const [newOrder, setNewOrder] = useState({
     MaBan: '',
-    MaNV: 1,
-    TrangThai: 'Đang phục vụ',
+    MaNV: user?.MaNV || user?.id || 1, // Get employee ID from logged-in user
+    TrangThai: 'Đang xử lý',
     GhiChu: ''
   });
   
@@ -25,34 +43,425 @@ const SalesManagement = () => {
     SoLuong: 1,
     GhiChu: ''
   });
-
   useEffect(() => {
     fetchData();
   }, []);
 
+  // Update employee ID when user changes
+  useEffect(() => {
+    if (user) {
+      setNewOrder(prev => ({
+        ...prev,
+        MaNV: user.MaNV || user.id || 1
+      }));
+    }
+  }, [user]);
+
+  // Test billing service connection
+  const testBillingConnection = async () => {
+    try {
+      const response = await fetch('http://localhost:3004/api/billing/test');
+      const result = await response.json();
+      if (result.success) {
+        toast.success('Billing service đang hoạt động!');
+      }
+    } catch (error) {
+      console.error('Error testing billing connection:', error);
+      toast.error('Không thể kết nối đến Billing service (port 3004)');
+    }
+  };
+
+  // Create sample orders for testing
+  const createSampleOrders = async () => {
+    try {
+      const response = await fetch('http://localhost:3004/api/billing/create-sample-orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast.success('Tạo đơn hàng mẫu thành công');
+        fetchData(); // Refresh data
+      }
+    } catch (error) {
+      console.error('Error creating sample orders:', error);
+      toast.error('Lỗi khi tạo đơn hàng mẫu - Kiểm tra Billing service');
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [ordersResponse, menuResponse, tablesResponse] = await Promise.all([
-        ordersAPI.getOrders({ TrangThai: 'Đang phục vụ' }),
-        menuAPI.getMenuItems({ TrangThai: 'Còn hàng' }),
-        tableAPI.getTables()
-      ]);
+      
+      // Fetch orders from billing service
+      const ordersResponse = await billingAPI.getBills();
+      
+      // Mock menu data if service is not available
+      let menuResponse, categoriesResponse, tablesResponse;
+      
+      try {
+        menuResponse = await menuAPI.getMenuItems({ TrangThai: 'Còn hàng' });
+      } catch (error) {
+        console.log('Menu service not available, using mock data');
+        toast('Sử dụng dữ liệu menu mẫu (Menu service chưa khả dụng)', { 
+          icon: 'ℹ️',
+          duration: 4000
+        });
+        menuResponse = {
+          data: {
+            menus: [
+              { MaMon: 1, TenMon: 'Americano', DonGia: 35000, MoTa: 'Cà phê Americano đậm đà' },
+              { MaMon: 2, TenMon: 'Cappuccino', DonGia: 45000, MoTa: 'Cà phê Cappuccino ý nguyên chất' },
+              { MaMon: 3, TenMon: 'Bánh mì thịt nướng', DonGia: 35000, MoTa: 'Bánh mì thịt nướng đặc biệt' },
+              { MaMon: 4, TenMon: 'Bánh croissant', DonGia: 40000, MoTa: 'Bánh croissant bơ thơm ngon' },
+              { MaMon: 5, TenMon: 'Chocolate đá xay', DonGia: 45000, MoTa: 'Chocolate đá xay thơm ngon' }
+            ]
+          }
+        };
+      }
+      
+      try {
+        categoriesResponse = await menuAPI.getCategories();
+      } catch (error) {
+        console.log('Categories service not available, using mock data');
+        categoriesResponse = {
+          data: {
+            categories: [
+              { MaLoai: 1, TenLoai: 'Cà phê' },
+              { MaLoai: 2, TenLoai: 'Bánh ngọt' },
+              { MaLoai: 3, TenLoai: 'Đồ uống' }
+            ]
+          }
+        };
+      }
+      
+      try {
+        tablesResponse = await tableAPI.getTables();
+      } catch (error) {
+        console.log('Table service not available, using mock data');
+        toast('Sử dụng dữ liệu bàn mẫu (Table service chưa khả dụng)', {
+          icon: 'ℹ️',
+          duration: 4000
+        });
+        tablesResponse = {
+          data: {
+            tables: [
+              { MaBan: 1, TenBan: 'Bàn 1', SoChoNgoi: 4, TrangThai: 'Trống' },
+              { MaBan: 2, TenBan: 'Bàn 2', SoChoNgoi: 2, TrangThai: 'Đang sử dụng' },
+              { MaBan: 3, TenBan: 'Bàn 3', SoChoNgoi: 6, TrangThai: 'Trống' },
+              { MaBan: 4, TenBan: 'Bàn 4', SoChoNgoi: 4, TrangThai: 'Trống' },
+              { MaBan: 5, TenBan: 'Bàn 5', SoChoNgoi: 2, TrangThai: 'Trống' }
+            ]
+          }
+        };
+      }
 
-      setOrders(ordersResponse.data.orders || []);
-      setMenuItems(menuResponse.data.menus || menuResponse.data.menu_items || []);
+      // Get all orders from API
+      const allOrders = ordersResponse.data.donhangs || ordersResponse.data.bills || [];
+      console.log('All orders from API:', allOrders);
+      
+      // Show all orders (not filtering by status)
+      setOrders(allOrders);
+      
+      // Set menu items
+      const items = menuResponse.data.menus || menuResponse.data.menu_items || [];
+      setMenuItems(items);
+      setFilteredMenuItems(items);
+      
+      // Set categories
+      setCategories(categoriesResponse.data.categories || []);
+      
+      // Set tables
       setTables(tablesResponse.data.tables || []);
+      
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Lỗi khi tải dữ liệu');
+      
+      // Set fallback data on error
+      setMenuItems([]);
+      setFilteredMenuItems([]);
+      setCategories([]);
+      setTables([]);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Filter menu items
+  useEffect(() => {
+    let filtered = menuItems;
+    
+    if (selectedCategory) {
+      filtered = filtered.filter(item => (item.MaLoai || item.MaDM || item.category_id) == selectedCategory);
+    }
+    
+    if (searchTerm) {
+      filtered = filtered.filter(item => 
+        (item.TenMon || item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.MoTa || item.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    setFilteredMenuItems(filtered);
+  }, [menuItems, selectedCategory, searchTerm]);
+
+  // Filter orders
+  useEffect(() => {
+    let filtered = orders;
+    
+    // Filter by status
+    if (orderStatusFilter) {
+      filtered = filtered.filter(order => order.TrangThai === orderStatusFilter);
+    }
+    
+    // Filter by date
+    if (orderDateFilter) {
+      const today = new Date();
+      
+      switch (orderDateFilter) {
+        case 'today':
+          filtered = filtered.filter(order => {
+            const orderDate = new Date(order.NgayLap || order.createdAt);
+            return orderDate.toDateString() === today.toDateString();
+          });
+          break;
+        case 'yesterday':
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          filtered = filtered.filter(order => {
+            const orderDate = new Date(order.NgayLap || order.createdAt);
+            return orderDate.toDateString() === yesterday.toDateString();
+          });
+          break;
+        case 'thisweek':
+          const weekStart = new Date(today);
+          weekStart.setDate(today.getDate() - today.getDay());
+          filtered = filtered.filter(order => {
+            const orderDate = new Date(order.NgayLap || order.createdAt);
+            return orderDate >= weekStart;
+          });
+          break;
+        case 'thismonth':
+          const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+          filtered = filtered.filter(order => {
+            const orderDate = new Date(order.NgayLap || order.createdAt);
+            return orderDate >= monthStart;
+          });
+          break;
+      }
+    }
+    
+    // Filter by employee
+    if (orderEmployeeFilter) {
+      filtered = filtered.filter(order => (order.MaNV || order.employeeId) == orderEmployeeFilter);
+    }
+    
+    setFilteredOrders(filtered);
+  }, [orders, orderStatusFilter, orderDateFilter, orderEmployeeFilter]);
+
+  // Calculate total when items change
+  useEffect(() => {
+    const total = currentOrder.items.reduce((sum, item) => 
+      sum + (item.DonGia * item.SoLuong), 0
+    );
+    setCurrentOrder(prev => ({ ...prev, total }));
+  }, [currentOrder.items]);
+
+  // Add item to current order
+  const addToCurrentOrder = (menuItem) => {
+    const existingItem = currentOrder.items.find(item => item.MaMon === (menuItem.MaMon || menuItem.id));
+    
+    if (existingItem) {
+      setCurrentOrder(prev => ({
+        ...prev,
+        items: prev.items.map(item => 
+          item.MaMon === (menuItem.MaMon || menuItem.id)
+            ? { ...item, SoLuong: item.SoLuong + 1 }
+            : item
+        )
+      }));
+    } else {
+      setCurrentOrder(prev => ({
+        ...prev,
+        items: [...prev.items, {
+          MaMon: menuItem.MaMon || menuItem.id,
+          TenMon: menuItem.TenMon || menuItem.name,
+          DonGia: menuItem.DonGia || menuItem.price,
+          SoLuong: 1,
+          GhiChu: ''
+        }]
+      }));
+    }
+    
+    toast.success(`Đã thêm ${menuItem.TenMon || menuItem.name}`);
+  };
+
+  // Remove item from current order
+  const removeFromCurrentOrder = (maMon) => {
+    setCurrentOrder(prev => ({
+      ...prev,
+      items: prev.items.filter(item => item.MaMon !== maMon)
+    }));
+  };
+
+  // Update item quantity
+  const updateItemQuantity = (maMon, quantity) => {
+    if (quantity <= 0) {
+      removeFromCurrentOrder(maMon);
+      return;
+    }
+    
+    setCurrentOrder(prev => ({
+      ...prev,
+      items: prev.items.map(item => 
+        item.MaMon === maMon 
+          ? { ...item, SoLuong: quantity }
+          : item
+      )
+    }));
+  };
+
+  // Update item note
+  const updateItemNote = (maMon, note) => {
+    setCurrentOrder(prev => ({
+      ...prev,
+      items: prev.items.map(item => 
+        item.MaMon === maMon 
+          ? { ...item, GhiChu: note }
+          : item
+      )
+    }));
+  };
+
+  // Create new order
+  const createOrder = async () => {
+    if (!newOrder.MaBan || currentOrder.items.length === 0) {
+      toast.error('Vui lòng chọn bàn và thêm món');
+      return;
+    }
+
+    try {
+      // Step 1: Create the order first
+      const orderData = {
+        ...newOrder,
+        TongTien: currentOrder.total
+      };
+      
+      const orderResponse = await billingAPI.createOrder(orderData);
+      console.log('Order response:', orderResponse.data); // Debug log
+      
+      // Try multiple possible response formats
+      const createdOrderId = orderResponse.data.orderId || 
+                           orderResponse.data.MaDH || 
+                           orderResponse.data.id || 
+                           orderResponse.data.order?.MaDH ||
+                           orderResponse.data.order?.id ||
+                           orderResponse.data.bill?.MaDH ||
+                           orderResponse.data.bill?.id;
+      
+      if (!createdOrderId) {
+        console.error('Full response:', orderResponse);
+        console.log('Trying fallback approach - creating order with items included');
+        
+        // Fallback: Try creating order with items included in one request
+        try {
+          const fallbackOrderData = {
+            ...newOrder,
+            TongTien: currentOrder.total,
+            items: currentOrder.items // Include items in the main request
+          };
+          
+          await billingAPI.createOrder(fallbackOrderData);
+          toast.success(`Tạo đơn hàng thành công với ${currentOrder.items.length} món (fallback)`);
+          
+          // Reset form and refresh data
+          setCurrentOrder({ items: [], total: 0 });
+          setNewOrder({
+            MaBan: '',
+            MaNV: user?.MaNV || user?.id || 1,
+            TrangThai: 'Đang xử lý',
+            GhiChu: ''
+          });
+          await fetchData();
+          return;
+          
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+          throw new Error('Không thể tạo đơn hàng. Vui lòng thử lại.');
+        }
+      }
+      
+      // Step 2: Add each item to the order details
+      let successfulItems = 0;
+      for (const item of currentOrder.items) {
+        try {
+          const itemData = {
+            MaDH: createdOrderId,
+            MaMon: item.MaMon,
+            SoLuong: item.SoLuong,
+            DonGia: item.DonGia,
+            ThanhTien: item.DonGia * item.SoLuong,
+            GhiChu: item.GhiChu || ''
+          };
+          
+          await billingAPI.addItemToOrder(createdOrderId, itemData);
+          successfulItems++;
+        } catch (itemError) {
+          console.error(`Error adding item ${item.MaMon}:`, itemError);
+          // Continue with other items even if one fails
+        }
+      }
+      
+      if (successfulItems === currentOrder.items.length) {
+        toast.success(`Tạo đơn hàng thành công với ${successfulItems} món`);
+      } else {
+        toast.success(`Tạo đơn hàng thành công. Thêm được ${successfulItems}/${currentOrder.items.length} món`);
+      }
+      
+      // Reset form
+      setCurrentOrder({ items: [], total: 0 });
+      setNewOrder({
+        MaBan: '',
+        MaNV: user?.MaNV || user?.id || 1,
+        TrangThai: 'Đang xử lý',
+        GhiChu: ''
+      });
+      
+      // Refresh data to show the new order
+      await fetchData();
+      
+      // Auto-select the newly created order to show details
+      try {
+        const newOrderData = {
+          MaDH: createdOrderId,
+          id: createdOrderId,
+          MaBan: orderData.MaBan,
+          MaNV: orderData.MaNV,
+          TrangThai: orderData.TrangThai,
+          TongTien: orderData.TongTien,
+          NgayLap: new Date().toISOString()
+        };
+        setSelectedOrder(newOrderData);
+        await fetchOrderItems(createdOrderId);
+      } catch (selectError) {
+        console.log('Could not auto-select order:', selectError);
+        // This is not critical, so we don't show error to user
+      }
+      
+    } catch (error) {
+      console.error('Error creating order:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Lỗi khi tạo đơn hàng';
+      toast.error(errorMessage);
+    }
+  };
+
   const fetchOrderItems = async (orderId) => {
     try {
-      const response = await ordersAPI.getOrderItems(orderId);
+      const response = await billingAPI.getOrderItems(orderId);
       setOrderItems(response.data.items || response.data.order?.chitiet || []);
     } catch (error) {
       console.error('Error fetching order items:', error);
@@ -62,16 +471,21 @@ const SalesManagement = () => {
 
   const handleSelectOrder = async (order) => {
     setSelectedOrder(order);
-    await fetchOrderItems(order.MaOrder || order.id);
+    // Use chitiet from order data if available, otherwise fetch from API
+    if (order.chitiet && order.chitiet.length > 0) {
+      setOrderItems(order.chitiet);
+    } else {
+      await fetchOrderItems(order.MaDH || order.id);
+    }
   };
 
   const handleCreateOrder = async (e) => {
     e.preventDefault();
     try {
-      await ordersAPI.createOrder(newOrder);
+      await billingAPI.createOrder(newOrder);
       toast.success('Tạo đơn hàng thành công');
       setShowOrderModal(false);
-      setNewOrder({ MaBan: '', MaNV: 1, TrangThai: 'Đang phục vụ', GhiChu: '' });
+      setNewOrder({ MaBan: '', MaNV: user?.MaNV || user?.id || 1, TrangThai: 'Đang xử lý', GhiChu: '' });
       fetchData();
     } catch (error) {
       console.error('Error creating order:', error);
@@ -88,8 +502,8 @@ const SalesManagement = () => {
     }
 
     try {
-      const orderId = selectedOrder.MaOrder || selectedOrder.id;
-      await ordersAPI.addItemToOrder(orderId, newItem);
+      const orderId = selectedOrder.MaDH || selectedOrder.id;
+      await billingAPI.addItemToOrder(orderId, newItem);
       toast.success('Thêm món thành công');
       setShowAddItemModal(false);
       setNewItem({ MaMon: '', SoLuong: 1, GhiChu: '' });
@@ -106,8 +520,8 @@ const SalesManagement = () => {
     if (!selectedOrder) return;
 
     try {
-      const orderId = selectedOrder.MaOrder || selectedOrder.id;
-      await ordersAPI.updateOrderItem(orderId, itemId, updates);
+      const orderId = selectedOrder.MaDH || selectedOrder.id;
+      await billingAPI.updateOrderItem(orderId, itemId, updates);
       toast.success('Cập nhật món thành công');
       await fetchOrderItems(orderId);
       fetchData();
@@ -123,8 +537,8 @@ const SalesManagement = () => {
 
     if (window.confirm('Bạn có chắc chắn muốn xóa món này?')) {
       try {
-        const orderId = selectedOrder.MaOrder || selectedOrder.id;
-        await ordersAPI.removeOrderItem(orderId, itemId);
+        const orderId = selectedOrder.MaDH || selectedOrder.id;
+        await billingAPI.removeOrderItem(orderId, itemId);
         toast.success('Xóa món thành công');
         await fetchOrderItems(orderId);
         fetchData();
@@ -136,13 +550,34 @@ const SalesManagement = () => {
     }
   };
 
+  // Update order status
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    try {
+      await billingAPI.updatePaymentStatus(orderId, { TrangThai: newStatus });
+      toast.success(`Cập nhật trạng thái thành công: ${newStatus}`);
+      
+      // Update selected order status locally
+      setSelectedOrder(prev => ({
+        ...prev,
+        TrangThai: newStatus
+      }));
+      
+      // Refresh data
+      fetchData();
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      const errorMessage = error.response?.data?.message || 'Lỗi khi cập nhật trạng thái';
+      toast.error(errorMessage);
+    }
+  };
+
   const handleCompleteOrder = async () => {
     if (!selectedOrder) return;
 
     if (window.confirm('Bạn có chắc chắn muốn hoàn thành đơn hàng này?')) {
       try {
-        const orderId = selectedOrder.MaOrder || selectedOrder.id;
-        await ordersAPI.updateOrderStatus(orderId, { TrangThai: 'Đã hoàn thành' });
+        const orderId = selectedOrder.MaDH || selectedOrder.id;
+        await billingAPI.updateOrderStatus(orderId, { TrangThai: 'Hoàn thành' });
         toast.success('Hoàn thành đơn hàng thành công');
         setSelectedOrder(null);
         setOrderItems([]);
@@ -172,342 +607,499 @@ const SalesManagement = () => {
     }).format(amount || 0);
   };
 
+  const getTotalQuantity = (chitiet) => {
+    if (!chitiet || !Array.isArray(chitiet)) return 0;
+    return chitiet.reduce((total, item) => total + (item.SoLuong || 0), 0);
+  };
+
   if (loading) {
     return <LoadingSpinner text="Đang tải dữ liệu bán hàng..." />;
   }
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Quản lý bán hàng</h1>
-          <p className="text-gray-600 mt-2">Quản lý đơn hàng tại chỗ (Orders)</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Giao diện bán hàng</h1>
+          <p className="text-gray-600">Quản lý đơn hàng và bán hàng tại quầy</p>
         </div>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={testBillingConnection}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+          >
+            Test Billing
+          </button>
+          <button
+            onClick={createSampleOrders}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+          >
+            Tạo đơn mẫu
+          </button>
+          <button
+            onClick={fetchData}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+          >
+            <FiRefreshCw className="w-4 h-4 mr-2 inline" />
+            Làm mới
+          </button>
+        </div>
+      </div>
 
+      {/* Sales Statistics */}
+      <SalesStats />
+
+      <div className="bg-white rounded-lg shadow-sm border p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Menu Items Panel */}
-          <div className="bg-white rounded-lg shadow-md">
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-800">Menu ({menuItems.length} món)</h2>
-            </div>
-            <div className="p-4 max-h-96 overflow-y-auto">
-              {menuItems.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">Không có món nào</p>
-              ) : (
-                <div className="space-y-2">
-                  {menuItems.map((item) => (
-                    <div
-                      key={item.MaMon || item.id}
-                      onClick={() => {
-                        if (selectedOrder) {
-                          setNewItem({
-                            MaMon: item.MaMon || item.id,
-                            SoLuong: 1,
-                            GhiChu: ''
-                          });
-                          setShowAddItemModal(true);
-                        } else {
-                          toast.error('Vui lòng chọn đơn hàng trước');
-                        }
-                      }}
-                      className="p-3 border rounded-lg cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition-colors"
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">
-                            {item.TenMon || item.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {item.MoTa || 'Không có mô tả'}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-green-600 text-sm">
-                            {formatCurrency(item.DonGia || item.price)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Orders List */}
-          <div className="bg-white rounded-lg shadow-md">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-800">Đơn hàng ({orders.length})</h2>
-              <button
-                onClick={() => setShowOrderModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Tạo đơn hàng
-              </button>
-            </div>
-            <div className="p-4 max-h-96 overflow-y-auto">
-              {orders.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">Không có đơn hàng nào</p>
-              ) : (
-                <div className="space-y-3">
-                  {orders.map((order) => (
-                    <div
-                      key={order.MaOrder || order.id}
-                      onClick={() => handleSelectOrder(order)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedOrder?.MaOrder === order.MaOrder || selectedOrder?.id === order.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            Đơn #{order.MaOrder || order.id}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {getTableName(order.MaBan)}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(order.NgayOrder || order.createdAt).toLocaleString('vi-VN')}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-green-600">
-                            {formatCurrency(order.TongTien)}
-                          </p>
-                          <span className="inline-block px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
-                            {order.TrangThai}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Order Details */}
-          <div className="bg-white rounded-lg shadow-md">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-800">
-                {selectedOrder ? `Chi tiết đơn #${selectedOrder.MaOrder || selectedOrder.id}` : 'Chọn đơn hàng'}
+          {/* Menu Section */}
+          <div className="border-r border-gray-200 pr-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                Menu ({filteredMenuItems.length} món)
               </h2>
-              {selectedOrder && (
-                <div className="space-x-2">
+            
+              {/* Search */}
+              <div className="mt-3 relative">
+                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm món..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Category Filter */}
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Tất cả danh mục</option>
+                {categories.map(category => (
+                  <option key={category.MaLoai || category.id} value={category.MaLoai || category.id}>
+                    {category.TenLoai || category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+              
+            <div className="mt-4">
+              {filteredMenuItems.map(item => (
+                <div key={item.MaMon || item.id} className="flex items-center justify-between p-3 border rounded-lg mb-2 hover:bg-gray-50">
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900">{item.TenMon || item.name}</h3>
+                    <p className="text-sm text-gray-500">{item.MoTa || item.description}</p>
+                    <p className="text-lg font-semibold text-blue-600">
+                      {(item.DonGia || item.Gia || item.price)?.toLocaleString('vi-VN')} đ
+                    </p>
+                  </div>
                   <button
-                    onClick={() => setShowAddItemModal(true)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    onClick={() => addToCurrentOrder(item)}
+                    className="ml-3 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                   >
-                    Thêm món
-                  </button>
-                  <button
-                    onClick={handleCompleteOrder}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Hoàn thành
+                    Thêm
                   </button>
                 </div>
-              )}
+              ))}
             </div>
-            <div className="p-4">
-              {!selectedOrder ? (
-                <p className="text-gray-500 text-center py-8">Vui lòng chọn một đơn hàng để xem chi tiết</p>
-              ) : (
-                <div>
-                  {/* Order Info */}
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium text-gray-700">Bàn:</span> {getTableName(selectedOrder.MaBan)}
-                      </div>
-                      <div>
-                        <span className="font-medium text-gray-700">Trạng thái:</span> {selectedOrder.TrangThai}
-                      </div>
-                      <div>
-                        <span className="font-medium text-gray-700">Tổng tiền:</span> {formatCurrency(selectedOrder.TongTien)}
-                      </div>
-                      <div>
-                        <span className="font-medium text-gray-700">Thời gian:</span> {new Date(selectedOrder.NgayOrder || selectedOrder.createdAt).toLocaleString('vi-VN')}
-                      </div>
+          </div>
+
+          {/* Orders Section */}
+          <div className="border-r border-gray-200 pr-6 pl-6">
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Đơn hàng ({filteredOrders.length}/{orders.length})
+                </h2>
+                <button
+                  onClick={fetchData}
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md"
+                >
+                  <FiRefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {/* Order Filters */}
+              <div className="space-y-2">
+                {/* Status Filter */}
+                <select
+                  value={orderStatusFilter}
+                  onChange={(e) => setOrderStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="Đang xử lý">Đang xử lý</option>
+                  <option value="Hoàn thành">Hoàn thành</option>
+                  <option value="Đã hủy">Đã hủy</option>
+                  <option value="Đang phục vụ">Đang phục vụ</option>
+                </select>
+                
+                {/* Date Filter */}
+                <select
+                  value={orderDateFilter}
+                  onChange={(e) => setOrderDateFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="">Tất cả ngày</option>
+                  <option value="today">Hôm nay</option>
+                  <option value="yesterday">Hôm qua</option>
+                  <option value="thisweek">Tuần này</option>
+                  <option value="thismonth">Tháng này</option>
+                </select>
+                
+                {/* Employee Filter */}
+                <select
+                  value={orderEmployeeFilter}
+                  onChange={(e) => setOrderEmployeeFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="">Tất cả nhân viên</option>
+                  <option value="1">NV 1</option>
+                  <option value="2">NV 2</option>
+                  <option value="3">NV 3</option>
+                  <option value="4">NV 4</option>
+                  <option value="5">NV 5</option>
+                </select>
+                
+                {/* Reset Filters Button */}
+                {(orderStatusFilter || orderDateFilter || orderEmployeeFilter) && (
+                  <button
+                    onClick={() => {
+                      setOrderStatusFilter('');
+                      setOrderDateFilter('');
+                      setOrderEmployeeFilter('');
+                    }}
+                    className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm"
+                  >
+                    Xóa bộ lọc
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+            {filteredOrders.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FiClock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>Không có đơn hàng phù hợp</p>
+                <p className="text-sm">Thử thay đổi bộ lọc để xem thêm đơn hàng</p>
+              </div>
+            ) : (
+              filteredOrders.map(order => (
+                <div
+                  key={order.MaDH || order.id}
+                  onClick={() => handleSelectOrder(order)}
+                  className={`p-3 border rounded-lg mb-2 cursor-pointer transition-colors ${
+                    selectedOrder && (selectedOrder.MaDH || selectedOrder.id) === (order.MaDH || order.id)
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900">
+                        Đơn hàng #{order.MaDH || order.id}
+                      </h3>
+                      <p className="text-sm text-gray-500 flex items-center">
+                        <FiMapPin className="w-3 h-3 mr-1" />
+                        Bàn {order.MaBan || order.tableId}
+                      </p>
+                      <p className="text-sm text-gray-500 flex items-center">
+                        <FiClock className="w-3 h-3 mr-1" />
+                        {new Date(order.NgayLap || order.createdAt).toLocaleTimeString('vi-VN')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-blue-600">
+                        {(order.TongTien || order.total || 0).toLocaleString('vi-VN')} đ
+                      </p>
+                      <span className="inline-block px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
+                        {order.TrangThai || order.status}
+                      </span>
                     </div>
                   </div>
+                </div>
+              ))
+            )}
+            </div>
+          </div>
 
-                  {/* Order Items */}
-                  <div className="space-y-3">
-                    <h3 className="font-medium text-gray-800">Món ăn trong đơn hàng:</h3>
-                    {orderItems.length === 0 ? (
-                      <p className="text-gray-500 text-center py-4">Chưa có món ăn nào</p>
+          {/* Create Order Section */}
+          <div className="pl-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {selectedOrder ? `Chi tiết đơn #${selectedOrder.MaDH || selectedOrder.id}` : 'Tạo đơn hàng mới'}
+              </h2>
+            </div>
+              
+            <div>
+            {!selectedOrder ? (
+              /* Create New Order */
+              <div>
+                {/* Table Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Chọn bàn * ({tables.filter(table => table.TrangThai === 'Trống').length} bàn trống)
+                  </label>
+                  <select
+                    value={newOrder.MaBan}
+                    onChange={(e) => setNewOrder({ ...newOrder, MaBan: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">-- Chọn bàn --</option>
+                    {tables.filter(table => table.TrangThai === 'Trống').map((table) => (
+                      <option key={table.MaBan || table.id} value={table.MaBan || table.id}>
+                        Bàn {table.TenBan || table.name} ({table.SoChoNgoi || table.capacity} chỗ)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Order Items */}
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">
+                    Món đã chọn ({currentOrder.items.length})
+                  </h3>
+                  <div>
+                    {currentOrder.items.length === 0 ? (
+                      <p className="text-gray-500 text-center py-4 text-sm">
+                        Chưa có món nào. Click vào menu để thêm món.
+                      </p>
                     ) : (
-                      orderItems.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">
-                              {getMenuItemName(item.MaMon)}
-                            </p>
-                            <div className="flex items-center space-x-4 mt-1">
-                              <span className="text-sm text-gray-600">
-                                SL: 
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={item.SoLuong}
-                                  onChange={(e) => handleUpdateItem(item.MaMon, { SoLuong: parseInt(e.target.value) })}
-                                  className="ml-1 w-16 px-1 py-0.5 border rounded text-center"
-                                />
-                              </span>
-                              <span className="text-sm text-gray-600">
-                                Trạng thái: {item.TrangThaiMon || 'Chờ xử lý'}
-                              </span>
+                      currentOrder.items.map((item, index) => (
+                        <div key={index} className="p-3 border rounded-lg mb-3 bg-gray-50">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-sm">{item.TenMon}</span>
+                                <button
+                                  onClick={() => removeFromCurrentOrder(item.MaMon)}
+                                  className="text-red-500 hover:text-red-700 p-1"
+                                  title="Xóa món"
+                                >
+                                  <FiTrash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                              <div className="flex items-center justify-between mt-2">
+                                <div className="flex items-center">
+                                  <button
+                                    onClick={() => updateItemQuantity(item.MaMon, item.SoLuong - 1)}
+                                    className="w-7 h-7 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-sm hover:bg-red-200 transition-colors"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="mx-3 text-lg font-bold">{item.SoLuong}</span>
+                                  <button
+                                    onClick={() => updateItemQuantity(item.MaMon, item.SoLuong + 1)}
+                                    className="w-7 h-7 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-sm hover:bg-green-200 transition-colors"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <span className="text-lg font-bold text-blue-600">
+                                  {(item.DonGia * item.SoLuong).toLocaleString('vi-VN')} đ
+                                </span>
+                              </div>
                             </div>
-                            {item.GhiChu && (
-                              <p className="text-xs text-gray-500 mt-1">Ghi chú: {item.GhiChu}</p>
-                            )}
                           </div>
-                          <div className="text-right">
-                            <button
-                              onClick={() => handleRemoveItem(item.MaMon)}
-                              className="text-red-600 hover:text-red-800 text-sm"
-                            >
-                              Xóa
-                            </button>
+                          
+                          {/* Note Input */}
+                          <div className="mt-3 pt-2 border-t border-gray-200">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              📝 Ghi chú món ăn:
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="VD: ít đá, thêm đường, không đá..."
+                              value={item.GhiChu || ''}
+                              onChange={(e) => updateItemNote(item.MaMon, e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white placeholder-gray-400"
+                            />
                           </div>
                         </div>
                       ))
                     )}
                   </div>
                 </div>
-              )}
+
+                {/* Total */}
+                <div className="border-t pt-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-lg font-semibold">Tổng cộng:</span>
+                    <span className="text-xl font-bold text-blue-600">
+                      {currentOrder.total.toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={createOrder}
+                    disabled={!newOrder.MaBan || currentOrder.items.length === 0}
+                    className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                  >
+                    <FiPlus className="w-4 h-4 mr-2" />
+                    Tạo đơn hàng ({currentOrder.items.length} món)
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Order Details */
+              <div>
+                {/* Order Header */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg mb-6 border border-blue-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Đơn hàng #{selectedOrder.MaDH || selectedOrder.id}
+                    </h3>
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                      (selectedOrder.TrangThai || selectedOrder.status) === 'Đang xử lý' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
+                      (selectedOrder.TrangThai || selectedOrder.status) === 'Hoàn thành' ? 'bg-green-100 text-green-700 border border-green-200' :
+                      (selectedOrder.TrangThai || selectedOrder.status) === 'Đã hủy' ? 'bg-red-100 text-red-700 border border-red-200' :
+                      'bg-blue-100 text-blue-700 border border-blue-200'
+                    }`}>
+                      {selectedOrder.TrangThai || selectedOrder.status}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-white p-3 rounded-md">
+                      <div className="text-xs text-gray-500 uppercase tracking-wide">Bàn</div>
+                      <div className="text-sm font-medium text-gray-900 mt-1">{getTableName(selectedOrder.MaBan)}</div>
+                    </div>
+                    <div className="bg-white p-3 rounded-md">
+                      <div className="text-xs text-gray-500 uppercase tracking-wide">Nhân viên</div>
+                      <div className="text-sm font-medium text-gray-900 mt-1">
+                        {selectedOrder.MaNV === (user?.MaNV || user?.id) ? 
+                          `${user?.TenNV || user?.name || 'Bạn'} (NV ${selectedOrder.MaNV})` : 
+                          `NV ${selectedOrder.MaNV}`
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white p-3 rounded-md mb-4">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Ngày tạo</div>
+                    <div className="text-sm font-medium text-gray-900 mt-1">
+                      {selectedOrder.NgayLap ? new Date(selectedOrder.NgayLap).toLocaleString('vi-VN') : 'Chưa có'}
+                    </div>
+                  </div>
+                  
+                  {/* Total Amount - Prominent */}
+                  <div className="bg-white p-4 rounded-md border-2 border-blue-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-600">Tổng tiền</span>
+                      <span className="text-2xl font-bold text-blue-600">
+                        {(selectedOrder.TongTien || selectedOrder.total || 0).toLocaleString('vi-VN')} đ
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Order Notes */}
+                  {(selectedOrder.GhiChu || selectedOrder.notes) && (
+                    <div className="mt-4 bg-yellow-50 p-3 rounded-md border border-yellow-200">
+                      <div className="text-xs text-yellow-700 uppercase tracking-wide font-medium">Ghi chú</div>
+                      <p className="mt-1 text-sm text-yellow-800">{selectedOrder.GhiChu || selectedOrder.notes}</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Order Items */}
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                    <h4 className="font-medium text-gray-900">Danh sách món ({orderItems.length})</h4>
+                  </div>
+                  
+                  <div className="divide-y divide-gray-100">
+                    {orderItems.length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <div className="text-4xl mb-2">🍽️</div>
+                        <p>Chưa có món nào trong đơn hàng</p>
+                      </div>
+                    ) : (
+                      orderItems.map((item, index) => (
+                        <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-medium text-sm">
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <h5 className="font-medium text-gray-900">{getMenuItemName(item.MaMon)}</h5>
+                                  <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+                                    <span className="flex items-center">
+                                      <span className="w-4 h-4 mr-1">🍽️</span>
+                                      {item.SoLuong || item.quantity}
+                                    </span>
+                                    <span className="flex items-center">
+                                      <span className="w-4 h-4 mr-1">💰</span>
+                                      {(item.DonGia || item.price).toLocaleString('vi-VN')}đ
+                                    </span>
+                                  </div>
+                                  {(item.GhiChu || item.notes) && (
+                                    <div className="mt-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded inline-block">
+                                      📝 {item.GhiChu || item.notes}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="text-right ml-4">
+                              <div className="text-lg font-bold text-blue-600">
+                                {((item.DonGia || item.price) * (item.SoLuong || item.quantity)).toLocaleString('vi-VN')}đ
+                              </div>
+                              <div className="text-xs text-gray-400 mt-1">
+                                {item.SoLuong || item.quantity} x {(item.DonGia || item.price).toLocaleString('vi-VN')}đ
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                
+                {/* Order Actions */}
+                <div className="mt-6 space-y-4">
+                  {/* Order Status Update */}
+                  {(selectedOrder.TrangThai || selectedOrder.status) === 'Đang xử lý' && (
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <h5 className="text-sm font-medium text-gray-700 mb-3">Cập nhật trạng thái đơn hàng</h5>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => handleUpdateOrderStatus(selectedOrder.MaDH || selectedOrder.id, 'Hoàn thành')}
+                          className="flex items-center justify-center py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md text-sm font-medium"
+                        >
+                          <span className="mr-2">✓</span>
+                          Hoàn thành
+                        </button>
+                        <button
+                          onClick={() => handleUpdateOrderStatus(selectedOrder.MaDH || selectedOrder.id, 'Đã hủy')}
+                          className="flex items-center justify-center py-3 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 shadow-sm hover:shadow-md text-sm font-medium"
+                        >
+                          <span className="mr-2">✗</span>
+                          Hủy đơn
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Back Button */}
+                  <button
+                    onClick={() => setSelectedOrder(null)}
+                    className="w-full py-3 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 border border-gray-300 font-medium"
+                  >
+                    <span className="mr-2">←</span>
+                    Quay lại danh sách đơn hàng
+                  </button>
+                </div>
+              </div>
+            )}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Create Order Modal */}
-      {showOrderModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Tạo đơn hàng mới</h3>
-            <form onSubmit={handleCreateOrder}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Chọn bàn * ({tables.filter(table => table.TrangThai === 'Trống').length} bàn trống)
-                </label>
-                <select
-                  value={newOrder.MaBan}
-                  onChange={(e) => setNewOrder({ ...newOrder, MaBan: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                >
-                  <option value="">-- Chọn bàn trống --</option>
-                  {tables.filter(table => table.TrangThai === 'Trống').map((table) => (
-                    <option key={table.MaBan || table.id} value={table.MaBan || table.id}>
-                      🪑 {getTableName(table.MaBan || table.id)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ghi chú
-                </label>
-                <textarea
-                  value={newOrder.GhiChu}
-                  onChange={(e) => setNewOrder({ ...newOrder, GhiChu: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows="3"
-                  placeholder="Ghi chú cho đơn hàng..."
-                />
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowOrderModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Tạo đơn hàng
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add Item Modal */}
-      {showAddItemModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Thêm món vào đơn hàng</h3>
-            <form onSubmit={handleAddItem}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Chọn món *
-                </label>
-                <select
-                  value={newItem.MaMon}
-                  onChange={(e) => setNewItem({ ...newItem, MaMon: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                >
-                  <option value="">-- Chọn món --</option>
-                  {menuItems.map((item) => (
-                    <option key={item.MaMon || item.id} value={item.MaMon || item.id}>
-                      🍽️ {item.TenMon || item.name} - {formatCurrency(item.DonGia || item.price)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Số lượng *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={newItem.SoLuong}
-                  onChange={(e) => setNewItem({ ...newItem, SoLuong: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ghi chú
-                </label>
-                <input
-                  type="text"
-                  value={newItem.GhiChu}
-                  onChange={(e) => setNewItem({ ...newItem, GhiChu: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="VD: ít đá, thêm đường..."
-                />
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddItemModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Thêm món
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

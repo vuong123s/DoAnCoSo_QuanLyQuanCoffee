@@ -43,43 +43,6 @@ const DonHang = sequelize.define('DonHang', {
   timestamps: false
 });
 
-// Orders model (additional table from SQL)
-const Orders = sequelize.define('Orders', {
-  MaOrder: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  MaBan: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    references: {
-      model: 'Ban',
-      key: 'MaBan'
-    }
-  },
-  MaNV: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    references: {
-      model: 'NhanVien',
-      key: 'MaNV'
-    }
-  },
-  NgayOrder: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW
-  },
-  TrangThai: {
-    type: DataTypes.STRING(20),
-    allowNull: true,
-    comment: 'Đang phục vụ, Đã hoàn thành, Đã hủy'
-  }
-}, {
-  tableName: 'Orders',
-  timestamps: false
-});
 
 // ThanhToan model matching SQL schema
 const ThanhToan = sequelize.define('ThanhToan', {
@@ -94,14 +57,6 @@ const ThanhToan = sequelize.define('ThanhToan', {
     references: {
       model: 'DonHang',
       key: 'MaDH'
-    }
-  },
-  MaOrder: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    references: {
-      model: 'Orders',
-      key: 'MaOrder'
     }
   },
   MaDHOnline: {
@@ -167,4 +122,4 @@ const ThanhToan = sequelize.define('ThanhToan', {
   timestamps: false
 });
 
-module.exports = { DonHang, Orders, ThanhToan };
+module.exports = { DonHang, ThanhToan };

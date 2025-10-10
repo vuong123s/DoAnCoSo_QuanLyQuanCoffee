@@ -17,13 +17,6 @@ const testData = {
     TongTien: 0,
     GhiChu: 'Test order'
   },
-  order: {
-    MaBan: 2,
-    MaNV: 1,
-    TrangThai: 'Đang phục vụ',
-    TongTien: 0,
-    GhiChu: 'Test in-store order'
-  },
   onlineOrder: {
     TenKhach: 'Nguyễn Văn Test',
     SDTKhach: '0123456789',
@@ -146,54 +139,6 @@ const testDonHangOperations = async () => {
   }
 };
 
-const testOrdersOperations = async () => {
-  console.log('\n🍽️ Testing Orders (In-store) Operations...');
-  let createdOrderId = null;
-  
-  try {
-    // Test create Order
-    const createResponse = await makeRequest('POST', '/api/orders', testData.order);
-    if (createResponse.status === 201 && createResponse.data.order) {
-      createdOrderId = createResponse.data.order.MaOrder;
-      logTest('Create Order', 'PASS', `Created order ID: ${createdOrderId}`);
-    } else {
-      logTest('Create Order', 'FAIL', `Status: ${createResponse.status}`);
-      return false;
-    }
-
-    // Test get all Orders
-    const getAllResponse = await makeRequest('GET', '/api/orders');
-    if (getAllResponse.status === 200 && getAllResponse.data.orders) {
-      logTest('Get All Orders', 'PASS', `Found ${getAllResponse.data.orders.length} orders`);
-    } else {
-      logTest('Get All Orders', 'FAIL', `Status: ${getAllResponse.status}`);
-    }
-
-    // Test add item to order
-    const addItemResponse = await makeRequest('POST', `/api/orders/${createdOrderId}/items`, {
-      ...testData.orderItem,
-      TrangThaiMon: 'Chờ xử lý'
-    });
-    if (addItemResponse.status === 200) {
-      logTest('Add Item to Order', 'PASS', 'Item added successfully');
-    } else {
-      logTest('Add Item to Order', 'FAIL', `Status: ${addItemResponse.status}`);
-    }
-
-    // Test get order statistics
-    const statsResponse = await makeRequest('GET', '/api/orders/stats');
-    if (statsResponse.status === 200 && statsResponse.data.stats) {
-      logTest('Get Order Statistics', 'PASS', `Total orders: ${statsResponse.data.stats.total_orders}`);
-    } else {
-      logTest('Get Order Statistics', 'FAIL', `Status: ${statsResponse.status}`);
-    }
-
-    return true;
-  } catch (error) {
-    logTest('Orders Operations', 'FAIL', error.message);
-    return false;
-  }
-};
 
 const testOnlineOrderOperations = async () => {
   console.log('\n🌐 Testing Online Order Operations...');
@@ -301,7 +246,6 @@ const runAllTests = async () => {
   const tests = [
     { name: 'Health Check', fn: testHealthCheck },
     { name: 'DonHang Operations', fn: testDonHangOperations },
-    { name: 'Orders Operations', fn: testOrdersOperations },
     { name: 'Online Order Operations', fn: testOnlineOrderOperations },
     { name: 'Revenue Operations', fn: testRevenueOperations }
   ];
@@ -347,7 +291,6 @@ module.exports = {
   runAllTests,
   testHealthCheck,
   testDonHangOperations,
-  testOrdersOperations,
   testOnlineOrderOperations,
   testRevenueOperations
 };

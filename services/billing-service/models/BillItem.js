@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-// CTDonHang model matching SQL schema
+// CTDonHang model matching SQL schema with GhiChu field
 const CTDonHang = sequelize.define('CTDonHang', {
   MaDH: {
     type: DataTypes.INTEGER,
@@ -30,47 +30,15 @@ const CTDonHang = sequelize.define('CTDonHang', {
   ThanhTien: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false
+  },
+  GhiChu: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: 'Ghi chú đặc biệt cho món (VD: ít đá, thêm đường)'
   }
 }, {
   tableName: 'CTDonHang',
   timestamps: false
 });
 
-// CTOrder model matching SQL schema exactly
-const CTOrder = sequelize.define('CTOrder', {
-  MaOrder: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    references: {
-      model: 'Orders',
-      key: 'MaOrder'
-    }
-  },
-  MaMon: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    references: {
-      model: 'Mon',
-      key: 'MaMon'
-    }
-  },
-  SoLuong: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-  GhiChu: {
-    type: DataTypes.STRING(255),
-    allowNull: true,
-    comment: 'VD: ít đá, thêm đường'
-  },
-  TrangThaiMon: {
-    type: DataTypes.STRING(20),
-    defaultValue: 'Chờ xử lý',
-    comment: 'Chờ xử lý, Đang làm, Hoàn thành'
-  }
-}, {
-  tableName: 'CTOrder',
-  timestamps: false
-});
-
-module.exports = { CTDonHang, CTOrder };
+module.exports = { CTDonHang };

@@ -1,8 +1,8 @@
-const { Orders, CTOrder, DonHang, CTDonHang, ThanhToan } = require('../models');
+const { DonHang, CTDonHang, ThanhToan } = require('../models');
 const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
 
-// Convert Order to DonHang and process payment
+// Process DonHang payment
 const processOrderPayment = async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -24,16 +24,16 @@ const processOrderPayment = async (req, res) => {
       });
     }
 
-    // Get Order with details
-    const order = await Orders.findByPk(orderId, {
+    // Get DonHang with details
+    const donHang = await DonHang.findByPk(orderId, {
       include: [{ 
-        model: CTOrder, 
+        model: CTDonHang, 
         as: 'chitiet' 
       }],
       transaction
     });
 
-    if (!order) {
+    if (!donHang) {
       await transaction.rollback();
       return res.status(404).json({
         error: 'Order not found',
@@ -41,7 +41,7 @@ const processOrderPayment = async (req, res) => {
       });
     }
 
-    if (order.TrangThai === 'Đã hoàn thành') {
+    if (donHang.TrangThai === 'Hoàn thành') {
       await transaction.rollback();
       return res.status(400).json({
         error: 'Order already completed',
@@ -49,7 +49,7 @@ const processOrderPayment = async (req, res) => {
       });
     }
 
-    if (order.TrangThai === 'Đã hủy') {
+    if (donHang.TrangThai === 'Đã hủy') {
       await transaction.rollback();
       return res.status(400).json({
         error: 'Order cancelled',
@@ -57,34 +57,14 @@ const processOrderPayment = async (req, res) => {
       });
     }
 
-    // Create DonHang (Official Bill)
-    const donHang = await DonHang.create({
-      MaBan: order.MaBan,
-      MaNV: order.MaNV,
-      TongTien: order.TongTien,
-      TrangThai: 'Hoàn thành'
-    }, { transaction });
-
-    // Copy order details to DonHang details
-    for (const item of order.chitiet) {
-      await CTDonHang.create({
-        MaDH: donHang.MaDH,
-        MaMon: item.MaMon,
-        SoLuong: item.SoLuong,
-        DonGia: item.DonGia,
-        ThanhTien: item.ThanhTien
-      }, { transaction });
-    }
-
     // Calculate payment amounts
-    const soTien = parseFloat(order.TongTien);
+    const soTien = parseFloat(donHang.TongTien);
     const soTienNhan = SoTienNhan ? parseFloat(SoTienNhan) : soTien;
     const soTienThua = Math.max(0, soTienNhan - soTien);
 
     // Create payment record
     const thanhToan = await ThanhToan.create({
       MaDH: donHang.MaDH,
-      MaOrder: order.MaOrder,
       HinhThuc: HinhThuc,
       SoTien: soTien,
       SoTienNhan: soTienNhan,
@@ -95,8 +75,8 @@ const processOrderPayment = async (req, res) => {
       GhiChu: GhiChu
     }, { transaction });
 
-    // Update Order status
-    await order.update({
+    // Update DonHang status
+    await donHang.update({
       TrangThai: 'Đã hoàn thành'
     }, { transaction });
 
@@ -107,11 +87,7 @@ const processOrderPayment = async (req, res) => {
       message_vi: 'Thanh toán thành công',
       data: {
         donHang: donHang,
-        thanhToan: thanhToan,
-        order: {
-          MaOrder: order.MaOrder,
-          TrangThai: 'Đã hoàn thành'
-        }
+        thanhToan: thanhToan
       }
     });
 
@@ -131,7 +107,7 @@ const getOrderPayments = async (req, res) => {
     const { orderId } = req.params;
 
     const payments = await ThanhToan.findAll({
-      where: { MaOrder: orderId },
+      where: { MaDH: orderId },
       include: [
         {
           model: DonHang,
