@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { menuAPI } from '../../shared/services/api';
 import useCartStore from '../../app/stores/cartStore';
 import ProductCard from '../../components/common/product/ProductCard';
-import { FiSearch, FiFilter, FiStar, FiShoppingCart, FiPlus } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiStar, FiShoppingCart, FiPlus, FiEye } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const Menu = () => {
+  const navigate = useNavigate();
   const { addToCart, getCartItemCount } = useCartStore();
   const [categories, setCategories] = useState([]);
   const [menuItems, setMenuItems] = useState([]);

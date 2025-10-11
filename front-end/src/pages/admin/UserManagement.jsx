@@ -432,12 +432,12 @@ const UserManagement = () => {
                 onChange={(e) => setRoleFilter(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               >
-                <option value="all">Tất cả vai trò</option>
-                <option value="employee">Nhân viên</option>
-                <option value="customer">Khách hàng</option>
-                <option value="Admin">Quản trị viên</option>
-                <option value="Quản lý">Quản lý</option>
-                <option value="Nhân viên">Nhân viên</option>
+                <option key="filter-role-all" value="all">Tất cả vai trò</option>
+                <option key="filter-role-employee" value="employee">Nhân viên</option>
+                <option key="filter-role-customer" value="customer">Khách hàng</option>
+                <option key="filter-role-admin" value="Admin">Quản trị viên</option>
+                <option key="filter-role-manager" value="Quản lý">Quản lý</option>
+                <option key="filter-role-staff" value="Nhân viên">Nhân viên</option>
               </select>
             </div>
             <div className="flex items-center space-x-2">
@@ -446,10 +446,10 @@ const UserManagement = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               >
-                <option value="all">Tất cả trạng thái</option>
-                <option value="Hoạt động">Hoạt động</option>
-                <option value="Tạm khóa">Tạm khóa</option>
-                <option value="Chờ duyệt">Chờ duyệt</option>
+                <option key="filter-status-all" value="all">Tất cả trạng thái</option>
+                <option key="filter-status-active" value="Hoạt động">Hoạt động</option>
+                <option key="filter-status-locked" value="Tạm khóa">Tạm khóa</option>
+                <option key="filter-status-pending" value="Chờ duyệt">Chờ duyệt</option>
               </select>
             </div>
           </div>
@@ -483,8 +483,8 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
+              {filteredUsers.map((user, index) => (
+                <tr key={`user-${user.type}-${user.id}-${index}`} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -534,6 +534,7 @@ const UserManagement = () => {
                     <div className="flex space-x-2">
                       {user.type === 'customer' && (
                         <button
+                          key={`promote-${user.type}-${user.id}`}
                           onClick={() => handlePromoteToEmployee(user)}
                           className="text-green-600 hover:text-green-900"
                           title="Thăng chức thành nhân viên"
@@ -543,6 +544,7 @@ const UserManagement = () => {
                       )}
                       {user.type === 'employee' && (
                         <button
+                          key={`edit-${user.type}-${user.id}`}
                           onClick={() => handleUpdateRole(user)}
                           className="text-blue-600 hover:text-blue-900"
                           title="Cập nhật vai trò"
@@ -551,6 +553,7 @@ const UserManagement = () => {
                         </button>
                       )}
                       <button
+                        key={`delete-${user.type}-${user.id}`}
                         onClick={() => handleDelete(user)}
                         className="text-red-600 hover:text-red-900"
                         title="Xóa"
@@ -655,11 +658,11 @@ const UserManagement = () => {
                   {...register('role', { required: 'Vai trò là bắt buộc' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
-                  <option value="">Chọn vai trò</option>
-                  <option value="Admin">Quản trị viên</option>
-                  <option value="Quản lý">Quản lý</option>
-                  <option value="Nhân viên">Nhân viên</option>
-                  <option value="Khách hàng">Khách hàng</option>
+                  <option key="role-empty" value="">Chọn vai trò</option>
+                  <option key="role-admin" value="Admin">Quản trị viên</option>
+                  <option key="role-manager" value="Quản lý">Quản lý</option>
+                  <option key="role-staff" value="Nhân viên">Nhân viên</option>
+                  <option key="role-customer" value="Khách hàng">Khách hàng</option>
                 </select>
                 {errors.role && (
                   <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
@@ -692,9 +695,9 @@ const UserManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   defaultValue="Hoạt động"
                 >
-                  <option value="Hoạt động">Hoạt động</option>
-                  <option value="Tạm khóa">Tạm khóa</option>
-                  <option value="Chờ duyệt">Chờ duyệt</option>
+                  <option key="status-active" value="Hoạt động">Hoạt động</option>
+                  <option key="status-locked" value="Tạm khóa">Tạm khóa</option>
+                  <option key="status-pending" value="Chờ duyệt">Chờ duyệt</option>
                 </select>
               </div>
 

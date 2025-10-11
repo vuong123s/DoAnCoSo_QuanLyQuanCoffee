@@ -245,10 +245,12 @@ const getBillingStats = async (req, res) => {
   }
 };
 
-// Delete order (soft delete by updating status) - DonHang schema
+// Delete order - DonHang schema
 const deleteOrder = async (req, res) => {
   try {
+    console.log('🗑️ deleteOrder called with ID:', req.params.id);
     const { id } = req.params;
+    const { force } = req.query; // ?force=true to permanently delete
 
     const order = await DonHang.findByPk(id);
     if (!order) {
@@ -258,19 +260,32 @@ const deleteOrder = async (req, res) => {
       });
     }
 
-    if (order.TrangThai === 'Hoàn thành') {
-      return res.status(400).json({
-        error: 'Cannot delete a completed order',
-        message: 'Không thể xóa đơn hàng đã hoàn thành. Bạn có thể đánh dấu đơn hàng là "Đã hủy" thay vì xóa.',
-        suggestion: 'Bạn có thể cập nhật trạng thái thành "Đã hủy" thay vì xóa đơn hàng.'
+    if (force === 'true') {
+      // Hard delete: Remove from database completely
+      console.log('🗑️ Hard deleting order:', id);
+      
+      // Delete order items first (foreign key constraint)
+      await CTDonHang.destroy({ where: { MaDH: id } });
+      
+      // Then delete the order
+      await order.destroy();
+      
+      res.json({
+        message: 'Order permanently deleted successfully',
+        deleted: true
+      });
+    } else {
+      // Soft delete: Update status to "Đã hủy" (works for all statuses)
+      console.log('🗑️ Soft deleting order:', id, 'Current status:', order.TrangThai);
+      
+      await order.update({ TrangThai: 'Đã hủy' });
+      
+      res.json({
+        message: 'Order cancelled successfully',
+        cancelled: true,
+        previousStatus: order.TrangThai
       });
     }
-
-    await order.update({ TrangThai: 'Đã hủy' });
-
-    res.json({
-      message: 'Order cancelled successfully'
-    });
 
   } catch (error) {
     console.error('Error deleting order:', error);

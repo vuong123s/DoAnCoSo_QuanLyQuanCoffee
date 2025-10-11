@@ -1,5 +1,6 @@
 import { LuShoppingCart } from "react-icons/lu";
 import { FiPlus } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 
 function ProductCard({ 
   id, 
@@ -11,8 +12,10 @@ function ProductCard({
   onAddToCart,
   isAvailable = true,
   featured = false,
-  formatPrice
+  formatPrice,
+  onClick
 }) {
+  const navigate = useNavigate();
   // Safe data handling
   const safeTitle = title || 'Sản phẩm';
   const safePrice = price || 0;
@@ -20,16 +23,28 @@ function ProductCard({
   const safeImg = img || "https://images.unsplash.com/photo-1509042239860-f550ce710b93?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80";
   const safeDescription = description || '';
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (e) => {
+    e.stopPropagation(); // Prevent card click when clicking add to cart
     if (onAddToCart && isAvailable) {
       onAddToCart();
+    }
+  };
+
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick();
+    } else if (id) {
+      navigate(`/product/${id}`);
     }
   };
 
   const displayPrice = formatPrice ? formatPrice(safePrice) : `${safePrice}k`;
 
   return (
-    <div className='group text-[#27272f] mx-2 my-5 relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-all duration-300'>
+    <div 
+      className='group text-[#27272f] mx-2 my-5 relative bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer'
+      onClick={handleCardClick}
+    >
       <div className='relative rounded-t-lg overflow-hidden bg-[#beb996]'>
         <img 
           className='w-full h-48 object-cover group-hover:scale-105 transition-all duration-700 ease-in-out' 
@@ -59,7 +74,7 @@ function ProductCard({
           <button
             onClick={handleAddToCart}
             disabled={!isAvailable}
-            className="flex items-center justify-center w-8 h-8 bg-amber-600 text-white rounded-full hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center w-8 h-8 bg-amber-600 text-white rounded-full hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed z-10 relative"
           >
             <FiPlus className="w-4 h-4" />
           </button>

@@ -3,7 +3,6 @@ import { toast } from 'react-hot-toast';
 import { FiSearch, FiPlus, FiRefreshCw, FiClock, FiMapPin, FiTrash2, FiMinus, FiEdit3 } from 'react-icons/fi';
 import { billingAPI, menuAPI, tableAPI } from '../../shared/services/api';
 import LoadingSpinner from '../../components/common/ui/LoadingSpinner';
-import SalesStats from '../../components/SalesStats';
 import { useAuthStore } from '../../app/stores/authStore';
 
 // Sales Management Component - Updated with 3-column layout
@@ -57,39 +56,6 @@ const SalesManagement = () => {
     }
   }, [user]);
 
-  // Test billing service connection
-  const testBillingConnection = async () => {
-    try {
-      const response = await fetch('http://localhost:3004/api/billing/test');
-      const result = await response.json();
-      if (result.success) {
-        toast.success('Billing service đang hoạt động!');
-      }
-    } catch (error) {
-      console.error('Error testing billing connection:', error);
-      toast.error('Không thể kết nối đến Billing service (port 3004)');
-    }
-  };
-
-  // Create sample orders for testing
-  const createSampleOrders = async () => {
-    try {
-      const response = await fetch('http://localhost:3004/api/billing/create-sample-orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success('Tạo đơn hàng mẫu thành công');
-        fetchData(); // Refresh data
-      }
-    } catch (error) {
-      console.error('Error creating sample orders:', error);
-      toast.error('Lỗi khi tạo đơn hàng mẫu - Kiểm tra Billing service');
-    }
-  };
 
   const fetchData = async () => {
     try {
@@ -623,31 +589,7 @@ const SalesManagement = () => {
           <h1 className="text-2xl font-bold text-gray-900">Giao diện bán hàng</h1>
           <p className="text-gray-600">Quản lý đơn hàng và bán hàng tại quầy</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={testBillingConnection}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
-          >
-            Test Billing
-          </button>
-          <button
-            onClick={createSampleOrders}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-          >
-            Tạo đơn mẫu
-          </button>
-          <button
-            onClick={fetchData}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-          >
-            <FiRefreshCw className="w-4 h-4 mr-2 inline" />
-            Làm mới
-          </button>
-        </div>
       </div>
-
-      {/* Sales Statistics */}
-      <SalesStats />
 
       <div className="bg-white rounded-lg shadow-sm border p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

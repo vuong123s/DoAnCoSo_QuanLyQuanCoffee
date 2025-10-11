@@ -94,26 +94,63 @@ const OrderManagement = () => {
     setShowDetailModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa đơn hàng này?')) {
-      try {
-        await billingAPI.deleteOrder(id);
-        toast.success('Xóa đơn hàng thành công');
-        fetchData();
-      } catch (error) {
-        console.error('Delete error:', error);
+  const handleDelete = async (id, order) => {
+    // Show different options based on order status
+    const isCompleted = order?.TrangThai === 'Hoàn thành';
+    const isCancelled = order?.TrangThai === 'Đã hủy';
+    
+    let confirmMessage = '';
+    if (isCancelled) {
+      confirmMessage = 'Đơn hàng này đã bị hủy. Bạn có muốn xóa vĩnh viễn khỏi database không?';
+    } else if (isCompleted) {
+      confirmMessage = 'Đơn hàng này đã hoàn thành. Bạn muốn:\n\nOK - Hủy đơn hàng (chuyển thành "Đã hủy")\nCancel - Không làm gì';
+    } else {
+      confirmMessage = 'Bạn muốn hủy đơn hàng này không?\n\n(Trạng thái sẽ chuyển thành "Đã hủy")';
+    }
+    
+    const confirmed = window.confirm(confirmMessage);
+    if (!confirmed) return;
+    
+    // For cancelled orders, ask if user wants permanent deletion
+    let permanentDelete = false;
+    if (isCancelled) {
+      permanentDelete = window.confirm(
+        'Bạn có chắc chắn muốn XÓA VĨNH VIỄN đơn hàng này khỏi database?\n\n⚠️ CUNG ĐẤU: Hành động này không thể hoàn tác!'
+      );
+    }
+    
+    try {
+      if (permanentDelete) {
+        // Hard delete with force=true
+        const response = await fetch(`http://localhost:3004/api/billing/${id}?force=true`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
         
-        // Handle different error scenarios
-        if (error.response?.status === 404) {
-          toast.error('Đơn hàng không tồn tại hoặc đã bị xóa. Đang làm mới danh sách...');
-          fetchData(); // Auto-refresh to remove stale data
-        } else if (error.response?.status === 400) {
-          const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Không thể xóa đơn hàng này';
-          toast.error(errorMessage);
+        if (response.ok) {
+          toast.success('🗑️ Xóa vĩnh viễn đơn hàng thành công');
         } else {
-          const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi xóa đơn hàng';
-          toast.error(errorMessage);
+          throw new Error('Failed to delete permanently');
         }
+      } else {
+        // Soft delete (cancel order)
+        await billingAPI.deleteOrder(id);
+        toast.success(isCancelled ? 'Hủy đơn hàng thành công' : 'Chuyển đơn hàng thành "Đã hủy"');
+      }
+      
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Delete error:', error);
+      
+      // Handle different error scenarios
+      if (error.response?.status === 404) {
+        toast.error('Đơn hàng không tồn tại hoặc đã bị xóa. Đang làm mới danh sách...');
+        fetchData(); // Auto-refresh to remove stale data
+      } else {
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi xóa đơn hàng';
+        toast.error(errorMessage);
       }
     }
   };
@@ -398,7 +435,7 @@ const OrderManagement = () => {
                         <FiPrinter className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(orderId)}
+                        onClick={() => handleDelete(orderId, order)}
                         className="text-red-600 hover:text-red-900"
                         title="Xóa"
                       >

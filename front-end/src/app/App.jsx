@@ -12,6 +12,7 @@ import AuthLayout from "../layouts/AuthLayout";
 import Home from "../pages/public/Home";
 // Use the unified Menu page that fetches from API and supports Vietnamese schema
 import Menu from "../pages/public/Menu";
+import ProductDetail from "../pages/public/ProductDetail";
 import About from "../pages/public/About";
 import Contact from "../pages/public/Contact";
 
@@ -61,6 +62,7 @@ function App() {
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Home />} />
             <Route path="menu" element={<Menu />} />
+            <Route path="product/:id" element={<ProductDetail />} />
             <Route path="about" element={<About />} />
             <Route path="contact" element={<Contact />} />
             <Route path="book-table" element={<BookTable />} />
