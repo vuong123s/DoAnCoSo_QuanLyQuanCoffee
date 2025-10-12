@@ -16,6 +16,9 @@ import ProductDetail from "../pages/public/ProductDetail";
 import About from "../pages/public/About";
 import Contact from "../pages/public/Contact";
 
+// Debug Pages
+import MenuDebug from "../pages/debug/MenuDebug";
+
 // Auth Pages
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
@@ -62,6 +65,7 @@ function App() {
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Home />} />
             <Route path="menu" element={<Menu />} />
+            <Route path="menu-debug" element={<MenuDebug />} />
             <Route path="product/:id" element={<ProductDetail />} />
             <Route path="about" element={<About />} />
             <Route path="contact" element={<Contact />} />

@@ -25,23 +25,37 @@ const Menu = () => {
         ]);
         
         // Handle Vietnamese schema response with proper array validation
+        console.log('Categories response:', categoriesResponse.data);
+        console.log('Menu response:', menuResponse.data);
+        
         const categoriesData = Array.isArray(categoriesResponse.data?.categories) 
           ? categoriesResponse.data.categories 
           : Array.isArray(categoriesResponse.data) 
           ? categoriesResponse.data 
           : [];
           
-        const menuData = Array.isArray(menuResponse.data?.items) 
+        const menuData = Array.isArray(menuResponse.data?.menus) 
+          ? menuResponse.data.menus 
+          : Array.isArray(menuResponse.data?.menu_items) 
+          ? menuResponse.data.menu_items 
+          : Array.isArray(menuResponse.data?.items) 
           ? menuResponse.data.items 
           : Array.isArray(menuResponse.data) 
           ? menuResponse.data 
           : [];
+        
+        console.log('Processed categories:', categoriesData);
+        console.log('Processed menu items:', menuData);
         
         setCategories(categoriesData);
         setMenuItems(menuData);
         setFilteredItems(menuData);
       } catch (error) {
         console.error('Error fetching menu data:', error);
+        // Set empty arrays on error to prevent undefined issues
+        setCategories([]);
+        setMenuItems([]);
+        setFilteredItems([]);
       } finally {
         setLoading(false);
       }

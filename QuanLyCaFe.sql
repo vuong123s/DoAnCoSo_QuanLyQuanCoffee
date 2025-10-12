@@ -1328,4 +1328,216 @@ DELIMITER ;
 -- Bật Event Scheduler (cần chạy với quyền admin)
 -- SET GLOBAL event_scheduler = ON;
 
+-- ==============================================
+-- STORED PROCEDURE: LỌC SẢN PHẨM BÁN CHẠY
+-- ==============================================
+
+DELIMITER //
+
+-- ==============================================
+-- 18. PROCEDURE: Lọc sản phẩm bán chạy
+-- ==============================================
+CREATE PROCEDURE LocSanPhamBanChay(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE,
+    IN p_SoLuongTop INT,
+    IN p_LoaiDonHang VARCHAR(20) -- 'TatCa', 'TaiCho', 'Online'
+)
+BEGIN
+    DECLARE v_NgayBatDau DATE DEFAULT CURDATE() - INTERVAL 30 DAY;
+    DECLARE v_NgayKetThuc DATE DEFAULT CURDATE();
+    DECLARE v_SoLuongTop INT DEFAULT 10;
+    
+    -- Xử lý tham số mặc định
+    IF p_NgayBatDau IS NOT NULL THEN
+        SET v_NgayBatDau = p_NgayBatDau;
+    END IF;
+    
+    IF p_NgayKetThuc IS NOT NULL THEN
+        SET v_NgayKetThuc = p_NgayKetThuc;
+    END IF;
+    
+    IF p_SoLuongTop IS NOT NULL AND p_SoLuongTop > 0 THEN
+        SET v_SoLuongTop = p_SoLuongTop;
+    END IF;
+    
+    -- Tạo bảng tạm để tổng hợp dữ liệu
+    DROP TEMPORARY TABLE IF EXISTS temp_san_pham_ban_chay;
+    CREATE TEMPORARY TABLE temp_san_pham_ban_chay (
+        MaMon INT,
+        TenMon VARCHAR(100),
+        TenLoai VARCHAR(100),
+        DonGiaHienTai DECIMAL(12,2),
+        TongSoLuongBan INT,
+        TongDoanhThu DECIMAL(12,2),
+        SoLanDatHang INT,
+        TrungBinhSoLuongMoiDon DECIMAL(10,2),
+        LoaiDonHang VARCHAR(50)
+    );
+    
+    -- Xử lý theo loại đơn hàng
+    IF p_LoaiDonHang = 'TaiCho' OR p_LoaiDonHang IS NULL OR p_LoaiDonHang = 'TatCa' THEN
+        -- Thêm dữ liệu từ đơn hàng tại chỗ
+        INSERT INTO temp_san_pham_ban_chay
+        SELECT 
+            m.MaMon,
+            m.TenMon,
+            lm.TenLoai,
+            m.DonGia as DonGiaHienTai,
+            SUM(ct.SoLuong) as TongSoLuongBan,
+            SUM(ct.ThanhTien) as TongDoanhThu,
+            COUNT(DISTINCT ct.MaDH) as SoLanDatHang,
+            ROUND(AVG(ct.SoLuong), 2) as TrungBinhSoLuongMoiDon,
+            'Tại chỗ' as LoaiDonHang
+        FROM CTDonHang ct
+        JOIN DonHang dh ON ct.MaDH = dh.MaDH
+        JOIN Mon m ON ct.MaMon = m.MaMon
+        LEFT JOIN LoaiMon lm ON m.MaLoai = lm.MaLoai
+        WHERE DATE(dh.NgayLap) BETWEEN v_NgayBatDau AND v_NgayKetThuc
+          AND dh.TrangThai = 'Hoàn thành'
+        GROUP BY m.MaMon, m.TenMon, lm.TenLoai, m.DonGia;
+    END IF;
+    
+    IF p_LoaiDonHang = 'Online' OR p_LoaiDonHang IS NULL OR p_LoaiDonHang = 'TatCa' THEN
+        -- Thêm dữ liệu từ đơn hàng online
+        INSERT INTO temp_san_pham_ban_chay
+        SELECT 
+            m.MaMon,
+            m.TenMon,
+            lm.TenLoai,
+            m.DonGia as DonGiaHienTai,
+            SUM(cto.SoLuong) as TongSoLuongBan,
+            SUM(cto.ThanhTien) as TongDoanhThu,
+            COUNT(DISTINCT cto.MaDHOnline) as SoLanDatHang,
+            ROUND(AVG(cto.SoLuong), 2) as TrungBinhSoLuongMoiDon,
+            'Online' as LoaiDonHang
+        FROM CTDonHangOnline cto
+        JOIN DonHangOnline dho ON cto.MaDHOnline = dho.MaDHOnline
+        JOIN Mon m ON cto.MaMon = m.MaMon
+        LEFT JOIN LoaiMon lm ON m.MaLoai = lm.MaLoai
+        WHERE DATE(dho.NgayDat) BETWEEN v_NgayBatDau AND v_NgayKetThuc
+          AND dho.TrangThai = 'Hoàn thành'
+        GROUP BY m.MaMon, m.TenMon, lm.TenLoai, m.DonGia;
+    END IF;
+    
+    -- Tổng hợp kết quả cuối cùng
+    IF p_LoaiDonHang = 'TatCa' OR p_LoaiDonHang IS NULL THEN
+        -- Tổng hợp tất cả loại đơn hàng
+        SELECT 
+            MaMon,
+            TenMon,
+            TenLoai,
+            DonGiaHienTai,
+            SUM(TongSoLuongBan) as TongSoLuongBan,
+            SUM(TongDoanhThu) as TongDoanhThu,
+            SUM(SoLanDatHang) as TongSoLanDatHang,
+            ROUND(SUM(TongSoLuongBan) / SUM(SoLanDatHang), 2) as TrungBinhSoLuongMoiDon,
+            'Tất cả' as LoaiDonHang,
+            RANK() OVER (ORDER BY SUM(TongSoLuongBan) DESC) as XepHang
+        FROM temp_san_pham_ban_chay
+        GROUP BY MaMon, TenMon, TenLoai, DonGiaHienTai
+        ORDER BY TongSoLuongBan DESC
+        LIMIT v_SoLuongTop;
+    ELSE
+        -- Hiển thị theo loại đơn hàng cụ thể
+        SELECT 
+            MaMon,
+            TenMon,
+            TenLoai,
+            DonGiaHienTai,
+            TongSoLuongBan,
+            TongDoanhThu,
+            SoLanDatHang as TongSoLanDatHang,
+            TrungBinhSoLuongMoiDon,
+            LoaiDonHang,
+            RANK() OVER (ORDER BY TongSoLuongBan DESC) as XepHang
+        FROM temp_san_pham_ban_chay
+        ORDER BY TongSoLuongBan DESC
+        LIMIT v_SoLuongTop;
+    END IF;
+    
+    -- Xóa bảng tạm
+    DROP TEMPORARY TABLE temp_san_pham_ban_chay;
+    
+END //
+
+-- ==============================================
+-- 19. PROCEDURE: Báo cáo chi tiết sản phẩm bán chạy theo thời gian
+-- ==============================================
+CREATE PROCEDURE BaoCaoSanPhamBanChayTheoThoiGian(
+    IN p_MaMon INT,
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE,
+    IN p_LoaiThoiGian VARCHAR(10) -- 'NGAY', 'TUAN', 'THANG'
+)
+BEGIN
+    DECLARE v_NgayBatDau DATE DEFAULT CURDATE() - INTERVAL 30 DAY;
+    DECLARE v_NgayKetThuc DATE DEFAULT CURDATE();
+    
+    -- Xử lý tham số mặc định
+    IF p_NgayBatDau IS NOT NULL THEN
+        SET v_NgayBatDau = p_NgayBatDau;
+    END IF;
+    
+    IF p_NgayKetThuc IS NOT NULL THEN
+        SET v_NgayKetThuc = p_NgayKetThuc;
+    END IF;
+    
+    -- Báo cáo theo ngày
+    IF p_LoaiThoiGian = 'NGAY' OR p_LoaiThoiGian IS NULL THEN
+        SELECT 
+            DATE(dh.NgayLap) as NgayBan,
+            m.TenMon,
+            SUM(ct.SoLuong) as SoLuongBan,
+            SUM(ct.ThanhTien) as DoanhThu,
+            COUNT(DISTINCT ct.MaDH) as SoLanDatHang
+        FROM CTDonHang ct
+        JOIN DonHang dh ON ct.MaDH = dh.MaDH
+        JOIN Mon m ON ct.MaMon = m.MaMon
+        WHERE (p_MaMon IS NULL OR ct.MaMon = p_MaMon)
+          AND DATE(dh.NgayLap) BETWEEN v_NgayBatDau AND v_NgayKetThuc
+          AND dh.TrangThai = 'Hoàn thành'
+        GROUP BY DATE(dh.NgayLap), m.MaMon, m.TenMon
+        
+        UNION ALL
+        
+        SELECT 
+            DATE(dho.NgayDat) as NgayBan,
+            m.TenMon,
+            SUM(cto.SoLuong) as SoLuongBan,
+            SUM(cto.ThanhTien) as DoanhThu,
+            COUNT(DISTINCT cto.MaDHOnline) as SoLanDatHang
+        FROM CTDonHangOnline cto
+        JOIN DonHangOnline dho ON cto.MaDHOnline = dho.MaDHOnline
+        JOIN Mon m ON cto.MaMon = m.MaMon
+        WHERE (p_MaMon IS NULL OR cto.MaMon = p_MaMon)
+          AND DATE(dho.NgayDat) BETWEEN v_NgayBatDau AND v_NgayKetThuc
+          AND dho.TrangThai = 'Hoàn thành'
+        GROUP BY DATE(dho.NgayDat), m.MaMon, m.TenMon
+        ORDER BY NgayBan DESC, SoLuongBan DESC;
+    END IF;
+    
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- EXAMPLES SỬ DỤNG PROCEDURES SẢN PHẨM BÁN CHẠY
+-- ==============================================
+
+-- Ví dụ 1: Top 10 sản phẩm bán chạy nhất trong 30 ngày qua (tất cả loại đơn hàng)
+-- CALL LocSanPhamBanChay(DATE_SUB(CURDATE(), INTERVAL 30 DAY), CURDATE(), 10, 'TatCa');
+
+-- Ví dụ 2: Top 5 sản phẩm bán chạy nhất chỉ đơn hàng tại chỗ
+-- CALL LocSanPhamBanChay('2024-01-01', '2024-01-31', 5, 'TaiCho');
+
+-- Ví dụ 3: Top 15 sản phẩm bán chạy nhất chỉ đơn hàng online
+-- CALL LocSanPhamBanChay('2024-01-01', CURDATE(), 15, 'Online');
+
+-- Ví dụ 4: Báo cáo chi tiết sản phẩm theo ngày
+-- CALL BaoCaoSanPhamBanChayTheoThoiGian(1, '2024-01-01', '2024-01-31', 'NGAY');
+
+-- Ví dụ 5: Báo cáo tất cả sản phẩm theo ngày
+-- CALL BaoCaoSanPhamBanChayTheoThoiGian(NULL, '2024-01-01', '2024-01-31', 'NGAY');
+
 DELIMITER ;
