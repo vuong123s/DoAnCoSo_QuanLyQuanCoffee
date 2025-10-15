@@ -1,6 +1,8 @@
 import { LuShoppingCart } from "react-icons/lu";
 import { FiPlus } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import AddToCartModal from "../modal/AddToCartModal";
 
 function ProductCard({ 
   id, 
@@ -13,9 +15,11 @@ function ProductCard({
   isAvailable = true,
   featured = false,
   formatPrice,
-  onClick
+  onClick,
+  product // Add product prop for modal
 }) {
   const navigate = useNavigate();
+  const [showAddToCartModal, setShowAddToCartModal] = useState(false);
   // Safe data handling
   const safeTitle = title || 'Sản phẩm';
   const safePrice = price || 0;
@@ -25,8 +29,14 @@ function ProductCard({
 
   const handleAddToCart = (e) => {
     e.stopPropagation(); // Prevent card click when clicking add to cart
-    if (onAddToCart && isAvailable) {
-      onAddToCart();
+    if (isAvailable) {
+      if (product) {
+        // Show modal for detailed add to cart
+        setShowAddToCartModal(true);
+      } else if (onAddToCart) {
+        // Fallback to simple add to cart
+        onAddToCart();
+      }
     }
   };
 
@@ -99,6 +109,13 @@ function ProductCard({
           </div>
         </div>
       </div>
+
+      {/* Add to Cart Modal */}
+      <AddToCartModal
+        isOpen={showAddToCartModal}
+        onClose={() => setShowAddToCartModal(false)}
+        product={product}
+      />
     </div>
   );
 }

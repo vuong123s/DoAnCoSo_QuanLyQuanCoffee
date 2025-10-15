@@ -96,6 +96,27 @@ const DonHangOnline = sequelize.define('DonHangOnline', {
   GhiChu: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  // Virtual field for frontend compatibility
+  MaDonHang: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      return this.MaDHOnline;
+    }
+  },
+  // Virtual field for phone number compatibility
+  SoDienThoai: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      return this.SDTKhach;
+    }
+  },
+  // Virtual field for total amount compatibility
+  ThanhTien: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      return this.TongThanhToan;
+    }
   }
 }, {
   tableName: 'DonHangOnline',

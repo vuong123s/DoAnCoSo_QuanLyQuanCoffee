@@ -1541,3 +1541,87 @@ DELIMITER ;
 -- CALL BaoCaoSanPhamBanChayTheoThoiGian(NULL, '2024-01-01', '2024-01-31', 'NGAY');
 
 DELIMITER ;
+CREATE TABLE IF NOT EXISTS Media (
+    MaMedia INT AUTO_INCREMENT PRIMARY KEY,
+    TenFile VARCHAR(255) NOT NULL COMMENT 'Tên file gốc',
+    TenFileHienThi VARCHAR(255) NOT NULL COMMENT 'Tên file hiển thị cho người dùng',
+    DuongDan VARCHAR(500) NOT NULL COMMENT 'Đường dẫn file trên server',
+    URL VARCHAR(500) NOT NULL COMMENT 'URL truy cập file',
+    LoaiMedia ENUM('image', 'video') NOT NULL COMMENT 'Loại media: image hoặc video',
+    KichThuoc BIGINT NOT NULL COMMENT 'Kích thước file (bytes)',
+    DinhDang VARCHAR(20) NOT NULL COMMENT 'Định dạng file (jpg, png, mp4, etc.)',
+    ChieuRong INT NULL COMMENT 'Chiều rộng (pixels) - cho ảnh/video',
+    ChieuCao INT NULL COMMENT 'Chiều cao (pixels) - cho ảnh/video',
+    ThoiLuong INT NULL COMMENT 'Thời lượng (giây) - cho video',
+    MucDich ENUM('main', 'thumbnail', 'gallery', 'banner') NOT NULL DEFAULT 'main' COMMENT 'Mục đích sử dụng media',
+    MaLienKet INT NULL COMMENT 'ID của món ăn hoặc loại món liên kết',
+    LoaiLienKet ENUM('menu', 'category') NULL COMMENT 'Loại đối tượng liên kết',
+    TrangThai ENUM('active', 'inactive', 'processing', 'error') NOT NULL DEFAULT 'active' COMMENT 'Trạng thái media',
+    MoTa TEXT NULL COMMENT 'Mô tả media',
+    ThuTu INT NOT NULL DEFAULT 0 COMMENT 'Thứ tự hiển thị',
+    NgayTao DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    NgayCapNhat DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    NguoiTao VARCHAR(100) NULL COMMENT 'Người tạo media',
+    
+    -- Indexes
+    INDEX idx_ma_lien_ket_loai (MaLienKet, LoaiLienKet),
+    INDEX idx_muc_dich (MucDich),
+    INDEX idx_trang_thai (TrangThai),
+    INDEX idx_ngay_tao (NgayTao)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Thêm sample data cho demo
+INSERT INTO Media (
+    TenFile, TenFileHienThi, DuongDan, URL, LoaiMedia, KichThuoc, DinhDang,
+    ChieuRong, ChieuCao, MucDich, MaLienKet, LoaiLienKet, MoTa, ThuTu, NguoiTao
+) VALUES
+-- Media cho món Americano (MaMon = 1)
+('americano-main.jpg', 'Americano - Ảnh chính', '/uploads/images/menu/americano-main.jpg', 
+ 'http://localhost:3000/uploads/images/menu/americano-main.jpg', 'image', 245760, 'jpg',
+ 800, 600, 'main', 1, 'menu', 'Ảnh chính của món Americano', 1, 'admin'),
+
+('americano-thumb.jpg', 'Americano - Thumbnail', '/uploads/images/menu/americano-thumb.jpg',
+ 'http://localhost:3000/uploads/images/menu/americano-thumb.jpg', 'image', 45760, 'jpg',
+ 300, 300, 'thumbnail', 1, 'menu', 'Thumbnail của món Americano', 1, 'admin'),
+
+-- Media cho danh mục Cà phê (MaLoai = 1)
+('coffee-category.jpg', 'Danh mục Cà phê', '/uploads/images/categories/coffee-category.jpg',
+ 'http://localhost:3000/uploads/images/categories/coffee-category.jpg', 'image', 512000, 'jpg',
+ 1200, 800, 'main', 1, 'category', 'Ảnh đại diện cho danh mục Cà phê', 1, 'admin'),
+
+-- Media cho món Cappuccino (MaMon = 2)
+('cappuccino-gallery-1.jpg', 'Cappuccino - Gallery 1', '/uploads/images/menu/cappuccino-gallery-1.jpg',
+ 'http://localhost:3000/uploads/images/menu/cappuccino-gallery-1.jpg', 'image', 387200, 'jpg',
+ 800, 600, 'gallery', 2, 'menu', 'Ảnh gallery của Cappuccino', 1, 'admin');
+
+-- Kiểm tra dữ liệu đã tạo
+SELECT 
+    m.MaMedia,
+    m.TenFileHienThi,
+    m.LoaiMedia,
+    m.MucDich,
+    m.LoaiLienKet,
+    m.MaLienKet,
+    m.TrangThai,
+    m.NgayTao
+FROM Media m
+ORDER BY m.NgayTao DESC;
+
+-- Thống kê media
+SELECT 
+    'Tổng số media' as ThongKe,
+    COUNT(*) as SoLuong
+FROM Media
+UNION ALL
+SELECT 
+    CONCAT('Media cho ', LoaiLienKet) as ThongKe,
+    COUNT(*) as SoLuong
+FROM Media 
+WHERE LoaiLienKet IS NOT NULL
+GROUP BY LoaiLienKet
+UNION ALL
+SELECT 
+    CONCAT('Media loại ', LoaiMedia) as ThongKe,
+    COUNT(*) as SoLuong
+FROM Media 
+GROUP BY LoaiMedia;

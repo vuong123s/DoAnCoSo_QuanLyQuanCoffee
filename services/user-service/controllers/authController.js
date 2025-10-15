@@ -63,7 +63,7 @@ const register = async (req, res) => {
     });
 
     // Generate tokens for customer
-    const tokens = generateTokens(customer.MaKH, null);
+    const tokens = generateTokens(customer.MaKH, 'customer', 'customer');
 
     // Prepare user data for frontend
     const userData = {
@@ -127,7 +127,7 @@ const login = async (req, res) => {
       }
 
       // Generate tokens with ChucVu as role
-      const tokens = generateTokens(nhanvien.MaNV, nhanvien.ChucVu);
+      const tokens = generateTokens(nhanvien.MaNV, nhanvien.ChucVu, 'employee');
 
       // Prepare user data for frontend
       const userData = {
@@ -164,7 +164,7 @@ const login = async (req, res) => {
       }
       
       // Generate tokens for customer (no ChucVu)
-      const tokens = generateTokens(khachhang.MaKH, null);
+      const tokens = generateTokens(khachhang.MaKH, 'customer', 'customer');
 
       // Prepare user data for frontend
       const userData = {
@@ -275,12 +275,19 @@ const getProfile = async (req, res) => {
         id: khachhang.MaKH,
         name: khachhang.HoTen,
         email: khachhang.Email,
-        chucVu: null, // Khách hàng không có chức vụ
         phone: khachhang.SDT,
-        points: khachhang.DiemTichLuy
+        gender: khachhang.GioiTinh,
+        dateOfBirth: khachhang.NgaySinh,
+        address: khachhang.DiaChi,
+        points: khachhang.DiemTichLuy,
+        registrationDate: khachhang.NgayDangKy,
+        status: khachhang.TrangThai,
+        role: 'customer',
+        chucVu: null // Khách hàng không có chức vụ
       };
 
       return res.json({
+        success: true,
         user: userData
       });
     } else {
@@ -314,44 +321,132 @@ const getProfile = async (req, res) => {
   }
 };
 
-// Update user profile
+// Update user profile (Vietnamese schema)
 const updateProfile = async (req, res) => {
   try {
+    const { userId, role } = req.user;
     const {
+      HoTen,
+      GioiTinh,
+      NgaySinh,
+      SDT,
+      Email,
+      DiaChi,
+      // English fields for backward compatibility
       full_name,
       phone,
       date_of_birth,
       gender,
       address,
-      avatar_url,
-      preferences
+      email
     } = req.body;
 
     const updateData = {};
 
-    if (full_name) updateData.full_name = full_name.trim();
-    if (phone) {
-      if (!validator.isMobilePhone(phone, 'vi-VN')) {
+    // Use Vietnamese fields first, fallback to English
+    if (HoTen || full_name) updateData.HoTen = (HoTen || full_name).trim();
+    if (GioiTinh || gender) updateData.GioiTinh = GioiTinh || gender;
+    if (NgaySinh || date_of_birth) updateData.NgaySinh = NgaySinh || date_of_birth;
+    if (SDT || phone) {
+      const phoneNumber = SDT || phone;
+      // Basic phone validation for Vietnamese numbers
+      if (phoneNumber && !/^[0-9+\-\s()]{10,15}$/.test(phoneNumber.trim())) {
         return res.status(400).json({
           error: 'Invalid phone number format'
         });
       }
-      updateData.phone = phone.trim();
+      updateData.SDT = phoneNumber ? phoneNumber.trim() : null;
     }
-    if (date_of_birth) updateData.date_of_birth = date_of_birth;
-    if (gender) updateData.gender = gender;
-    if (address) updateData.address = address.trim();
-    if (avatar_url) updateData.avatar_url = avatar_url;
-    if (preferences) {
-      updateData.preferences = typeof preferences === 'string' ? preferences : JSON.stringify(preferences);
+    if (Email || email) {
+      const emailAddress = Email || email;
+      if (emailAddress && !validator.isEmail(emailAddress)) {
+        return res.status(400).json({
+          error: 'Invalid email format'
+        });
+      }
+      updateData.Email = emailAddress ? emailAddress.toLowerCase().trim() : null;
     }
+    if (DiaChi || address) updateData.DiaChi = (DiaChi || address).trim();
 
-    await req.user.update(updateData);
+    if (role === 'customer') {
+      // Update customer profile
+      const khachhang = await KhachHang.findByPk(userId);
+      
+      if (!khachhang) {
+        return res.status(404).json({
+          error: 'Customer not found'
+        });
+      }
 
-    res.json({
-      message: 'Profile updated successfully',
-      user: req.user
-    });
+      // Check if email already exists (if changing email)
+      if (updateData.Email && updateData.Email !== khachhang.Email) {
+        const existingCustomer = await KhachHang.findOne({
+          where: {
+            Email: updateData.Email,
+            MaKH: { [Op.ne]: userId }
+          }
+        });
+
+        const existingEmployee = await NhanVien.findOne({
+          where: { Email: updateData.Email }
+        });
+
+        if (existingCustomer || existingEmployee) {
+          return res.status(400).json({
+            error: 'Email already exists'
+          });
+        }
+      }
+
+      await khachhang.update(updateData);
+
+      const userData = {
+        id: khachhang.MaKH,
+        name: khachhang.HoTen,
+        email: khachhang.Email,
+        phone: khachhang.SDT,
+        gender: khachhang.GioiTinh,
+        dateOfBirth: khachhang.NgaySinh,
+        address: khachhang.DiaChi,
+        points: khachhang.DiemTichLuy,
+        role: 'customer'
+      };
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: userData
+      });
+
+    } else {
+      // Update employee profile
+      const nhanvien = await NhanVien.findByPk(userId);
+      
+      if (!nhanvien) {
+        return res.status(404).json({
+          error: 'Employee not found'
+        });
+      }
+
+      await nhanvien.update(updateData);
+
+      const userData = {
+        id: nhanvien.MaNV,
+        name: nhanvien.HoTen,
+        email: nhanvien.Email,
+        phone: nhanvien.SDT,
+        gender: nhanvien.GioiTinh,
+        dateOfBirth: nhanvien.NgaySinh,
+        chucVu: nhanvien.ChucVu,
+        role: 'employee'
+      };
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: userData
+      });
+    }
 
   } catch (error) {
     console.error('Update profile error:', error);

@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { NhanVien, KhachHang } = require('../models/User');
+const { NhanVien, KhachHang } = require('../models');
 
 // Verify JWT token
 const authenticateToken = async (req, res, next) => {
@@ -35,6 +35,7 @@ const authenticateToken = async (req, res, next) => {
 
     // Add user info to request
     req.user = {
+      userId: decoded.userId,
       id: decoded.userId,
       type: userType,
       role: decoded.role || (userType === 'employee' ? user.ChucVu : 'customer'),

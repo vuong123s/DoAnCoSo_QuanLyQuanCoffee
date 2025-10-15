@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { onlineOrderAPI } from '../../shared/services/api';
 import toast from 'react-hot-toast';
 
 const useCartStore = create(
@@ -24,12 +23,27 @@ const useCartStore = create(
             set({ sessionId: currentSessionId });
           }
           
-          // Load cart from server
-          const response = await onlineOrderAPI.getCart(currentSessionId);
-          set({ items: response.data || [] });
+          // Try to load cart from server, but don't fail if server is down
+          try {
+            // Try online order API first, then fallback to cart API
+            let response;
+            try {
+              response = await onlineOrderAPI.getCart(currentSessionId);
+            } catch (onlineError) {
+              console.warn('Online order API unavailable, trying cart API');
+              response = await cartAPI.getCart(currentSessionId);
+            }
+            
+            if (response.data && Array.isArray(response.data)) {
+              set({ items: response.data });
+            }
+          } catch (serverError) {
+            console.warn('Could not load cart from server, using local storage:', serverError.message);
+            // Keep existing local items
+          }
         } catch (error) {
           console.error('Initialize cart error:', error);
-          // If server error, keep local cart
+          // If any error, keep local cart
         } finally {
           set({ loading: false });
         }
@@ -41,6 +55,13 @@ const useCartStore = create(
         try {
           set({ loading: true });
           
+          // Ensure session ID exists
+          let currentSessionId = sessionId;
+          if (!currentSessionId) {
+            currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            set({ sessionId: currentSessionId });
+          }
+          
           // Check if item already exists
           const existingItem = items.find(cartItem => cartItem.MaMon === item.MaMon);
           
@@ -48,17 +69,7 @@ const useCartStore = create(
             // Update quantity
             await get().updateQuantity(item.MaMon, existingItem.SoLuong + quantity);
           } else {
-            // Add new item
-            const cartData = {
-              MaMon: item.MaMon,
-              SoLuong: quantity,
-              GhiChu: '',
-              sessionId: sessionId
-            };
-            
-            await onlineOrderAPI.addToCart(cartData);
-            
-            // Update local state
+            // Add new item to local state first for immediate UI feedback
             const newItem = {
               ...item,
               SoLuong: quantity,
@@ -66,7 +77,23 @@ const useCartStore = create(
             };
             
             set({ items: [...items, newItem] });
-            toast.success(`Đã thêm ${item.TenMon} vào giỏ hàng`);
+            
+            // Try to sync with server (optional - can work offline)
+            try {
+              const cartData = {
+                MaMon: item.MaMon,
+                SoLuong: quantity,
+                GhiChu: '',
+                sessionId: currentSessionId
+              };
+              
+              await onlineOrderAPI.addToCart(cartData);
+            } catch (serverError) {
+              console.warn('Failed to sync with server, keeping local cart:', serverError);
+            }
+            
+            const itemName = item.TenMon || item.name || 'sản phẩm';
+            toast.success(`Đã thêm ${itemName} vào giỏ hàng`);
           }
         } catch (error) {
           console.error('Add to cart error:', error);
@@ -90,16 +117,23 @@ const useCartStore = create(
           const item = items.find(item => item.MaMon === itemId);
           if (!item) return;
           
-          await onlineOrderAPI.updateCartItem(item.MaGioHang, {
-            SoLuong: newQuantity
-          });
-          
-          // Update local state
+          // Update local state first for immediate UI feedback
           const updatedItems = items.map(item =>
             item.MaMon === itemId ? { ...item, SoLuong: newQuantity } : item
           );
-          
           set({ items: updatedItems });
+          
+          // Try to sync with server
+          try {
+            if (item.MaGioHang) {
+              await onlineOrderAPI.updateCartItem(item.MaGioHang, {
+                SoLuong: newQuantity
+              });
+            }
+          } catch (serverError) {
+            console.warn('Failed to sync quantity update with server:', serverError.message);
+            // Keep local changes even if server sync fails
+          }
         } catch (error) {
           console.error('Update quantity error:', error);
           toast.error('Có lỗi khi cập nhật số lượng');
@@ -117,11 +151,19 @@ const useCartStore = create(
           const item = items.find(item => item.MaMon === itemId);
           if (!item) return;
           
-          await onlineOrderAPI.removeFromCart(item.MaGioHang);
-          
-          // Update local state
+          // Update local state first
           const updatedItems = items.filter(item => item.MaMon !== itemId);
           set({ items: updatedItems });
+          
+          // Try to sync with server
+          try {
+            if (item.MaGioHang) {
+              await onlineOrderAPI.removeFromCart(item.MaGioHang);
+            }
+          } catch (serverError) {
+            console.warn('Failed to sync item removal with server:', serverError.message);
+            // Keep local changes even if server sync fails
+          }
           
           toast.success('Đã xóa món khỏi giỏ hàng');
         } catch (error) {
@@ -138,8 +180,18 @@ const useCartStore = create(
         try {
           set({ loading: true });
           
-          await onlineOrderAPI.clearCart(sessionId);
+          // Clear local state first
           set({ items: [] });
+          
+          // Try to sync with server
+          try {
+            if (sessionId) {
+              await onlineOrderAPI.clearCart(sessionId);
+            }
+          } catch (serverError) {
+            console.warn('Failed to sync cart clear with server:', serverError.message);
+            // Keep local changes even if server sync fails
+          }
           
           toast.success('Đã xóa tất cả món khỏi giỏ hàng');
         } catch (error) {
@@ -157,16 +209,23 @@ const useCartStore = create(
           const item = items.find(item => item.MaMon === itemId);
           if (!item) return;
           
-          await onlineOrderAPI.updateCartItem(item.MaGioHang, {
-            GhiChu: note
-          });
-          
-          // Update local state
+          // Update local state first
           const updatedItems = items.map(item =>
             item.MaMon === itemId ? { ...item, GhiChu: note } : item
           );
-          
           set({ items: updatedItems });
+          
+          // Try to sync with server
+          try {
+            if (item.MaGioHang) {
+              await onlineOrderAPI.updateCartItem(item.MaGioHang, {
+                GhiChu: note
+              });
+            }
+          } catch (serverError) {
+            console.warn('Failed to sync note update with server:', serverError.message);
+            // Keep local changes even if server sync fails
+          }
         } catch (error) {
           console.error('Update note error:', error);
           toast.error('Có lỗi khi cập nhật ghi chú');

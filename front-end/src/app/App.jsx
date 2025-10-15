@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { Toaster } from "react-hot-toast";
 import { useEffect } from "react";
 import { useAuthStore } from "./stores/authStore";
+import CartProvider from "../components/providers/CartProvider";
 
 // Layouts
 import MainLayout from "../layouts/MainLayout";
@@ -18,6 +19,11 @@ import Contact from "../pages/public/Contact";
 
 // Debug Pages
 import MenuDebug from "../pages/debug/MenuDebug";
+import ProfileDebug from "../pages/debug/ProfileDebug";
+import CustomerProfileDemo from "../pages/demo/CustomerProfileDemo";
+import RealProfileDemo from "../pages/demo/RealProfileDemo";
+import ProfileGuide from "../pages/demo/ProfileGuide";
+import CartDemo from "../pages/demo/CartDemo";
 
 // Auth Pages
 import Login from "../pages/auth/Login";
@@ -40,6 +46,7 @@ import OnlineOrderManagement from "../pages/admin/OnlineOrderManagement";
 import SalesManagement from "../pages/admin/SalesManagement";
 import UserManagement from "../pages/admin/UserManagement";
 import Analytics from "../pages/admin/Analytics";
+import MediaManagement from "../pages/admin/MediaManagement";
 
 // Components
 import ProtectedRoute from "../components/common/ui/ProtectedRoute";
@@ -58,14 +65,20 @@ function App() {
   }
 
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-50">
+    <CartProvider>
+      <Router>
+        <div className="min-h-screen bg-gray-50">
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Home />} />
             <Route path="menu" element={<Menu />} />
             <Route path="menu-debug" element={<MenuDebug />} />
+            <Route path="profile-debug" element={<ProfileDebug />} />
+            <Route path="profile-demo" element={<CustomerProfileDemo />} />
+            <Route path="real-profile" element={<RealProfileDemo />} />
+            <Route path="profile-guide" element={<ProfileGuide />} />
+            <Route path="cart-demo" element={<CartDemo />} />
             <Route path="product/:id" element={<ProductDetail />} />
             <Route path="about" element={<About />} />
             <Route path="contact" element={<Contact />} />
@@ -101,6 +114,7 @@ function App() {
             <Route path="sales" element={<SalesManagement />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="users" element={<UserManagement />} />
+            <Route path="media" element={<MediaManagement />} />
           </Route>
 
           {/* Redirects */}
@@ -131,8 +145,9 @@ function App() {
             },
           }}
         />
-      </div>
-    </Router>
+        </div>
+      </Router>
+    </CartProvider>
   );
 }
 

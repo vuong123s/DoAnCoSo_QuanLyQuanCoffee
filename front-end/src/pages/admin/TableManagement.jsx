@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { tableAPI } from '../../shared/services/api';
+import { tableAPI, areaAPI } from '../../shared/services/api';
 import TablesByArea from '../../components/tables/TablesByArea';
-import { FiPlus, FiEdit, FiTrash2, FiList, FiMapPin, FiUsers, FiBarChart2 } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiList, FiMapPin, FiUsers, FiBarChart2, FiGrid, FiImage, FiVideo } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const TableManagement = () => {
@@ -12,6 +12,8 @@ const TableManagement = () => {
   const [viewMode, setViewMode] = useState('area'); // 'area', 'list'
   const [showModal, setShowModal] = useState(false);
   const [editingTable, setEditingTable] = useState(null);
+  const [showAreaModal, setShowAreaModal] = useState(false);
+  const [editingArea, setEditingArea] = useState(null);
   const [filters, setFilters] = useState({
     status: '',
     search: ''
@@ -32,6 +34,25 @@ const TableManagement = () => {
     TrangThai: 'Trống'
   });
 
+  const [areaFormData, setAreaFormData] = useState({
+    TenKhuVuc: '',
+    MoTa: '',
+    HinhAnh: '',
+    Video: ''
+  });
+
+  const [selectedFiles, setSelectedFiles] = useState({
+    image: null,
+    video: null
+  });
+
+  const [uploadPreviews, setUploadPreviews] = useState({
+    image: null,
+    video: null
+  });
+
+  const [uploading, setUploading] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -44,7 +65,7 @@ const TableManagement = () => {
     try {
       const [tablesResponse, areasResponse, statsResponse] = await Promise.all([
         tableAPI.getTables(),
-        tableAPI.getAreas(),
+        areaAPI.getAreas(),
         tableAPI.getTableStats()
       ]);
 
@@ -275,6 +296,147 @@ const TableManagement = () => {
     });
   };
 
+  const resetAreaForm = () => {
+    setAreaFormData({
+      TenKhuVuc: '',
+      MoTa: '',
+      HinhAnh: '',
+      Video: ''
+    });
+    setSelectedFiles({ image: null, video: null });
+    setUploadPreviews({ image: null, video: null });
+  };
+
+  // File upload functions
+  const handleFileSelect = (type, file) => {
+    if (!file) return;
+    
+    setSelectedFiles(prev => ({ ...prev, [type]: file }));
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setUploadPreviews(prev => ({ ...prev, [type]: e.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadFile = async (file, type) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'area');
+    formData.append('purpose', type === 'image' ? 'main' : 'video');
+    formData.append('description', `${type} cho khu vực`);
+
+    try {
+      const response = await fetch('http://localhost:3000/api/media/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        return result.data.url;
+      } else {
+        throw new Error(result.error || 'Upload thất bại');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
+    }
+  };
+
+  // Area Management Functions
+  const handleAreaSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setUploading(true);
+
+    try {
+      let finalAreaData = { ...areaFormData };
+      
+      // Upload files if selected
+      if (selectedFiles.image) {
+        toast.loading('Đang upload hình ảnh...', { id: 'upload-image' });
+        const imageUrl = await uploadFile(selectedFiles.image, 'image');
+        finalAreaData.HinhAnh = imageUrl;
+        toast.success('Upload hình ảnh thành công!', { id: 'upload-image' });
+      }
+      
+      if (selectedFiles.video) {
+        toast.loading('Đang upload video...', { id: 'upload-video' });
+        const videoUrl = await uploadFile(selectedFiles.video, 'video');
+        finalAreaData.Video = videoUrl;
+        toast.success('Upload video thành công!', { id: 'upload-video' });
+      }
+
+      // Submit area data (always set TrangThai to 'Hoạt động' by default)
+      finalAreaData.TrangThai = 'Hoạt động';
+      
+      if (editingArea) {
+        const response = await areaAPI.updateArea(editingArea.MaKhuVuc, finalAreaData);
+        if (response.data.success) {
+          toast.success('Cập nhật khu vực thành công');
+        }
+      } else {
+        const response = await areaAPI.createArea(finalAreaData);
+        if (response.data.success) {
+          toast.success('Thêm khu vực thành công');
+        }
+      }
+      
+      setShowAreaModal(false);
+      setEditingArea(null);
+      resetAreaForm();
+      fetchData();
+    } catch (error) {
+      console.error('Area form submission error:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Có lỗi xảy ra';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+      setUploading(false);
+    }
+  };
+
+  const handleAreaEdit = (area) => {
+    setEditingArea(area);
+    setAreaFormData({
+      TenKhuVuc: area.TenKhuVuc,
+      MoTa: area.MoTa || '',
+      HinhAnh: area.HinhAnh || '',
+      Video: area.Video || ''
+    });
+    // Set existing images as previews
+    setUploadPreviews({
+      image: area.HinhAnh || null,
+      video: area.Video || null
+    });
+    setSelectedFiles({ image: null, video: null });
+    setShowAreaModal(true);
+  };
+
+  const handleAreaDelete = async (area) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa khu vực "${area.TenKhuVuc}"?`)) return;
+
+    try {
+      const response = await areaAPI.deleteArea(area.MaKhuVuc);
+      if (response.data.success) {
+        toast.success('Xóa khu vực thành công');
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Delete area error:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Có lỗi xảy ra';
+      
+      if (error.response?.status === 400 && error.response?.data?.table_count > 0) {
+        toast.error(`Không thể xóa khu vực có ${error.response.data.table_count} bàn. Vui lòng xóa tất cả bàn trong khu vực trước.`);
+      } else {
+        toast.error(errorMessage);
+      }
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'Trống': return 'text-green-600 bg-green-100';
@@ -389,20 +551,93 @@ const TableManagement = () => {
           </button>
         </div>
         
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center"
-        >
-          <FiPlus className="w-4 h-4 mr-2" />
-          Thêm bàn
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setShowAreaModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+          >
+            <FiGrid className="w-4 h-4 mr-2" />
+            Thêm khu vực
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center"
+          >
+            <FiPlus className="w-4 h-4 mr-2" />
+            Thêm bàn
+          </button>
+        </div>
       </div>
     </div>
   );
 
   const renderAreaView = () => (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <TablesByArea showReservations={true} />
+    <div className="space-y-6">
+      {/* Area Management Section */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Quản lý khu vực</h2>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {areas.map(area => (
+            <div key={area.MaKhuVuc} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="font-medium text-gray-900">{area.TenKhuVuc}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{area.MoTa || 'Không có mô tả'}</p>
+                </div>
+                <div className="flex space-x-1">
+                  <button
+                    onClick={() => handleAreaEdit(area)}
+                    className="text-blue-600 hover:text-blue-800 p-1"
+                    title="Chỉnh sửa khu vực"
+                  >
+                    <FiEdit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleAreaDelete(area)}
+                    className="text-red-600 hover:text-red-800 p-1"
+                    title="Xóa khu vực"
+                  >
+                    <FiTrash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">
+                  {area.table_count || 0} bàn
+                </span>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  area.TrangThai === 'Hoạt động' 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {area.TrangThai}
+                </span>
+              </div>
+              
+              {area.HinhAnh && (
+                <div className="mt-3">
+                  <img 
+                    src={area.HinhAnh} 
+                    alt={area.TenKhuVuc}
+                    className="w-full h-24 object-cover rounded"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Tables by Area Section */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Bàn theo khu vực</h2>
+        <TablesByArea showReservations={true} />
+      </div>
     </div>
   );
 
@@ -484,11 +719,11 @@ const TableManagement = () => {
       {viewMode === 'area' && renderAreaView()}
       {viewMode === 'list' && renderListView()}
 
-      {/* Modal */}
+      {/* Table Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold mb-6 text-gray-900">
               {editingTable ? 'Chỉnh sửa bàn' : 'Thêm bàn mới'}
             </h2>
             
@@ -577,6 +812,152 @@ const TableManagement = () => {
                   className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
                 >
                   {loading ? 'Đang xử lý...' : (editingTable ? 'Cập nhật' : 'Thêm')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Area Modal */}
+      {showAreaModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold mb-6 text-gray-900">
+              {editingArea ? 'Chỉnh sửa khu vực' : 'Thêm khu vực mới'}
+            </h2>
+            
+            <form onSubmit={handleAreaSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tên khu vực *</label>
+                <input
+                  type="text"
+                  value={areaFormData.TenKhuVuc}
+                  onChange={(e) => setAreaFormData(prev => ({ ...prev, TenKhuVuc: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Ví dụ: Tầng 1 - Khu A"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                <textarea
+                  value={areaFormData.MoTa}
+                  onChange={(e) => setAreaFormData(prev => ({ ...prev, MoTa: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Mô tả chi tiết về khu vực"
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <FiImage className="inline w-4 h-4 mr-1" />
+                  Hình ảnh
+                </label>
+                <div className="space-y-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileSelect('image', e.target.files[0])}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                  />
+                  {uploadPreviews.image && (
+                    <div className="relative">
+                      <img 
+                        src={uploadPreviews.image} 
+                        alt="Preview" 
+                        className="w-full h-32 object-cover rounded border"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadPreviews(prev => ({ ...prev, image: null }));
+                          setSelectedFiles(prev => ({ ...prev, image: null }));
+                          if (!editingArea) setAreaFormData(prev => ({ ...prev, HinhAnh: '' }));
+                        }}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <FiTrash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <FiVideo className="inline w-4 h-4 mr-1" />
+                  Video
+                </label>
+                <div className="space-y-3">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => handleFileSelect('video', e.target.files[0])}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                  />
+                  {uploadPreviews.video && (
+                    <div className="relative">
+                      {selectedFiles.video ? (
+                        <video 
+                          src={uploadPreviews.video} 
+                          className="w-full h-32 object-cover rounded border"
+                          controls
+                        />
+                      ) : (
+                        <div className="w-full h-32 bg-gray-100 rounded border flex items-center justify-center">
+                          <div className="text-center">
+                            <FiVideo className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                            <p className="text-sm text-gray-500">Video hiện tại</p>
+                          </div>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadPreviews(prev => ({ ...prev, video: null }));
+                          setSelectedFiles(prev => ({ ...prev, video: null }));
+                          if (!editingArea) setAreaFormData(prev => ({ ...prev, Video: '' }));
+                        }}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <FiTrash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAreaModal(false);
+                    setEditingArea(null);
+                    resetAreaForm();
+                  }}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || uploading}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center"
+                >
+                  {uploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Đang upload...
+                    </>
+                  ) : loading ? (
+                    'Đang xử lý...'
+                  ) : (
+                    editingArea ? 'Cập nhật' : 'Thêm'
+                  )}
                 </button>
               </div>
             </form>

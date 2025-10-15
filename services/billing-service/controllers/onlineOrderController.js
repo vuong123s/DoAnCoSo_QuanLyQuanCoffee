@@ -57,7 +57,7 @@ const createOnlineOrder = async (req, res) => {
           SoLuong: parseInt(item.SoLuong),
           DonGia: parseFloat(item.DonGia),
           ThanhTien: thanhTien,
-          GhiChuMon: item.GhiChuMon || null
+          GhiChu: item.GhiChu || item.GhiChuMon || null
         });
       }
     }
@@ -132,6 +132,7 @@ const getOnlineOrders = async (req, res) => {
     });
 
     res.json({
+      data: rows,
       onlineOrders: rows,
       pagination: {
         current_page: parseInt(page),
@@ -170,6 +171,7 @@ const getOnlineOrderById = async (req, res) => {
     }
 
     res.json({ 
+      data: order,
       order: order 
     });
 

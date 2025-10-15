@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { menuAPI } from '../../shared/services/api';
 import { useForm } from 'react-hook-form';
-import { FiPlus, FiEdit, FiTrash2, FiSearch, FiFilter, FiEye, FiEyeOff, FiPackage } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiSearch, FiFilter, FiPackage } from 'react-icons/fi';
+import MediaUploader from '../../components/common/media/MediaUploader';
 import toast from 'react-hot-toast';
 
 const MenuManagement = () => {
@@ -16,6 +17,8 @@ const MenuManagement = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState('');
+  const [uploadedCategoryImageUrl, setUploadedCategoryImageUrl] = useState('');
 
   const {
     register,
@@ -109,8 +112,36 @@ const MenuManagement = () => {
     setValue('price', item.DonGia);
     setValue('categoryId', item.MaLoai);
     setValue('image', item.HinhAnh);
-    setValue('available', item.TrangThai === 'Có sẵn');
+    setUploadedImageUrl(item.HinhAnh || '');
     setShowModal(true);
+  };
+
+  // Handle upload success
+  const handleUploadSuccess = (uploadResult) => {
+    if (uploadResult && uploadResult.url) {
+      setUploadedImageUrl(uploadResult.url);
+      setValue('image', uploadResult.url);
+      toast.success('Upload ảnh thành công!');
+    }
+  };
+
+  // Handle upload error
+  const handleUploadError = (error) => {
+    toast.error('Lỗi khi upload ảnh: ' + error.message);
+  };
+
+  // Handle category upload success
+  const handleCategoryUploadSuccess = (uploadResult) => {
+    if (uploadResult && uploadResult.url) {
+      setUploadedCategoryImageUrl(uploadResult.url);
+      setValueCategory('HinhAnh', uploadResult.url);
+      toast.success('Upload ảnh danh mục thành công!');
+    }
+  };
+
+  // Handle category upload error
+  const handleCategoryUploadError = (error) => {
+    toast.error('Lỗi khi upload ảnh danh mục: ' + error.message);
   };
 
   const handleDelete = async (id) => {
@@ -158,8 +189,7 @@ const MenuManagement = () => {
         MoTa: data.description,
         DonGia: parseFloat(data.price),
         MaLoai: parseInt(data.categoryId),
-        TrangThai: data.available ? 'Có sẵn' : 'Hết hàng',
-        HinhAnh: data.image || ''
+        HinhAnh: uploadedImageUrl || data.image || ''
       };
 
       if (editingItem) {
@@ -171,6 +201,7 @@ const MenuManagement = () => {
       }
       setShowModal(false);
       setEditingItem(null);
+      setUploadedImageUrl('');
       reset();
       fetchData();
     } catch (error) {
@@ -179,25 +210,6 @@ const MenuManagement = () => {
     }
   };
 
-  const toggleAvailability = async (item) => {
-    try {
-      const currentAvailable = item.TrangThai === 'Có sẵn';
-      const vietnameseData = {
-        TenMon: item.TenMon,
-        MoTa: item.MoTa,
-        DonGia: item.DonGia,
-        MaLoai: item.MaLoai,
-        TrangThai: currentAvailable ? 'Hết hàng' : 'Có sẵn',
-        HinhAnh: item.HinhAnh || ''
-      };
-      
-      await menuAPI.updateMenuItem(item.MaMon, vietnameseData);
-      toast.success('Cập nhật trạng thái thành công');
-      fetchData();
-    } catch (error) {
-      toast.error('Lỗi khi cập nhật trạng thái');
-    }
-  };
 
   // Category management functions
   const handleEditCategory = (category) => {
@@ -205,6 +217,7 @@ const MenuManagement = () => {
     setValueCategory('TenLoai', category.TenLoai);
     setValueCategory('MoTa', category.MoTa);
     setValueCategory('HinhAnh', category.HinhAnh);
+    setUploadedCategoryImageUrl(category.HinhAnh || '');
     setShowCategoryModal(true);
   };
 
@@ -222,15 +235,22 @@ const MenuManagement = () => {
 
   const onSubmitCategory = async (data) => {
     try {
+      // Update data with uploaded image URL
+      const categoryData = {
+        ...data,
+        HinhAnh: uploadedCategoryImageUrl || data.HinhAnh || ''
+      };
+
       if (editingCategory) {
-        await menuAPI.updateCategory(editingCategory.MaLoai, data);
+        await menuAPI.updateCategory(editingCategory.MaLoai, categoryData);
         toast.success('Cập nhật danh mục thành công');
       } else {
-        await menuAPI.createCategory(data);
+        await menuAPI.createCategory(categoryData);
         toast.success('Thêm danh mục mới thành công');
       }
       setShowCategoryModal(false);
       setEditingCategory(null);
+      setUploadedCategoryImageUrl('');
       resetCategory();
       fetchData();
     } catch (error) {
@@ -258,10 +278,12 @@ const MenuManagement = () => {
           onClick={() => {
             if (activeTab === 'menu') {
               setEditingItem(null);
+              setUploadedImageUrl('');
               reset();
               setShowModal(true);
             } else {
               setEditingCategory(null);
+              setUploadedCategoryImageUrl('');
               resetCategory();
               setShowCategoryModal(true);
             }
@@ -376,7 +398,7 @@ const MenuManagement = () => {
                   Giá
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trạng thái
+                  Mô tả
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Thao tác
@@ -389,13 +411,11 @@ const MenuManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <img
-                        src={item.image || 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80'}
-                        alt={item.name}
+                        src={item.HinhAnh}
                         className="w-12 h-12 rounded-lg object-cover mr-4"
                       />
                       <div>
                         <div className="text-sm font-medium text-gray-900">{item.TenMon}</div>
-                        <div className="text-sm text-gray-500 line-clamp-1">{item.MoTa}</div>
                       </div>
                     </div>
                   </td>
@@ -409,27 +429,22 @@ const MenuManagement = () => {
                       {(item.DonGia)?.toLocaleString('vi-VN')}đ
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <button
-                      onClick={() => toggleAvailability(item)}
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        (item.TrangThai !== undefined ? item.TrangThai : item.TrangThai === 'Có sẵn')
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {(item.TrangThai !== undefined ? item.TrangThai : item.TrangThai === 'Có sẵn') ? (
-                        <>
-                          <FiEye className="w-3 h-3 mr-1" />
-                          Có sẵn
-                        </>
-                      ) : (
-                        <>
-                          <FiEyeOff className="w-3 h-3 mr-1" />
-                          Hết hàng
-                        </>
-                      )}
-                    </button>
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-gray-900 max-w-xs">
+                      <p 
+                        className="overflow-hidden" 
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          lineHeight: '1.4em',
+                          maxHeight: '2.8em'
+                        }}
+                        title={item.MoTa}
+                      >
+                        {item.MoTa || 'Chưa có mô tả'}
+                      </p>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -480,8 +495,8 @@ const MenuManagement = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               {editingItem ? 'Chỉnh sửa món' : 'Thêm món mới'}
             </h2>
@@ -512,84 +527,115 @@ const MenuManagement = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Giá *
-                </label>
-                <input
-                  {...register('price', { 
-                    required: 'Giá là bắt buộc',
-                    min: { value: 0, message: 'Giá phải lớn hơn 0' }
-                  })}
-                  type="number"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-                {errors.price && (
-                  <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>
-                )}
+              {/* Giá và Danh mục - 2 cột */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Giá *
+                  </label>
+                  <input
+                    {...register('price', { 
+                      required: 'Giá là bắt buộc',
+                      min: { value: 0, message: 'Giá phải lớn hơn 0' }
+                    })}
+                    type="number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    placeholder="VD: 50000"
+                  />
+                  {errors.price && (
+                    <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Danh mục *
+                  </label>
+                  <select
+                    {...register('categoryId', { required: 'Danh mục là bắt buộc' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  >
+                    <option value="">Chọn danh mục</option>
+                    {categories.map((category, index) => (
+                      <option key={category.MaLoai || index} value={category.MaLoai}>
+                        {category.TenLoai}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.categoryId && (
+                    <p className="mt-1 text-sm text-red-600">{errors.categoryId.message}</p>
+                  )}
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Danh mục *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Hình ảnh món ăn
                 </label>
-                <select
-                  {...register('categoryId', { required: 'Danh mục là bắt buộc' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                >
-                  <option value="">Chọn danh mục</option>
-                  {categories.map((category, index) => (
-                    <option key={category.MaLoai || index} value={category.MaLoai}>
-                      {category.TenLoai}
-                    </option>
-                  ))}
-                </select>
-                {errors.categoryId && (
-                  <p className="mt-1 text-sm text-red-600">{errors.categoryId.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hình ảnh (URL)
-                </label>
+                
+                {/* Hidden input để lưu URL cho form */}
                 <input
                   {...register('image')}
-                  type="url"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  placeholder="https://example.com/image.jpg"
+                  type="hidden"
+                  value={uploadedImageUrl}
                 />
+                
+                {/* Preview ảnh hiện tại */}
+                {uploadedImageUrl && (
+                  <div className="mb-3">
+                    <p className="text-sm text-gray-600 mb-2">Ảnh hiện tại:</p>
+                    <img 
+                      src={uploadedImageUrl} 
+                      alt="Preview" 
+                      className="w-32 h-32 object-cover rounded-lg border shadow-sm"
+                    />
+                  </div>
+                )}
+                
+                {/* MediaUploader component */}
+                <MediaUploader
+                  type="menu"
+                  itemId={editingItem?.MaMon}
+                  purpose="main"
+                  multiple={false}
+                  accept="image/*"
+                  maxSize={10 * 1024 * 1024} // 10MB
+                  onUploadSuccess={handleUploadSuccess}
+                  onUploadError={handleUploadError}
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-4"
+                />
+                
+                <p className="text-xs text-gray-500 mt-2">
+                  Chấp nhận: JPG, PNG, GIF, WebP. Kích thước tối đa: 10MB
+                </p>
               </div>
 
-              <div className="flex items-center space-x-4">
-                <label className="flex items-center">
-                  <input
-                    {...register('available')}
-                    type="checkbox"
-                    className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Có sẵn</span>
-                </label>
-              </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
+              <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 mt-6">
                 <button
                   type="button"
                   onClick={() => {
                     setShowModal(false);
                     setEditingItem(null);
+                    setUploadedImageUrl('');
                     reset();
                   }}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-6 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                  className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors flex items-center space-x-2"
                 >
-                  {isSubmitting ? 'Đang lưu...' : (editingItem ? 'Cập nhật' : 'Thêm mới')}
+                  {isSubmitting && (
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  <span>{isSubmitting ? 'Đang lưu...' : (editingItem ? 'Cập nhật' : 'Thêm mới')}</span>
                 </button>
               </div>
             </form>
@@ -685,7 +731,7 @@ const MenuManagement = () => {
       {/* Category Modal */}
       {showCategoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-lg font-semibold mb-4">
                 {editingCategory ? 'Cập nhật danh mục' : 'Thêm danh mục mới'}
@@ -711,15 +757,45 @@ const MenuManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Hình ảnh (URL)
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hình ảnh danh mục
                   </label>
+                  
+                  {/* Hidden input để lưu URL cho form */}
                   <input
                     {...registerCategory('HinhAnh')}
-                    type="url"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    placeholder="https://example.com/image.jpg"
+                    type="hidden"
+                    value={uploadedCategoryImageUrl}
                   />
+                  
+                  {/* Preview ảnh hiện tại */}
+                  {uploadedCategoryImageUrl && (
+                    <div className="mb-3">
+                      <p className="text-sm text-gray-600 mb-2">Ảnh hiện tại:</p>
+                      <img 
+                        src={uploadedCategoryImageUrl} 
+                        alt="Preview" 
+                        className="w-32 h-32 object-cover rounded-lg border shadow-sm"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* MediaUploader component */}
+                  <MediaUploader
+                    type="category"
+                    itemId={editingCategory?.MaLoai}
+                    purpose="main"
+                    multiple={false}
+                    accept="image/*"
+                    maxSize={10 * 1024 * 1024} // 10MB
+                    onUploadSuccess={handleCategoryUploadSuccess}
+                    onUploadError={handleCategoryUploadError}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4"
+                  />
+                  
+                  <p className="text-xs text-gray-500 mt-2">
+                    Chấp nhận: JPG, PNG, GIF, WebP. Kích thước tối đa: 10MB
+                  </p>
                 </div>
 
                 <div>
@@ -740,6 +816,7 @@ const MenuManagement = () => {
                     onClick={() => {
                       setShowCategoryModal(false);
                       setEditingCategory(null);
+                      setUploadedCategoryImageUrl('');
                       resetCategory();
                     }}
                     className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"

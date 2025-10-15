@@ -10,23 +10,30 @@ const morgan = require('morgan');
 const serviceRegistry = require('./config/serviceRegistry');
 const healthCheck = require('./routes/health');
 const authMiddleware = require('./middleware/auth');
+const mediaRoutes = require('./routes/media');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security middleware - disable CSP for development
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
-}));
+// Disable all security middleware for development
+// app.use(helmet({
+//   contentSecurityPolicy: false,
+//   crossOriginEmbedderPolicy: false
+// }));
 
-// CORS configuration
-app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// Simple CORS configuration - Allow everything for development
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
 
 // Request logging
 app.use(morgan('dev'));
@@ -44,6 +51,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check routes (before rate limiting)
 app.use('/health', healthCheck);
+
+// Media routes (static file serving và upload)
+app.use('/uploads', express.static('uploads')); // Serve static files
+
+app.use('/api/media', mediaRoutes);
 
 // Rate limiting (after health check)
 const limiter = rateLimit({
@@ -175,11 +187,9 @@ app.get('/api/billing-test', (req, res) => {
 app.use('/api/billing', ...requireStaff, createServiceProxy('Billing Service', 3004, true));
 app.use('/api/revenue', ...requireStaff, createServiceProxy('Billing Service', 3004, true)); // Revenue analytics
 
-// Online Order Service
+// Online Order Service (handled by Billing Service)
 console.log('🔧 Setting up Online Order Service proxy...');
-app.use('/api/cart', createServiceProxy('Online Order Service', 3005));
-app.use('/api/online-orders', createServiceProxy('Online Order Service', 3005));
-app.use('/api/order-tracking', createServiceProxy('Online Order Service', 3005));
+app.use('/api/online-orders', createServiceProxy('Billing Service', 3004));
 
 // Voucher Service
 console.log('🔧 Setting up Voucher Service proxy...');
@@ -244,11 +254,7 @@ app.get('/api', (req, res) => {
       },
       billingService: { 
         url: services.billingService.url, 
-        routes: ['/api/billing (staff auth)', '/api/revenue (staff auth)'] 
-      },
-      onlineOrderService: { 
-        url: services.onlineOrderService.url, 
-        routes: ['/api/cart', '/api/online-orders', '/api/order-tracking'] 
+        routes: ['/api/billing (staff auth)', '/api/revenue (staff auth)', '/api/online-orders'] 
       },
       voucherService: { 
         url: services.voucherService.url, 

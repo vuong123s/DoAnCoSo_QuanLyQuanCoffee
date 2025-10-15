@@ -62,15 +62,66 @@ api.interceptors.response.use(
       // Avoid redirect loop if already on auth pages
       if (!currentPath.startsWith('/auth')) {
         localStorage.removeItem('token');
-        // No automatic redirect - let user stay on current page
-        console.log('Token expired, but staying on current page');
+        console.log('Token expired, clearing localStorage');
+        
+        // Show toast notification for token expiration
+        if (typeof window !== 'undefined' && window.location.pathname.includes('/profile')) {
+          // Don't show toast here as it will be handled by the Profile component
+        }
       }
     }
     return Promise.reject(error);
   }
 );
 
-// Auth API
+// User service API (port 3001)
+const userApi = axios.create({
+  baseURL: 'http://localhost:3001',
+  timeout: 5000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add auth token and error handling to all API instances
+const addAuthInterceptor = (apiInstance) => {
+  // Request interceptor for auth token
+  apiInstance.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
+    }
+  );
+
+  // Response interceptor for error handling
+  apiInstance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        const currentPath = window.location.pathname;
+        if (!currentPath.startsWith('/auth')) {
+          localStorage.removeItem('token');
+          console.log('Token expired, clearing localStorage');
+        }
+      }
+      return Promise.reject(error);
+    }
+  );
+};
+
+// Add auth interceptors to all API instances
+addAuthInterceptor(userApi);
+addAuthInterceptor(billingApi);
+addAuthInterceptor(menuApi);
+addAuthInterceptor(tableApi);
+
+// Auth API - Use API Gateway for all auth operations
 export const authAPI = {
   login: (credentials) => api.post('/api/auth/login', credentials),
   register: (userData) => api.post('/api/auth/register', userData),

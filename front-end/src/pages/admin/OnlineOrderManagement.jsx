@@ -23,54 +23,116 @@ const OnlineOrderManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('today');
+  const [dateFilter, setDateFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [serviceError, setServiceError] = useState(null);
 
   useEffect(() => {
     fetchOrders();
   }, []);
 
   useEffect(() => {
+    console.log('Orders state changed:', orders);
     filterOrders();
   }, [orders, searchQuery, statusFilter, dateFilter]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
+      setServiceError(null);
       const response = await onlineOrderAPI.getOnlineOrders();
-      setOrders(response.data || []);
+      console.log('Full response:', response);
+      
+      // Try different possible response structures
+      let ordersData = [];
+      if (response.data && Array.isArray(response.data)) {
+        ordersData = response.data;
+      } else if (response.onlineOrders && Array.isArray(response.onlineOrders)) {
+        ordersData = response.onlineOrders;
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        ordersData = response.data.data;
+      } else if (response.data && response.data.onlineOrders && Array.isArray(response.data.onlineOrders)) {
+        ordersData = response.data.onlineOrders;
+      }
+      console.log('Orders data received:', ordersData);
+      console.log('Orders data type:', typeof ordersData);
+      console.log('Is array:', Array.isArray(ordersData));
+      console.log('Sample order:', ordersData[0]);
+      
+      if (Array.isArray(ordersData) && ordersData.length > 0) {
+        console.log('Setting orders:', ordersData);
+        setOrders(ordersData);
+      } else {
+        console.log('No valid orders data, setting empty array');
+        setOrders([]);
+      }
     } catch (error) {
       console.error('Fetch orders error:', error);
-      toast.error('Có lỗi khi tải danh sách đơn hàng');
+      
+      if (error.response?.status === 503) {
+        setServiceError('Dịch vụ đơn hàng online tạm thời không khả dụng. Vui lòng thử lại sau.');
+        toast.error('Dịch vụ đơn hàng online tạm thời không khả dụng');
+      } else if (error.response?.status === 401) {
+        setServiceError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        toast.error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      } else if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
+        setServiceError('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+        toast.error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+      } else {
+        setServiceError('Có lỗi khi tải danh sách đơn hàng: ' + (error.message || 'Lỗi không xác định'));
+        toast.error('Có lỗi khi tải danh sách đơn hàng: ' + (error.message || 'Lỗi không xác định'));
+      }
+      
+      // Set empty array on error
+      setOrders([]);
     } finally {
       setLoading(false);
     }
   };
 
   const filterOrders = () => {
-    let filtered = orders;
+    // Ensure orders is always an array
+    const ordersArray = Array.isArray(orders) ? orders : [];
+    let filtered = ordersArray;
+    
+    console.log('Filtering orders:', {
+      totalOrders: ordersArray.length,
+      searchQuery,
+      statusFilter,
+      dateFilter,
+      ordersState: orders
+    });
+    
+    // If no orders yet, don't filter
+    if (ordersArray.length === 0) {
+      setFilteredOrders([]);
+      return;
+    }
 
     // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(order =>
-        order.MaDonHang.toString().includes(searchQuery) ||
-        order.TenKhach.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.SoDienThoai.includes(searchQuery)
+        (order.MaDonHang || '').toString().includes(searchQuery) ||
+        (order.TenKhach || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (order.SoDienThoai || '').includes(searchQuery)
       );
     }
 
     // Filter by status
     if (statusFilter !== 'all') {
+      console.log('Filtering by status:', statusFilter);
+      const beforeStatusFilter = filtered.length;
       filtered = filtered.filter(order => {
+        console.log('Order status:', order.TrangThai);
         switch (statusFilter) {
           case 'pending':
             return ['Chờ xác nhận', 'Đã xác nhận'].includes(order.TrangThai);
           case 'preparing':
             return order.TrangThai === 'Đang chuẩn bị';
           case 'shipping':
-            return order.TrangThai === 'Đang giao hàng';
+            return order.TrangThai === 'Đang giao hàng' || order.TrangThai === 'Đang giao';
           case 'completed':
             return order.TrangThai === 'Hoàn thành';
           case 'cancelled':
@@ -79,6 +141,7 @@ const OnlineOrderManagement = () => {
             return true;
         }
       });
+      console.log(`Status filter: ${beforeStatusFilter} -> ${filtered.length}`);
     }
 
     // Filter by date
@@ -87,6 +150,7 @@ const OnlineOrderManagement = () => {
       const startOfDay = new Date(today.setHours(0, 0, 0, 0));
       
       filtered = filtered.filter(order => {
+        if (!order.NgayDat) return false;
         const orderDate = new Date(order.NgayDat);
         
         switch (dateFilter) {
@@ -104,6 +168,7 @@ const OnlineOrderManagement = () => {
       });
     }
 
+    console.log('Filtered orders result:', filtered.length);
     setFilteredOrders(filtered);
   };
 
@@ -144,24 +209,62 @@ const OnlineOrderManagement = () => {
   };
 
   const formatCurrency = (amount) => {
+    const numAmount = parseFloat(amount) || 0;
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND'
-    }).format(amount);
+    }).format(numAmount);
   };
 
   const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString('vi-VN');
+    if (!dateString) return 'Không có thông tin';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return date.toLocaleString('vi-VN');
   };
 
   const handleViewDetails = async (orderId) => {
     try {
+      console.log('Fetching order details for ID:', orderId);
       const response = await onlineOrderAPI.getOnlineOrder(orderId);
-      setSelectedOrder(response.data);
+      console.log('Order details response:', response);
+      console.log('Order details data:', response.data);
+      
+      // Try different response structures
+      let orderData = {};
+      if (response.data && typeof response.data === 'object') {
+        if (response.data.data) {
+          orderData = response.data.data;
+        } else if (response.data.order) {
+          orderData = response.data.order;
+        } else {
+          orderData = response.data;
+        }
+      } else if (response.order) {
+        orderData = response.order;
+      }
+      
+      console.log('Final order data:', orderData);
+      console.log('Order data keys:', Object.keys(orderData));
+      console.log('Order items:', orderData.items || orderData.chitiet);
+      if ((orderData.items || orderData.chitiet) && (orderData.items || orderData.chitiet).length > 0) {
+        console.log('Sample item:', (orderData.items || orderData.chitiet)[0]);
+        console.log('Sample item keys:', Object.keys((orderData.items || orderData.chitiet)[0]));
+      }
+      setSelectedOrder(orderData);
       setShowDetails(true);
     } catch (error) {
       console.error('Fetch order details error:', error);
-      toast.error('Không thể tải chi tiết đơn hàng');
+      
+      if (error.response?.status === 503) {
+        toast.error('Dịch vụ đơn hàng online tạm thời không khả dụng');
+      } else if (error.response?.status === 401) {
+        toast.error('Không có quyền xem chi tiết đơn hàng');
+      } else if (error.response?.status === 404) {
+        toast.error('Không tìm thấy đơn hàng này');
+      } else {
+        toast.error('Không thể tải chi tiết đơn hàng: ' + (error.message || 'Lỗi không xác định'));
+      }
     }
   };
 
@@ -184,7 +287,16 @@ const OnlineOrderManagement = () => {
       toast.success('Cập nhật trạng thái thành công');
     } catch (error) {
       console.error('Update status error:', error);
-      toast.error('Có lỗi khi cập nhật trạng thái');
+      
+      if (error.response?.status === 503) {
+        toast.error('Dịch vụ đơn hàng online tạm thời không khả dụng');
+      } else if (error.response?.status === 401) {
+        toast.error('Không có quyền cập nhật trạng thái đơn hàng');
+      } else if (error.response?.status === 404) {
+        toast.error('Không tìm thấy đơn hàng này');
+      } else {
+        toast.error('Có lỗi khi cập nhật trạng thái: ' + (error.message || 'Lỗi không xác định'));
+      }
     } finally {
       setUpdating(false);
     }
@@ -391,12 +503,23 @@ const OnlineOrderManagement = () => {
             </tbody>
           </table>
 
-          {filteredOrders.length === 0 && (
+          {serviceError ? (
+            <div className="text-center py-12">
+              <div className="text-red-500 text-lg mb-4">⚠️ Lỗi kết nối</div>
+              <p className="text-gray-600 mb-4">{serviceError}</p>
+              <button
+                onClick={fetchOrders}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                Thử lại
+              </button>
+            </div>
+          ) : filteredOrders.length === 0 && !loading ? (
             <div className="text-center py-12">
               <div className="text-gray-500 text-lg">Không có đơn hàng nào</div>
               <p className="text-gray-400 mt-2">Thử thay đổi bộ lọc để xem đơn hàng khác</p>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -426,13 +549,13 @@ const OnlineOrderManagement = () => {
                   <div className="space-y-3">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Trạng thái:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.TrangThai)}`}>
-                        {selectedOrder.TrangThai}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.TrangThai || 'Không xác định')}`}>
+                        {selectedOrder.TrangThai || 'Không xác định'}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Loại đơn hàng:</span>
-                      <span className="font-medium">{selectedOrder.LoaiDonHang}</span>
+                      <span className="font-medium">{selectedOrder.LoaiDonHang || 'Không xác định'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Ngày đặt:</span>
@@ -453,16 +576,16 @@ const OnlineOrderManagement = () => {
                   <div className="space-y-3">
                     <div className="flex items-center space-x-2">
                       <FiUser className="w-4 h-4 text-gray-400" />
-                      <span>{selectedOrder.TenKhach}</span>
+                      <span>{selectedOrder.TenKhach || 'Không có thông tin'}</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <FiPhone className="w-4 h-4 text-gray-400" />
-                      <span>{selectedOrder.SoDienThoai}</span>
+                      <span>{selectedOrder.SoDienThoai || selectedOrder.SDTKhach || 'Không có thông tin'}</span>
                     </div>
-                    {selectedOrder.DiaChi && (
+                    {(selectedOrder.DiaChi || selectedOrder.DiaChiGiaoHang) && (
                       <div className="flex items-start space-x-2">
                         <FiMapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                        <span className="text-sm">{selectedOrder.DiaChi}</span>
+                        <span className="text-sm">{selectedOrder.DiaChi || selectedOrder.DiaChiGiaoHang}</span>
                       </div>
                     )}
                   </div>
@@ -484,12 +607,44 @@ const OnlineOrderManagement = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {selectedOrder.items?.map((item, index) => (
+                      {(selectedOrder.items || selectedOrder.chitiet || [])?.map((item, index) => (
                         <tr key={index}>
-                          <td className="px-4 py-2 text-sm font-medium">{item.TenMon}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex-shrink-0 w-12 h-12">
+                                {item.HinhAnh || item.image ? (
+                                  <img 
+                                    src={item.HinhAnh || item.image} 
+                                    alt={item.TenMon || item.name || 'Món ăn'}
+                                    className="w-12 h-12 rounded-lg object-cover"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                <div 
+                                  className={`w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center ${item.HinhAnh || item.image ? 'hidden' : 'flex'}`}
+                                  style={{ display: item.HinhAnh || item.image ? 'none' : 'flex' }}
+                                >
+                                  <FiPackage className="w-6 h-6 text-gray-400" />
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {item.TenMon || item.name || 'Không có tên'}
+                                </div>
+                                {item.MoTa && (
+                                  <div className="text-xs text-gray-500 truncate max-w-xs">
+                                    {item.MoTa}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
                           <td className="px-4 py-2 text-sm">{formatCurrency(item.DonGia)}</td>
                           <td className="px-4 py-2 text-sm">{item.SoLuong}</td>
-                          <td className="px-4 py-2 text-sm font-medium">{formatCurrency(item.DonGia * item.SoLuong)}</td>
+                          <td className="px-4 py-2 text-sm font-medium">{formatCurrency((item.DonGia || 0) * (item.SoLuong || 0))}</td>
                           <td className="px-4 py-2 text-sm text-gray-500">{item.GhiChu || '-'}</td>
                         </tr>
                       ))}
@@ -504,12 +659,12 @@ const OnlineOrderManagement = () => {
                   <div className="space-y-1">
                     <div className="flex justify-between">
                       <span>Tạm tính:</span>
-                      <span>{formatCurrency(selectedOrder.TongTien)}</span>
+                      <span>{formatCurrency(selectedOrder.TongTien || 0)}</span>
                     </div>
-                    {selectedOrder.TienGiam > 0 && (
+                    {(selectedOrder.TienGiam || selectedOrder.GiamGia) > 0 && (
                       <div className="flex justify-between text-green-600">
                         <span>Giảm giá:</span>
-                        <span>-{formatCurrency(selectedOrder.TienGiam)}</span>
+                        <span>-{formatCurrency(selectedOrder.TienGiam || selectedOrder.GiamGia || 0)}</span>
                       </div>
                     )}
                   </div>
@@ -517,7 +672,7 @@ const OnlineOrderManagement = () => {
                 <div className="border-t mt-2 pt-2">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Tổng cộng:</span>
-                    <span className="text-green-600">{formatCurrency(selectedOrder.ThanhTien)}</span>
+                    <span className="text-green-600">{formatCurrency(selectedOrder.ThanhTien || selectedOrder.TongThanhToan || selectedOrder.TongTien || 0)}</span>
                   </div>
                 </div>
               </div>

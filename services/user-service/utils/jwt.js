@@ -5,11 +5,12 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 // Generate access token
-const generateAccessToken = (userId, role) => {
+const generateAccessToken = (userId, role, userType = 'customer') => {
   return jwt.sign(
     { 
       userId, 
       role,
+      userType,
       type: 'access'
     },
     JWT_SECRET,
@@ -30,8 +31,8 @@ const generateRefreshToken = (userId) => {
 };
 
 // Generate both tokens
-const generateTokens = (userId, role) => {
-  const accessToken = generateAccessToken(userId, role);
+const generateTokens = (userId, role, userType = 'customer') => {
+  const accessToken = generateAccessToken(userId, role, userType);
   const refreshToken = generateRefreshToken(userId);
   
   return {

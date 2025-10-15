@@ -156,36 +156,13 @@ const createMenuItem = async (req, res) => {
     }
 
     // Check if category exists
-    const category = await Category.findByPk(maLoai);
+    const category = await LoaiMon.findByPk(maLoai);
     if (!category) {
       return res.status(400).json({
         error: 'Category not found'
       });
     }
 
-    // Validate and parse JSON fields
-    let parsedIngredients = null;
-    let parsedSizeOptions = null;
-
-    if (ingredients) {
-      try {
-        parsedIngredients = typeof ingredients === 'string' ? ingredients : JSON.stringify(ingredients);
-      } catch (err) {
-        return res.status(400).json({
-          error: 'Invalid ingredients format'
-        });
-      }
-    }
-
-    if (size_options) {
-      try {
-        parsedSizeOptions = typeof size_options === 'string' ? size_options : JSON.stringify(size_options);
-      } catch (err) {
-        return res.status(400).json({
-          error: 'Invalid size options format'
-        });
-      }
-    }
 
     const menuItem = await Mon.create({
       TenMon: tenMon,
@@ -245,14 +222,6 @@ const updateMenuItem = async (req, res) => {
       }
     }
 
-    // Handle JSON fields
-    if (updateData.ingredients && typeof updateData.ingredients !== 'string') {
-      updateData.ingredients = JSON.stringify(updateData.ingredients);
-    }
-
-    if (updateData.size_options && typeof updateData.size_options !== 'string') {
-      updateData.size_options = JSON.stringify(updateData.size_options);
-    }
 
     await menuItem.update(updateData);
 
@@ -277,7 +246,6 @@ const deleteMenuItem = async (req, res) => {
   try {
     console.log('🗑️ DELETE request for menu item ID:', req.params.id);
     const { id } = req.params;
-    const { force = false } = req.query; // Allow force delete option
 
     // Validate ID parameter
     if (!id || isNaN(parseInt(id))) {
@@ -294,55 +262,7 @@ const deleteMenuItem = async (req, res) => {
       });
     }
 
-    // Check if menu item is referenced in orders
-    const { sequelize } = require('../config/database');
-    
-    // Check for references in various order tables
-    const references = await Promise.all([
-      // Check CTDonHangOnline (online order details)
-      sequelize.query(
-        'SELECT COUNT(*) as count FROM CTDonHangOnline WHERE MaMon = ?',
-        { replacements: [id], type: sequelize.QueryTypes.SELECT }
-      ),
-      // Check CTDonHang (regular order details)
-      sequelize.query(
-        'SELECT COUNT(*) as count FROM CTDonHang WHERE MaMon = ?',
-        { replacements: [id], type: sequelize.QueryTypes.SELECT }
-      ),
-      // Check CTOrder (order details)
-      sequelize.query(
-        'SELECT COUNT(*) as count FROM CTOrder WHERE MaMon = ?',
-        { replacements: [id], type: sequelize.QueryTypes.SELECT }
-      ),
-      // Check GioHang (shopping cart)
-      sequelize.query(
-        'SELECT COUNT(*) as count FROM GioHang WHERE MaMon = ?',
-        { replacements: [id], type: sequelize.QueryTypes.SELECT }
-      )
-    ]);
-
-    const totalReferences = references.reduce((sum, result) => sum + (result[0]?.count || 0), 0);
-
-    if (totalReferences > 0 && !force) {
-      return res.status(400).json({
-        error: 'Cannot delete menu item',
-        message: `Món ăn này đã được sử dụng trong ${totalReferences} đơn hàng. Không thể xóa để đảm bảo tính toàn vẹn dữ liệu.`,
-        suggestion: 'Bạn có thể đánh dấu món ăn là "Hết hàng" thay vì xóa, hoặc liên hệ quản trị viên để xử lý.',
-        references: totalReferences,
-        canSoftDelete: true
-      });
-    }
-
-    // If force delete is requested, we still can't delete due to foreign key constraints
-    if (force && totalReferences > 0) {
-      return res.status(400).json({
-        error: 'Cannot force delete menu item',
-        message: 'Không thể xóa món ăn này vì ràng buộc khóa ngoại trong cơ sở dữ liệu. Vui lòng đánh dấu là "Hết hàng" thay thế.',
-        suggestion: 'Sử dụng chức năng "Đánh dấu hết hàng" để ẩn món ăn khỏi menu.'
-      });
-    }
-
-    // If no references, proceed with deletion
+    // Try to delete the menu item
     await menuItem.destroy();
 
     res.json({
@@ -379,27 +299,30 @@ const toggleAvailability = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const menuItem = await MenuItem.findByPk(id);
+    const menuItem = await Mon.findByPk(id);
     if (!menuItem) {
       return res.status(404).json({
         error: 'Menu item not found'
       });
     }
 
+    // Toggle between 'Có sẵn' and 'Hết hàng'
+    const newStatus = menuItem.TrangThai === 'Có sẵn' ? 'Hết hàng' : 'Có sẵn';
+    
     await menuItem.update({
-      is_available: !menuItem.is_available
+      TrangThai: newStatus
     });
 
-    const updatedMenuItem = await MenuItem.findByPk(id, {
+    const updatedMenuItem = await Mon.findByPk(id, {
       include: [{
-        model: Category,
-        as: 'category',
-        attributes: ['id', 'name', 'description']
+        model: LoaiMon,
+        as: 'loaimon',
+        attributes: ['MaLoai', 'TenLoai', 'MoTa']
       }]
     });
 
     res.json({
-      message: `Menu item ${updatedMenuItem.is_available ? 'enabled' : 'disabled'} successfully`,
+      message: `Menu item ${newStatus === 'Có sẵn' ? 'enabled' : 'disabled'} successfully`,
       menu_item: updatedMenuItem
     });
 

@@ -34,16 +34,10 @@ const CTDonHangOnline = sequelize.define('CTDonHangOnline', {
     allowNull: false,
     comment: 'SoLuong * DonGia'
   },
-  GhiChuMon: {
-    type: DataTypes.TEXT,
+  GhiChu: {
+    type: DataTypes.STRING(255),
     allowNull: true,
     comment: 'Ghi chú đặc biệt cho món ăn'
-  },
-  TrangThaiMon: {
-    type: DataTypes.STRING(20),
-    allowNull: false,
-    defaultValue: 'Chờ xử lý',
-    comment: 'Chờ xử lý, Đang chuẩn bị, Hoàn thành'
   }
 }, {
   tableName: 'CTDonHangOnline',

@@ -64,65 +64,14 @@ const SalesManagement = () => {
       // Fetch orders from billing service
       const ordersResponse = await billingAPI.getBills();
       
-      // Mock menu data if service is not available
+      // Fetch real data from APIs
       let menuResponse, categoriesResponse, tablesResponse;
       
-      try {
-        menuResponse = await menuAPI.getMenuItems({ TrangThai: 'Còn hàng' });
-      } catch (error) {
-        console.log('Menu service not available, using mock data');
-        toast('Sử dụng dữ liệu menu mẫu (Menu service chưa khả dụng)', { 
-          icon: 'ℹ️',
-          duration: 4000
-        });
-        menuResponse = {
-          data: {
-            menus: [
-              { MaMon: 1, TenMon: 'Americano', DonGia: 35000, MoTa: 'Cà phê Americano đậm đà' },
-              { MaMon: 2, TenMon: 'Cappuccino', DonGia: 45000, MoTa: 'Cà phê Cappuccino ý nguyên chất' },
-              { MaMon: 3, TenMon: 'Bánh mì thịt nướng', DonGia: 35000, MoTa: 'Bánh mì thịt nướng đặc biệt' },
-              { MaMon: 4, TenMon: 'Bánh croissant', DonGia: 40000, MoTa: 'Bánh croissant bơ thơm ngon' },
-              { MaMon: 5, TenMon: 'Chocolate đá xay', DonGia: 45000, MoTa: 'Chocolate đá xay thơm ngon' }
-            ]
-          }
-        };
-      }
+      menuResponse = await menuAPI.getMenuItems({ TrangThai: 'Còn hàng' });
       
-      try {
-        categoriesResponse = await menuAPI.getCategories();
-      } catch (error) {
-        console.log('Categories service not available, using mock data');
-        categoriesResponse = {
-          data: {
-            categories: [
-              { MaLoai: 1, TenLoai: 'Cà phê' },
-              { MaLoai: 2, TenLoai: 'Bánh ngọt' },
-              { MaLoai: 3, TenLoai: 'Đồ uống' }
-            ]
-          }
-        };
-      }
+      categoriesResponse = await menuAPI.getCategories();
       
-      try {
-        tablesResponse = await tableAPI.getTables();
-      } catch (error) {
-        console.log('Table service not available, using mock data');
-        toast('Sử dụng dữ liệu bàn mẫu (Table service chưa khả dụng)', {
-          icon: 'ℹ️',
-          duration: 4000
-        });
-        tablesResponse = {
-          data: {
-            tables: [
-              { MaBan: 1, TenBan: 'Bàn 1', SoChoNgoi: 4, TrangThai: 'Trống' },
-              { MaBan: 2, TenBan: 'Bàn 2', SoChoNgoi: 2, TrangThai: 'Đang sử dụng' },
-              { MaBan: 3, TenBan: 'Bàn 3', SoChoNgoi: 6, TrangThai: 'Trống' },
-              { MaBan: 4, TenBan: 'Bàn 4', SoChoNgoi: 4, TrangThai: 'Trống' },
-              { MaBan: 5, TenBan: 'Bàn 5', SoChoNgoi: 2, TrangThai: 'Trống' }
-            ]
-          }
-        };
-      }
+      tablesResponse = await tableAPI.getTables();
 
       // Get all orders from API
       const allOrders = ordersResponse.data.donhangs || ordersResponse.data.bills || [];
@@ -144,9 +93,9 @@ const SalesManagement = () => {
       
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast.error('Lỗi khi tải dữ liệu');
+      toast.error('Lỗi khi tải dữ liệu: ' + (error.message || 'Không thể kết nối đến server'));
       
-      // Set fallback data on error
+      // Set empty data on error
       setMenuItems([]);
       setFilteredMenuItems([]);
       setCategories([]);
@@ -629,17 +578,48 @@ const SalesManagement = () => {
               
             <div className="mt-4">
               {filteredMenuItems.map(item => (
-                <div key={item.MaMon || item.id} className="flex items-center justify-between p-3 border rounded-lg mb-2 hover:bg-gray-50">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{item.TenMon || item.name}</h3>
-                    <p className="text-sm text-gray-500">{item.MoTa || item.description}</p>
-                    <p className="text-lg font-semibold text-blue-600">
+                <div key={item.MaMon || item.id} className="flex items-center p-3 border rounded-lg mb-3 hover:bg-gray-50 transition-colors">
+                  {/* Menu Item Image */}
+                  <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 mr-3">
+                    {(item.HinhAnh || item.image) ? (
+                      <img
+                        src={item.HinhAnh || item.image}
+                        alt={item.TenMon || item.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div 
+                      className={`w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center ${(item.HinhAnh || item.image) ? 'hidden' : 'flex'}`}
+                    >
+                      <span className="text-blue-600 font-bold text-lg">
+                        {(item.TenMon || item.name)?.charAt(0)?.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Menu Item Info */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-gray-900 truncate">{item.TenMon || item.name}</h3>
+                    <p className="text-sm text-gray-500 mt-1" style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>{item.MoTa || item.description}</p>
+                    <p className="text-lg font-bold text-blue-600 mt-2">
                       {(item.DonGia || item.Gia || item.price)?.toLocaleString('vi-VN')} đ
                     </p>
                   </div>
+                  
+                  {/* Add Button */}
                   <button
                     onClick={() => addToCurrentOrder(item)}
-                    className="ml-3 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    className="ml-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex-shrink-0"
                   >
                     Thêm
                   </button>

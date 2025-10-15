@@ -132,6 +132,31 @@ export const useAuthStore = create(
         const { user } = get();
         return user && user.role === 'admin';
       },
+
+      // Check token validity and refresh user data
+      validateToken: async () => {
+        const { token } = get();
+        if (!token) {
+          set({ user: null, isAuthenticated: false });
+          return false;
+        }
+
+        try {
+          const response = await authAPI.getProfile();
+          if (response.data.success && response.data.user) {
+            set({ user: response.data.user, isAuthenticated: true });
+            return true;
+          }
+        } catch (error) {
+          console.log('Token validation failed:', error.response?.status);
+          if (error.response?.status === 401) {
+            // Token expired or invalid
+            localStorage.removeItem('token');
+            set({ user: null, token: null, isAuthenticated: false });
+          }
+          return false;
+        }
+      },
     }),
     {
       name: 'auth-storage',

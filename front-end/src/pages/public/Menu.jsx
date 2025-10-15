@@ -207,6 +207,7 @@ const Menu = () => {
                   isAvailable={isAvailable}
                   featured={isFeatured}
                   formatPrice={formatCurrency}
+                  product={item} // Pass full product data for modal
                 />
               );
             })}

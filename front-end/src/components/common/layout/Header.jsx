@@ -1,7 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
+import { useState } from "react";
+import CartIcon from "../cart/CartIcon";
+import CartSidebar from "../cart/CartSidebar";
 
 const Header = () => {
   const location = useLocation();
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  
   const navItems = [
     { label: "Trang chủ", path: "/" },
     { label: "Thực đơn", path: "/thuc-don" },
@@ -41,12 +46,10 @@ const Header = () => {
           <img src="./src/assets/img/whitelist-nav.svg" alt="whitelist" />
         </Link> */}
 
-        <Link
-          to="/gio-hang"
+        <CartIcon 
+          onClick={() => setIsCartOpen(true)}
           className="inline-flex items-center justify-center w-[40px] h-[40px] rounded-full bg-[#EEEEEE] hover:shadow-lg transition"
-        >
-          <img className="w-[20px] h-[20px]" src="./src/assets/img/cart-nav.svg" alt="cart" />
-        </Link>
+        />
 
         <Link
           to="/tai-khoan"
@@ -55,6 +58,12 @@ const Header = () => {
           <img className="w-[24px] h-[24px]" src="./src/assets/img/user-nav.png" alt="user" />
         </Link>
       </div>
+
+      {/* Cart Sidebar */}
+      <CartSidebar 
+        isOpen={isCartOpen} 
+        onClose={() => setIsCartOpen(false)} 
+      />
     </nav>
   );
 };

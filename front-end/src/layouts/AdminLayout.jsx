@@ -9,7 +9,7 @@ import {
   FiCoffee, FiTable, FiCreditCard, FiPackage,
   FiSun, FiMoon, FiMaximize2, FiMinimize2, FiX,
   FiChevronDown, FiUser, FiHelpCircle, FiActivity,
-  FiTrendingUp, FiClock, FiStar, FiZap
+  FiTrendingUp, FiClock, FiStar, FiZap, FiImage
 } from 'react-icons/fi';
 
 const AdminLayout = () => {
@@ -84,6 +84,13 @@ const AdminLayout = () => {
           label: 'Đặt bàn', 
           description: 'Quản lý đặt chỗ',
           color: 'from-pink-500 to-pink-600'
+        },
+        { 
+          path: '/admin/media', 
+          icon: FiImage, 
+          label: 'Media', 
+          description: 'Quản lý ảnh & video',
+          color: 'from-violet-500 to-violet-600'
         },
       ]
     },
