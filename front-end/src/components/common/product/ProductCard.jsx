@@ -41,10 +41,14 @@ function ProductCard({
   };
 
   const handleCardClick = () => {
+    console.log('Card clicked - Product ID:', id, 'Type:', typeof id);
     if (onClick) {
       onClick();
     } else if (id) {
+      console.log('Navigating to product detail:', `/product/${id}`);
       navigate(`/product/${id}`);
+    } else {
+      console.warn('No ID provided for navigation');
     }
   };
 

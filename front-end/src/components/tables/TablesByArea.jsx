@@ -3,6 +3,7 @@ import { tableAPI, areaAPI } from '../../shared/services/api';
 import { FiUsers, FiMapPin, FiClock, FiCheck, FiX, FiCamera, FiPlay } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import AreaImageGallery from './AreaImageGallery';
+import VideoModal from './VideoModal';
 
 const TablesByArea = ({ 
   onTableSelect, 
@@ -18,6 +19,8 @@ const TablesByArea = ({
   const [loading, setLoading] = useState(true);
   const [showGallery, setShowGallery] = useState(false);
   const [galleryArea, setGalleryArea] = useState(null);
+  const [showVideo, setShowVideo] = useState(false);
+  const [videoArea, setVideoArea] = useState(null);
 
   // Enhanced area images mapping with fallbacks
   const getAreaImage = (areaName) => {
@@ -194,6 +197,21 @@ const TablesByArea = ({
                 </div>
               </div>
             )}
+            {area.Video && (
+              <div className="absolute top-2 left-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setVideoArea(area);
+                    setShowVideo(true);
+                  }}
+                  className="w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
+                  title="Xem video giới thiệu"
+                >
+                  <FiPlay className="w-4 h-4 text-white ml-0.5" />
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -225,7 +243,10 @@ const TablesByArea = ({
               <div className="flex space-x-2">
                 {selectedArea.Video && (
                   <button 
-                    onClick={() => window.open(selectedArea.Video, '_blank')}
+                    onClick={() => {
+                      setVideoArea(selectedArea);
+                      setShowVideo(true);
+                    }}
                     className="bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition-colors"
                     title="Xem video giới thiệu"
                   >
@@ -344,6 +365,19 @@ const TablesByArea = ({
             setShowGallery(false);
             setGalleryArea(null);
           }}
+        />
+      )}
+
+      {/* Video Modal */}
+      {showVideo && videoArea && (
+        <VideoModal
+          isOpen={showVideo}
+          onClose={() => {
+            setShowVideo(false);
+            setVideoArea(null);
+          }}
+          videoUrl={videoArea.Video}
+          areaName={videoArea.TenKhuVuc}
         />
       )}
     </div>

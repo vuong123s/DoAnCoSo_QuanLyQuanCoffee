@@ -17,7 +17,9 @@ const UserManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [updatingUser, setUpdatingUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const {
@@ -198,6 +200,45 @@ const UserManagement = () => {
         const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi cập nhật vai trò';
         toast.error(errorMessage);
       }
+    }
+  };
+
+  const handleUpdateUser = (user) => {
+    setUpdatingUser(user);
+    setShowUpdateModal(true);
+  };
+
+  const handleUpdateSubmit = async (data) => {
+    try {
+      const updateData = {
+        HoTen: data.name,
+        Email: data.email,
+        SDT: data.phone,
+        DiaChi: data.address,
+        NgaySinh: data.birthDate,
+        ...(updatingUser.type === 'customer' && {
+          GioiTinh: data.gender
+        }),
+        ...(updatingUser.type === 'employee' && {
+          ChucVu: data.role,
+          Luong: parseInt(data.salary) || updatingUser.salary
+        })
+      };
+
+      if (updatingUser.type === 'employee') {
+        await userAPI.updateEmployee(updatingUser.id, updateData);
+      } else {
+        await userAPI.updateCustomer(updatingUser.id, updateData);
+      }
+
+      toast.success(`Cập nhật thông tin cho "${updatingUser.name}" thành công`);
+      setShowUpdateModal(false);
+      setUpdatingUser(null);
+      fetchUsers();
+      fetchStats();
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Lỗi khi cập nhật thông tin';
+      toast.error(errorMessage);
     }
   };
 
@@ -532,26 +573,14 @@ const UserManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      {user.type === 'customer' && (
-                        <button
-                          key={`promote-${user.type}-${user.id}`}
-                          onClick={() => handlePromoteToEmployee(user)}
-                          className="text-green-600 hover:text-green-900"
-                          title="Thăng chức thành nhân viên"
-                        >
-                          <FiShield className="w-4 h-4" />
-                        </button>
-                      )}
-                      {user.type === 'employee' && (
-                        <button
-                          key={`edit-${user.type}-${user.id}`}
-                          onClick={() => handleUpdateRole(user)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Cập nhật vai trò"
-                        >
-                          <FiEdit className="w-4 h-4" />
-                        </button>
-                      )}
+                      <button
+                        key={`update-${user.type}-${user.id}`}
+                        onClick={() => handleUpdateUser(user)}
+                        className="text-blue-600 hover:text-blue-900"
+                        title="Cập nhật thông tin"
+                      >
+                        <FiEdit className="w-4 h-4" />
+                      </button>
                       <button
                         key={`delete-${user.type}-${user.id}`}
                         onClick={() => handleDelete(user)}
@@ -719,6 +748,156 @@ const UserManagement = () => {
                   className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
                 >
                   {isSubmitting ? 'Đang lưu...' : (editingUser ? 'Cập nhật' : 'Thêm mới')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Update User Modal */}
+      {showUpdateModal && updatingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              Cập nhật thông tin - {updatingUser.name}
+            </h2>
+            
+            <form onSubmit={handleSubmit(handleUpdateSubmit)} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Họ tên *
+                </label>
+                <input
+                  type="text"
+                  {...register('name', { required: 'Họ tên là bắt buộc' })}
+                  defaultValue={updatingUser.name}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  {...register('email', { 
+                    required: 'Email là bắt buộc',
+                    pattern: {
+                      value: /^\S+@\S+$/i,
+                      message: 'Email không hợp lệ'
+                    }
+                  })}
+                  defaultValue={updatingUser.email}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Số điện thoại *
+                </label>
+                <input
+                  type="tel"
+                  {...register('phone', { required: 'Số điện thoại là bắt buộc' })}
+                  defaultValue={updatingUser.phone}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Địa chỉ
+                </label>
+                <input
+                  type="text"
+                  {...register('address')}
+                  defaultValue={updatingUser.address || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ngày sinh
+                </label>
+                <input
+                  type="date"
+                  {...register('birthDate')}
+                  defaultValue={updatingUser.birthDate ? new Date(updatingUser.birthDate).toISOString().split('T')[0] : ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {updatingUser.type === 'customer' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Giới tính
+                  </label>
+                  <select
+                    {...register('gender')}
+                    defaultValue={updatingUser.gender || ''}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Chọn giới tính</option>
+                    <option value="Nam">Nam</option>
+                    <option value="Nữ">Nữ</option>
+                    <option value="Khác">Khác</option>
+                  </select>
+                </div>
+              )}
+
+              {updatingUser.type === 'employee' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Chức vụ
+                    </label>
+                    <input
+                      type="text"
+                      {...register('role')}
+                      defaultValue={updatingUser.role || ''}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Lương (VNĐ)
+                    </label>
+                    <input
+                      type="number"
+                      {...register('salary')}
+                      defaultValue={updatingUser.salary || ''}
+                      min="0"
+                      step="100000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUpdateModal(false);
+                    setUpdatingUser(null);
+                    reset();
+                  }}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Đang cập nhật...' : 'Cập nhật'}
                 </button>
               </div>
             </form>

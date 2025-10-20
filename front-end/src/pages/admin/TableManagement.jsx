@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { tableAPI, areaAPI } from '../../shared/services/api';
 import TablesByArea from '../../components/tables/TablesByArea';
-import { FiPlus, FiEdit, FiTrash2, FiList, FiMapPin, FiUsers, FiBarChart2, FiGrid, FiImage, FiVideo } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiList, FiMapPin, FiUsers, FiBarChart2, FiGrid, FiImage, FiVideo, FiSettings, FiX } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const TableManagement = () => {
@@ -9,7 +9,7 @@ const TableManagement = () => {
   const [areas, setAreas] = useState([]);
   const [filteredTables, setFilteredTables] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('area'); // 'area', 'list'
+  const [viewMode, setViewMode] = useState('area'); // 'area', 'list', 'area-management'
   const [showModal, setShowModal] = useState(false);
   const [editingTable, setEditingTable] = useState(null);
   const [showAreaModal, setShowAreaModal] = useState(false);
@@ -63,8 +63,18 @@ const TableManagement = () => {
 
   const fetchData = async () => {
     try {
-      const [tablesResponse, areasResponse, statsResponse] = await Promise.all([
-        tableAPI.getTables(),
+      // Try multiple approaches to get all tables
+      let tablesResponse;
+      try {
+        // First try with high limit and all parameter
+        tablesResponse = await tableAPI.getTables({ limit: 1000, page: 1, all: true });
+      } catch (error) {
+        console.log('First attempt failed, trying without parameters:', error);
+        // Fallback to no parameters
+        tablesResponse = await tableAPI.getTables();
+      }
+      
+      const [areasResponse, statsResponse] = await Promise.all([
         areaAPI.getAreas(),
         tableAPI.getTableStats()
       ]);
@@ -79,6 +89,7 @@ const TableManagement = () => {
       if (tablesResponse.data.success) {
         const tables = tablesResponse.data.tables;
         console.log('Tables from success path:', tables);
+        console.log('Number of tables loaded:', tables?.length || 0);
         setTables(tables);
         setFilteredTables(tables);
         calculateStats(tables);
@@ -97,6 +108,14 @@ const TableManagement = () => {
         }
         
         if (tables) {
+          console.log('Number of tables loaded:', tables?.length || 0);
+          
+          // If we have very few tables, it might be a pagination issue
+          // Let's ensure we show all available tables
+          if (tables.length < 20) {
+            console.log('Warning: Only', tables.length, 'tables loaded. This might be due to pagination.');
+          }
+          
           setTables(tables);
           setFilteredTables(tables);
           calculateStats(tables);
@@ -538,6 +557,13 @@ const TableManagement = () => {
         
         <div className="flex items-center space-x-2">
           <button
+            onClick={() => setViewMode(viewMode === 'area-management' ? 'area' : 'area-management')}
+            className={`p-2 rounded-lg ${viewMode === 'area-management' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100 hover:text-blue-600'} transition-colors`}
+            title="Quản lý khu vực"
+          >
+            <FiSettings className="w-5 h-5" />
+          </button>
+          <button
             onClick={() => setViewMode('area')}
             className={`p-2 rounded-lg ${viewMode === 'area' ? 'bg-amber-100 text-amber-600' : 'text-gray-600 hover:bg-gray-100'}`}
           >
@@ -571,23 +597,31 @@ const TableManagement = () => {
     </div>
   );
 
-  const renderAreaView = () => (
+
+  const renderAreaManagementView = () => (
     <div className="space-y-6">
       {/* Area Management Section */}
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-gray-900">Quản lý khu vực</h2>
+          <button
+            onClick={() => setShowAreaModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+          >
+            <FiPlus className="w-4 h-4 mr-2" />
+            Thêm khu vực
+          </button>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {areas.map(area => (
             <div key={area.MaKhuVuc} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
-                <div>
+                <div className="flex-1">
                   <h3 className="font-medium text-gray-900">{area.TenKhuVuc}</h3>
                   <p className="text-sm text-gray-600 mt-1">{area.MoTa || 'Không có mô tả'}</p>
                 </div>
-                <div className="flex space-x-1">
+                <div className="flex space-x-1 ml-2">
                   <button
                     onClick={() => handleAreaEdit(area)}
                     className="text-blue-600 hover:text-blue-800 p-1"
@@ -605,7 +639,7 @@ const TableManagement = () => {
                 </div>
               </div>
               
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-sm mb-3">
                 <span className="text-gray-600">
                   {area.table_count || 0} bàn
                 </span>
@@ -619,20 +653,48 @@ const TableManagement = () => {
               </div>
               
               {area.HinhAnh && (
-                <div className="mt-3">
+                <div className="mb-3">
                   <img 
                     src={area.HinhAnh} 
                     alt={area.TenKhuVuc}
-                    className="w-full h-24 object-cover rounded"
+                    className="w-full h-32 object-cover rounded"
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
                 </div>
               )}
+              
+              {/* Video and Image indicators */}
+              <div className="flex items-center space-x-2 text-xs text-gray-500">
+                {area.HinhAnh && (
+                  <div className="flex items-center">
+                    <FiImage className="w-3 h-3 mr-1" />
+                    <span>Có hình ảnh</span>
+                  </div>
+                )}
+                {area.Video && (
+                  <div className="flex items-center">
+                    <FiVideo className="w-3 h-3 mr-1" />
+                    <span>Có video</span>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
+        
+        {areas.length === 0 && (
+          <div className="text-center py-12">
+            <FiGrid className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-500 text-lg">Chưa có khu vực nào</p>
+            <p className="text-gray-400 text-sm mt-2">Nhấn "Thêm khu vực" để tạo khu vực đầu tiên</p>
+          </div>
+        )}
       </div>
-      
+    </div>
+  );
+
+  const renderAreaView = () => (
+    <div className="space-y-6">
       {/* Tables by Area Section */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Bàn theo khu vực</h2>
@@ -717,7 +779,9 @@ const TableManagement = () => {
       {renderFilters()}
 
       {viewMode === 'area' && renderAreaView()}
+      {viewMode === 'area-management' && renderAreaManagementView()}
       {viewMode === 'list' && renderListView()}
+
 
       {/* Table Modal */}
       {showModal && (

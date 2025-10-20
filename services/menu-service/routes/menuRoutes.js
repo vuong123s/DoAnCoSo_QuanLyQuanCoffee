@@ -8,25 +8,35 @@ const {
   deleteMenuItem,
   softDeleteMenuItem,
   toggleAvailability,
-  getFeaturedItems
+  getFeaturedItems,
+  getDashboardStats
 } = require('../controllers/menuController');
 
 // Test route for debugging
 router.get('/test', async (req, res) => {
   try {
-    const { Mon } = require('../models');
+    const { Mon, LoaiMon } = require('../models');
     const count = await Mon.count();
+    const availableCount = await Mon.count({ where: { TrangThai: 'Có sẵn' } });
+    const categoryCount = await LoaiMon.count();
+    
     const items = await Mon.findAll({
       where: {
-        TrangThai: 'Còn hàng'
+        TrangThai: 'Có sẵn'
       },
-      order: [['TenMon', 'ASC']]
+      order: [['TenMon', 'ASC']],
+      limit: 5
     });
+    
     res.json({
       success: true,
       message: 'Menu service is working!',
-      total_items: count,
-      available_items: items.length,
+      database_stats: {
+        total_items: count,
+        available_items: availableCount,
+        categories: categoryCount
+      },
+      sample_items: items,
       menus: items,
       menu_items: items
     });
@@ -39,6 +49,9 @@ router.get('/test', async (req, res) => {
     });
   }
 });
+
+// Get dashboard stats
+router.get('/stats/dashboard', getDashboardStats);
 
 // Get featured menu items
 router.get('/featured', getFeaturedItems);

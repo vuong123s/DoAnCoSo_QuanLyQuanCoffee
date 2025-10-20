@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { billingAPI, healthAPI, tableAPI, reservationAPI } from '../../shared/services/api';
+import { billingAPI, healthAPI, tableAPI, reservationAPI, menuAPI } from '../../shared/services/api';
 import { useAuthStore } from '../../app/stores/authStore';
 import { FiTrendingUp, FiUsers, FiShoppingCart, FiDollarSign, FiCoffee, FiCalendar, FiActivity, FiAlertCircle, FiGrid, FiClock } from 'react-icons/fi';
 
@@ -11,6 +11,13 @@ const Dashboard = () => {
     totalOrders: 0,
     totalCustomers: 0,
     averageOrderValue: 0
+  });
+  const [menuStats, setMenuStats] = useState({
+    totalItems: 0,
+    availableItems: 0,
+    unavailableItems: 0,
+    totalCategories: 0,
+    avgPrice: 0
   });
   const [tableStats, setTableStats] = useState({
     total: 0,
@@ -39,41 +46,89 @@ const Dashboard = () => {
         return;
       }
       try {
-        const [billingResponse, tableStatsResponse, reservationStatsResponse] = await Promise.all([
+        console.log('🔄 Fetching dashboard data...');
+        
+        const [billingResponse, tableStatsResponse, reservationStatsResponse, menuStatsResponse] = await Promise.all([
           billingAPI.getBillingStats().catch((err) => {
-            console.warn('Billing API error:', err.message);
+            console.warn('❌ Billing API error:', err.message);
             return { data: { stats: { totalRevenue: 0, totalOrders: 0, totalCustomers: 0, averageOrderValue: 0 } } };
           }),
           tableAPI.getTableStats().catch((err) => {
-            console.warn('Table API error:', err.message);
+            console.warn('❌ Table API error:', err.message);
             return { data: { stats: { total: 0, available: 0, occupied: 0, reserved: 0 } } };
           }),
           reservationAPI.getReservationStats().catch((err) => {
-            console.warn('Reservation API error:', err.message);
+            console.warn('❌ Reservation API error:', err.message);
             return { data: { stats: { total: 0, today: 0, pending: 0, confirmed: 0 } } };
+          }),
+          menuAPI.getDashboardStats().catch((err) => {
+            console.warn('❌ Menu API error:', err.message);
+            return { data: { stats: { menu: { totalItems: 0, availableItems: 0, unavailableItems: 0, totalCategories: 0, avgPrice: 0 } } } };
           })
         ]);
 
-        setStats(billingResponse.data || {
-          totalRevenue: 2450000,
-          totalOrders: 156,
-          totalCustomers: 89,
-          averageOrderValue: 157000
+        console.log('📊 API Responses:');
+        console.log('- Billing:', billingResponse.data);
+        console.log('- Table:', tableStatsResponse.data);
+        console.log('- Reservation:', reservationStatsResponse.data);
+        console.log('- Menu:', menuStatsResponse.data);
+        
+        // Test direct API call to confirm
+        console.log('🧪 Testing direct menu API call...');
+        try {
+          const directTest = await fetch('http://localhost:3000/api/menu/stats/dashboard');
+          const directData = await directTest.json();
+          console.log('🎯 Direct API result:', directData);
+        } catch (err) {
+          console.log('❌ Direct API failed:', err.message);
+        }
+
+        // Always use real data from APIs - no fallback to mock data
+        console.log('🔍 Processing API responses...');
+        
+        // Billing/Sales stats - use real data or zeros
+        const realStats = billingResponse.data?.stats || billingResponse.data;
+        setStats({
+          totalRevenue: realStats?.totalRevenue || 0,
+          totalOrders: realStats?.totalOrders || 0,
+          totalCustomers: realStats?.totalCustomers || 0,
+          averageOrderValue: realStats?.averageOrderValue || 0
+        });
+        console.log('💰 Sales stats set:', {
+          totalRevenue: realStats?.totalRevenue || 0,
+          totalOrders: realStats?.totalOrders || 0
         });
 
-        setTableStats(tableStatsResponse.data.stats || {
-          total: 20,
-          available: 12,
-          occupied: 5,
-          reserved: 3
+        // Table stats - use real data or zeros
+        const realTableStats = tableStatsResponse.data?.stats;
+        setTableStats({
+          total: realTableStats?.total || 0,
+          available: realTableStats?.available || 0,
+          occupied: realTableStats?.occupied || 0,
+          reserved: realTableStats?.reserved || 0
         });
+        console.log('🪑 Table stats set:', realTableStats);
 
-        setReservationStats(reservationStatsResponse.data.stats || {
-          total: 45,
-          today: 8,
-          pending: 3,
-          confirmed: 5
+        // Reservation stats - use real data or zeros
+        const realReservationStats = reservationStatsResponse.data?.stats;
+        setReservationStats({
+          total: realReservationStats?.total || 0,
+          today: realReservationStats?.today || 0,
+          pending: realReservationStats?.pending || 0,
+          confirmed: realReservationStats?.confirmed || 0
         });
+        console.log('📅 Reservation stats set:', realReservationStats);
+
+        // Menu stats - always use real data from API
+        const realMenuStats = menuStatsResponse.data?.stats?.menu || menuStatsResponse.data?.menu;
+        setMenuStats({
+          totalItems: realMenuStats?.totalItems || 0,
+          availableItems: realMenuStats?.availableItems || 0,
+          unavailableItems: realMenuStats?.unavailableItems || 0,
+          totalCategories: realMenuStats?.totalCategories || 0,
+          avgPrice: realMenuStats?.avgPrice || 0
+        });
+        console.log('🍽️ Menu stats set:', realMenuStats);
 
         // setSystemHealth(healthResponse.data || {});
         
@@ -180,6 +235,34 @@ const Dashboard = () => {
       color: 'bg-purple-500'
     }
   ];
+
+  const menuStatCards = [
+    {
+      title: 'Tổng số món',
+      value: (menuStats?.totalItems || 0).toString(),
+      icon: FiCoffee,
+      color: 'bg-purple-500'
+    },
+    {
+      title: 'Món có sẵn',
+      value: (menuStats?.availableItems || 0).toString(),
+      icon: FiCoffee,
+      color: 'bg-green-500'
+    },
+    {
+      title: 'Danh mục',
+      value: (menuStats?.totalCategories || 0).toString(),
+      icon: FiGrid,
+      color: 'bg-blue-500'
+    },
+    {
+      title: 'Giá trung bình',
+      value: (menuStats?.avgPrice ? menuStats.avgPrice.toLocaleString('vi-VN') + 'đ' : '0đ'),
+      icon: FiDollarSign,
+      color: 'bg-amber-500'
+    }
+  ];
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-800';
@@ -263,6 +346,24 @@ const Dashboard = () => {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Thống kê đặt bàn</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {reservationStatCards.map((card, index) => (
+            <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg">
+              <div className={`p-2 rounded-lg ${card.color} mr-3`}>
+                <card.icon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">{card.title}</p>
+                <p className="text-xl font-bold text-gray-900">{card.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Menu Stats Section */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Thống kê thực đơn</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {menuStatCards.map((card, index) => (
             <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg">
               <div className={`p-2 rounded-lg ${card.color} mr-3`}>
                 <card.icon className="w-5 h-5 text-white" />

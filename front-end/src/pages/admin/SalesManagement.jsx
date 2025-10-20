@@ -27,7 +27,6 @@ const SalesManagement = () => {
   // Filter states for orders
   const [orderStatusFilter, setOrderStatusFilter] = useState(''); // All, Đang xử lý, Hoàn thành, Đã hủy
   const [orderDateFilter, setOrderDateFilter] = useState(''); // Today, Yesterday, This week, etc.
-  const [orderEmployeeFilter, setOrderEmployeeFilter] = useState(''); // Filter by employee
   const [filteredOrders, setFilteredOrders] = useState([]);
   
   const [newOrder, setNewOrder] = useState({
@@ -170,13 +169,8 @@ const SalesManagement = () => {
       }
     }
     
-    // Filter by employee
-    if (orderEmployeeFilter) {
-      filtered = filtered.filter(order => (order.MaNV || order.employeeId) == orderEmployeeFilter);
-    }
-    
     setFilteredOrders(filtered);
-  }, [orders, orderStatusFilter, orderDateFilter, orderEmployeeFilter]);
+  }, [orders, orderStatusFilter, orderDateFilter]);
 
   // Calculate total when items change
   useEffect(() => {
@@ -540,7 +534,7 @@ const SalesManagement = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border p-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Menu Section */}
           <div className="border-r border-gray-200 pr-6">
@@ -578,7 +572,7 @@ const SalesManagement = () => {
               
             <div className="mt-4">
               {filteredMenuItems.map(item => (
-                <div key={item.MaMon || item.id} className="flex items-center p-3 border rounded-lg mb-3 hover:bg-gray-50 transition-colors">
+                <div key={item.MaMon || item.id} className="flex items-center p-3 border border-gray-300 rounded-lg mb-3 hover:bg-gray-50 transition-colors">
                   {/* Menu Item Image */}
                   <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 mr-3">
                     {(item.HinhAnh || item.image) ? (
@@ -671,27 +665,12 @@ const SalesManagement = () => {
                   <option value="thismonth">Tháng này</option>
                 </select>
                 
-                {/* Employee Filter */}
-                <select
-                  value={orderEmployeeFilter}
-                  onChange={(e) => setOrderEmployeeFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                >
-                  <option value="">Tất cả nhân viên</option>
-                  <option value="1">NV 1</option>
-                  <option value="2">NV 2</option>
-                  <option value="3">NV 3</option>
-                  <option value="4">NV 4</option>
-                  <option value="5">NV 5</option>
-                </select>
-                
                 {/* Reset Filters Button */}
-                {(orderStatusFilter || orderDateFilter || orderEmployeeFilter) && (
+                {(orderStatusFilter || orderDateFilter) && (
                   <button
                     onClick={() => {
                       setOrderStatusFilter('');
                       setOrderDateFilter('');
-                      setOrderEmployeeFilter('');
                     }}
                     className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm"
                   >
@@ -712,8 +691,8 @@ const SalesManagement = () => {
                 <div
                   key={order.MaDH || order.id}
                   onClick={() => handleSelectOrder(order)}
-                  className={`p-3 border rounded-lg mb-2 cursor-pointer transition-colors ${
-                    selectedOrder && (selectedOrder.MaDH || selectedOrder.id) === (order.MaDH || order.id)
+                  className={`p-3 border border-gray-300 rounded-lg mb-2 cursor-pointer transition-colors ${
+                    selectedOrder && (selectedOrder.MaDH) === (order.MaDH)
                       ? 'border-blue-500 bg-blue-50'
                       : 'hover:bg-gray-50'
                   }`}
@@ -790,7 +769,7 @@ const SalesManagement = () => {
                       </p>
                     ) : (
                       currentOrder.items.map((item, index) => (
-                        <div key={index} className="p-3 border rounded-lg mb-3 bg-gray-50">
+                        <div key={index} className="p-3 border border-gray-300 rounded-lg mb-3 bg-gray-50">
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex-1">
                               <div className="flex items-center justify-between">

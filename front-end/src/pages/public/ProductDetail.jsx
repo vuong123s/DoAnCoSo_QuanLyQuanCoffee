@@ -32,19 +32,46 @@ const ProductDetail = () => {
     const fetchProductDetail = async () => {
       try {
         setLoading(true);
+        console.log('Fetching product with ID:', id);
         
         // Fetch product by MaMon
         const productResponse = await menuAPI.getMenuItem(id);
-        const productData = productResponse.data?.product;
+        console.log('Full API response:', productResponse);
+        console.log('Response data:', productResponse.data);
+        
+        // Try different response structures
+        let productData = null;
+        if (productResponse.data?.menu_item) {
+          productData = productResponse.data.menu_item;
+          console.log('Using data.menu_item structure (backend format)');
+        } else if (productResponse.data?.product) {
+          productData = productResponse.data.product;
+          console.log('Using data.product structure');
+        } else if (productResponse.data?.success && productResponse.data?.data) {
+          productData = productResponse.data.data;
+          console.log('Using data.data structure');
+        } else if (productResponse.data && !productResponse.data.success) {
+          productData = productResponse.data;
+          console.log('Using direct data structure');
+        }
+        
+        console.log('Final product data:', productData);
         
         if (!productData) {
+          console.error('No product data found in response');
           toast.error('Không tìm thấy sản phẩm');
           navigate('/menu');
           return;
         }
         
-        console.log('Product data from API:', productData);
         setProduct(productData);
+        console.log('Product set successfully:', {
+          TenMon: productData.TenMon,
+          DonGia: productData.DonGia,
+          HinhAnh: productData.HinhAnh,
+          TrangThai: productData.TrangThai,
+          MoTa: productData.MoTa
+        });
         
         // Fetch category by MaLoai
         if (productData.MaLoai) {
@@ -61,8 +88,33 @@ const ProductDetail = () => {
         
       } catch (error) {
         console.error('Error fetching product:', error);
-        toast.error('Không thể tải thông tin sản phẩm');
-        navigate('/menu');
+        
+        // Fallback: Try to get product from menu items list
+        try {
+          console.log('Trying fallback: fetching from menu items');
+          const menuResponse = await menuAPI.getMenuItems();
+          const menuItems = menuResponse.data?.menus || menuResponse.data?.menu_items || menuResponse.data?.items || menuResponse.data || [];
+          console.log('Menu items for fallback:', menuItems);
+          
+          const foundProduct = menuItems.find(item => 
+            (item.MaMon && item.MaMon.toString() === id.toString()) ||
+            (item.id && item.id.toString() === id.toString())
+          );
+          
+          if (foundProduct) {
+            console.log('Found product via fallback:', foundProduct);
+            setProduct(foundProduct);
+            toast.success('Đã tải thông tin sản phẩm');
+          } else {
+            console.error('Product not found in menu items either');
+            toast.error('Không thể tải thông tin sản phẩm');
+            navigate('/menu');
+          }
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+          toast.error('Không thể tải thông tin sản phẩm');
+          navigate('/menu');
+        }
       } finally {
         setLoading(false);
       }
@@ -144,8 +196,8 @@ const ProductDetail = () => {
   }
 
   // Kiểm tra trạng thái sản phẩm theo database schema
-  const isAvailable = product.TrangThai === 'Còn bán';
-  const isOutOfStock = product.TrangThai === 'Hết hàng';
+  const isAvailable = product.TrangThai === 'Có sẵn' || product.TrangThai === 'Còn bán' || product.available !== false;
+  const isOutOfStock = product.TrangThai === 'Hết hàng' || product.TrangThai === 'Ngừng bán';
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -191,8 +243,8 @@ const ProductDetail = () => {
             <div className="space-y-4">
               <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 relative">
                 <img
-                  src={product.HinhAnh || "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=500"}
-                  alt={product.TenMon}
+                  src={product.HinhAnh || product.image || product.img || "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=500"}
+                  alt={product.TenMon || product.name || 'Sản phẩm'}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.target.src = "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=500";
@@ -224,7 +276,7 @@ const ProductDetail = () => {
                 )}
                 
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  {product.TenMon}
+                  {product.TenMon || product.name || product.title || 'Sản phẩm'}
                 </h1>
                 
                 <div className="flex items-center space-x-4">
@@ -240,14 +292,14 @@ const ProductDetail = () => {
                     <span className="ml-2 text-gray-600">(4.0)</span>
                   </div>
                   <span className="text-gray-400">•</span>
-                  <span className="text-gray-600">Mã: {product.MaMon}</span>
+                  <span className="text-gray-600">Mã: {product.MaMon || product.id || '#'}</span>
                 </div>
               </div>
 
               {/* Price */}
               <div className="flex items-center space-x-4">
                 <span className="text-3xl font-bold text-amber-600">
-                  {formatCurrency(product.DonGia)}
+                  {formatCurrency(product.DonGia || product.price || 0)}
                 </span>
                 
                 {/* Status Badge */}
@@ -256,19 +308,19 @@ const ProductDetail = () => {
                     ? 'bg-green-100 text-green-800' 
                     : 'bg-red-100 text-red-800'
                 }`}>
-                  {product.TrangThai}
+                  {isAvailable ? 'Có sẵn' : (isOutOfStock ? 'Hết hàng' : 'Không có sẵn')}
                 </span>
               </div>
 
               {/* Description */}
-              {product.MoTa && (
+              {(product.MoTa || product.description) && (
                 <div>
                   <div className="flex items-center space-x-2 mb-3">
                     <FiInfo className="w-5 h-5 text-gray-600" />
                     <h3 className="text-lg font-semibold text-gray-900">Mô tả sản phẩm</h3>
                   </div>
                   <p className="text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-lg">
-                    {product.MoTa}
+                    {product.MoTa || product.description || 'Không có mô tả'}
                   </p>
                 </div>
               )}

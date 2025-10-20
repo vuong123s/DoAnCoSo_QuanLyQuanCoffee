@@ -144,6 +144,7 @@ export const menuAPI = {
   updateCategory: (id, categoryData) => menuApi.put(`/api/categories/${id}`, categoryData),
   deleteCategory: (id) => menuApi.delete(`/api/categories/${id}`),
   getMenuStats: () => menuApi.get('/api/menu/stats'),
+  getDashboardStats: () => api.get('/api/menu/stats/dashboard'),
 };
 
 // Table API - Using Vietnamese schema

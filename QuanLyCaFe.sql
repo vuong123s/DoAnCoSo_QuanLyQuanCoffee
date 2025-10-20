@@ -82,12 +82,14 @@ CREATE TABLE Mon (
 CREATE TABLE DonHang (
     MaDH INT AUTO_INCREMENT PRIMARY KEY,
     MaBan INT,
-    MaNV INT,
+    MaNV INT NULL,               -- Mã nhân viên (có thể null nếu chưa có NV phục vụ)
+    MaKH INT NULL,               -- Mã khách hàng (có thể null cho khách vãng lai)
     NgayLap DATETIME DEFAULT CURRENT_TIMESTAMP,
     TongTien DECIMAL(12,2),
     TrangThai VARCHAR(20),       -- Đang xử lý, Hoàn thành, Đã hủy
     FOREIGN KEY (MaBan) REFERENCES Ban(MaBan),
-    FOREIGN KEY (MaNV) REFERENCES NhanVien(MaNV)
+    FOREIGN KEY (MaNV) REFERENCES NhanVien(MaNV),
+    FOREIGN KEY (MaKH) REFERENCES KhachHang(MaKH)
 );
 
 -- ======================

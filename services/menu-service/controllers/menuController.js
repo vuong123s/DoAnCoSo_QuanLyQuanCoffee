@@ -1,5 +1,6 @@
 const { Mon, LoaiMon } = require('../models');
-const { Op } = require('sequelize');
+const { Op, sequelize } = require('sequelize');
+const { sequelize: dbSequelize } = require('../config/database');
 
 // Get all menu items with optional filters (Vietnamese schema)
 const getMenuItems = async (req, res) => {
@@ -416,6 +417,80 @@ const softDeleteMenuItem = async (req, res) => {
   }
 };
 
+// Get dashboard stats
+const getDashboardStats = async (req, res) => {
+  try {
+    console.log('📊 Fetching dashboard stats...');
+    
+    // Get total menu items
+    const totalMenuItems = await Mon.count();
+    
+    // Get available items
+    const availableItems = await Mon.count({
+      where: { TrangThai: 'Có sẵn' }
+    });
+    
+    // Get unavailable items
+    const unavailableItems = await Mon.count({
+      where: { TrangThai: { [Op.ne]: 'Có sẵn' } }
+    });
+    
+    // Get categories count
+    const totalCategories = await LoaiMon.count();
+    
+    // Get average price
+    const avgPriceResult = await Mon.findOne({
+      attributes: [
+        [dbSequelize.fn('AVG', dbSequelize.col('DonGia')), 'avgPrice']
+      ],
+      where: { TrangThai: 'Có sẵn' }
+    });
+    
+    const avgPrice = avgPriceResult?.dataValues?.avgPrice || 0;
+    
+    // Get price range
+    const priceRange = await Mon.findOne({
+      attributes: [
+        [dbSequelize.fn('MIN', dbSequelize.col('DonGia')), 'minPrice'],
+        [dbSequelize.fn('MAX', dbSequelize.col('DonGia')), 'maxPrice']
+      ],
+      where: { TrangThai: 'Có sẵn' }
+    });
+    
+    const stats = {
+      menu: {
+        totalItems: totalMenuItems,
+        availableItems,
+        unavailableItems,
+        totalCategories,
+        avgPrice: Math.round(avgPrice),
+        minPrice: priceRange?.dataValues?.minPrice || 0,
+        maxPrice: priceRange?.dataValues?.maxPrice || 0
+      },
+      summary: {
+        totalRevenue: 0, // Will be calculated from orders
+        totalOrders: 0,  // Will be calculated from orders
+        totalCustomers: 0, // Will be calculated from users
+        averageOrderValue: 0
+      }
+    };
+    
+    console.log('Dashboard stats:', stats);
+    
+    res.json({
+      success: true,
+      stats
+    });
+    
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({
+      error: 'Failed to fetch dashboard stats',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   getMenuItems,
   getMenuItemById,
@@ -424,5 +499,6 @@ module.exports = {
   deleteMenuItem,
   softDeleteMenuItem,
   toggleAvailability,
-  getFeaturedItems
+  getFeaturedItems,
+  getDashboardStats
 };
