@@ -7,6 +7,7 @@ const billingRoutes = require('./routes/billingRoutes');
 const onlineOrderRoutes = require('./routes/onlineOrderRoutes');
 const revenueRoutes = require('./routes/revenueRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const voucherRoutes = require('./routes/voucherRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3004;
@@ -38,6 +39,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/online-orders', onlineOrderRoutes);
 app.use('/api/revenue', revenueRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/vouchers', voucherRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

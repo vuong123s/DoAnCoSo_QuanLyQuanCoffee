@@ -147,26 +147,30 @@ const Cart = () => {
       return;
     }
 
-    if (orderType === 'delivery') {
-      if (!deliveryInfo.TenKhach || !deliveryInfo.SoDienThoai || !deliveryInfo.DiaChi) {
-        toast.error('Vui lòng điền đầy đủ thông tin giao hàng');
-        return;
-      }
+    // Validate required fields
+    if (!deliveryInfo.TenKhach || !deliveryInfo.SoDienThoai) {
+      toast.error('Vui lòng điền tên khách hàng và số điện thoại');
+      return;
+    }
+
+    if (orderType === 'delivery' && !deliveryInfo.DiaChi) {
+      toast.error('Vui lòng điền địa chỉ giao hàng');
+      return;
     }
 
     setSubmitting(true);
     try {
       const orderData = {
         MaKH: user?.MaKH || null,
-        LoaiDonHang: orderType === 'delivery' ? 'Giao hàng' : 'Tự lấy',
+        LoaiDonHang: orderType === 'delivery' ? 'Giao hàng' : 'Mang đi',
         TenKhach: deliveryInfo.TenKhach,
-        SoDienThoai: deliveryInfo.SoDienThoai,
-        DiaChi: orderType === 'delivery' ? deliveryInfo.DiaChi : null,
+        SDTKhach: deliveryInfo.SoDienThoai, // Backend expects SDTKhach
+        DiaChiGiaoHang: orderType === 'delivery' ? deliveryInfo.DiaChi : 'Tự lấy tại cửa hàng', // Backend expects DiaChiGiaoHang
         GhiChu: deliveryInfo.GhiChu,
         MaVC: voucher.applied ? voucher.code : null,
         TongTien: getCartTotal(),
-        TienGiam: voucher.applied ? voucher.discount : 0,
-        ThanhTien: calculateTotal(),
+        GiamGia: voucher.applied ? voucher.discount : 0, // Backend expects GiamGia not TienGiam
+        PhiGiaoHang: 0, // Add delivery fee
         items: cartItems.map(item => ({
           MaMon: item.MaMon,
           SoLuong: item.SoLuong,
@@ -175,7 +179,11 @@ const Cart = () => {
         }))
       };
 
+      console.log('📦 Submitting order data:', orderData);
+
       const response = await onlineOrderAPI.createOnlineOrder(orderData);
+      
+      console.log('✅ Order created successfully:', response.data);
       
       // Clear cart after successful order
       await clearCart();
@@ -189,8 +197,13 @@ const Cart = () => {
       
       toast.success('Đặt hàng thành công!');
       
-      // Navigate to order tracking
-      navigate(`/customer/orders/${response.data.MaDonHang}`);
+      // Navigate to order tracking - backend returns MaDHOnline
+      const orderId = response.data.order?.MaDHOnline || response.data.MaDHOnline;
+      if (orderId) {
+        navigate(`/customer/orders/${orderId}`);
+      } else {
+        navigate('/customer/orders');
+      }
     } catch (error) {
       console.error('Submit order error:', error);
       toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi đặt hàng');

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { billingAPI, healthAPI, tableAPI, reservationAPI, menuAPI } from '../../shared/services/api';
+import { billingAPI, healthAPI, tableAPI, reservationAPI, menuAPI, analyticsAPI } from '../../shared/services/api';
 import { useAuthStore } from '../../app/stores/authStore';
 import { FiTrendingUp, FiUsers, FiShoppingCart, FiDollarSign, FiCoffee, FiCalendar, FiActivity, FiAlertCircle, FiGrid, FiClock } from 'react-icons/fi';
 
@@ -48,7 +48,8 @@ const Dashboard = () => {
       try {
         console.log('🔄 Fetching dashboard data...');
         
-        const [billingResponse, tableStatsResponse, reservationStatsResponse, menuStatsResponse] = await Promise.all([
+        const today = new Date().toISOString().slice(0, 10);
+        const [billingResponse, tableStatsResponse, reservationStatsResponse, menuStatsResponse, revenueResponse] = await Promise.all([
           billingAPI.getBillingStats().catch((err) => {
             console.warn('❌ Billing API error:', err.message);
             return { data: { stats: { totalRevenue: 0, totalOrders: 0, totalCustomers: 0, averageOrderValue: 0 } } };
@@ -64,7 +65,8 @@ const Dashboard = () => {
           menuAPI.getDashboardStats().catch((err) => {
             console.warn('❌ Menu API error:', err.message);
             return { data: { stats: { menu: { totalItems: 0, availableItems: 0, unavailableItems: 0, totalCategories: 0, avgPrice: 0 } } } };
-          })
+          }),
+          analyticsAPI.getTopSelling({ startDate: today, endDate: today, limit: 10 }).catch(() => null)
         ]);
 
         console.log('📊 API Responses:');
@@ -86,38 +88,72 @@ const Dashboard = () => {
         // Always use real data from APIs - no fallback to mock data
         console.log('🔍 Processing API responses...');
         
-        // Billing/Sales stats - use real data or zeros
+        // Billing/Sales stats - use real data from analytics API or billing service
         const realStats = billingResponse.data?.stats || billingResponse.data;
+        const todayData = revenueResponse?.data?.data || [];
+        const todayRevenue = Array.isArray(todayData) ? todayData.reduce((sum, item) => sum + Number(item.TongDoanhThu || item.DoanhThu || 0), 0) : 0;
+        const todayOrders = Array.isArray(todayData) ? todayData.reduce((sum, item) => sum + Number(item.SoDonHang || 0), 0) : 0;
+        
         setStats({
-          totalRevenue: realStats?.totalRevenue || 0,
-          totalOrders: realStats?.totalOrders || 0,
+          totalRevenue: todayRevenue || realStats?.totalRevenue || 0,
+          totalOrders: todayOrders || realStats?.totalOrders || 0,
           totalCustomers: realStats?.totalCustomers || 0,
-          averageOrderValue: realStats?.averageOrderValue || 0
+          averageOrderValue: todayOrders > 0 ? Math.round(todayRevenue / todayOrders) : (realStats?.averageOrderValue || 0)
         });
         console.log('💰 Sales stats set:', {
-          totalRevenue: realStats?.totalRevenue || 0,
-          totalOrders: realStats?.totalOrders || 0
+          totalRevenue: todayRevenue,
+          totalOrders: todayOrders
         });
 
-        // Table stats - use real data or zeros
+        // Table stats - parse from status_breakdown
         const realTableStats = tableStatsResponse.data?.stats;
+        const statusBreakdown = realTableStats?.status_breakdown || [];
+        const getStatusCount = (status) => {
+          const item = statusBreakdown.find(s => s.status === status);
+          return item ? item.count : 0;
+        };
         setTableStats({
-          total: realTableStats?.total || 0,
-          available: realTableStats?.available || 0,
-          occupied: realTableStats?.occupied || 0,
-          reserved: realTableStats?.reserved || 0
+          total: realTableStats?.total_tables || 0,
+          available: getStatusCount('Trống'),
+          occupied: getStatusCount('Đang phục vụ'),
+          reserved: getStatusCount('Đã đặt')
         });
-        console.log('🪑 Table stats set:', realTableStats);
+        console.log('🪑 Table stats set:', {
+          total: realTableStats?.total_tables,
+          breakdown: statusBreakdown
+        });
 
-        // Reservation stats - use real data or zeros
-        const realReservationStats = reservationStatsResponse.data?.stats;
-        setReservationStats({
-          total: realReservationStats?.total || 0,
-          today: realReservationStats?.today || 0,
-          pending: realReservationStats?.pending || 0,
-          confirmed: realReservationStats?.confirmed || 0
-        });
-        console.log('📅 Reservation stats set:', realReservationStats);
+        // Reservation stats - fallback to direct count since API may not exist
+        let reservationStatsData = {
+          total: 0,
+          today: 0,
+          pending: 0,
+          confirmed: 0
+        };
+        
+        try {
+          const reservationsResp = await reservationAPI.getReservations().catch(() => null);
+          const reservations = reservationsResp?.data?.reservations || reservationsResp?.data || [];
+          if (Array.isArray(reservations) && reservations.length > 0) {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const todayReservations = reservations.filter(r => {
+              const resDate = r.NgayDat ? new Date(r.NgayDat).toISOString().slice(0, 10) : null;
+              return resDate === todayStr;
+            });
+            reservationStatsData = {
+              total: reservations.length,
+              today: todayReservations.length,
+              pending: todayReservations.filter(r => r.TrangThai === 'Đã đặt').length,
+              confirmed: todayReservations.filter(r => r.TrangThai === 'Hoàn thành').length
+            };
+            console.log('📅 Reservation stats from direct count:', reservationStatsData);
+          }
+        } catch (err) {
+          console.warn('Reservation count failed:', err);
+        }
+        
+        setReservationStats(reservationStatsData);
+        console.log('📅 Reservation stats set:', reservationStatsData);
 
         // Menu stats - always use real data from API
         const realMenuStats = menuStatsResponse.data?.stats?.menu || menuStatsResponse.data?.menu;
@@ -217,13 +253,13 @@ const Dashboard = () => {
       color: 'bg-blue-500'
     },
     {
-      title: 'Chờ xác nhận',
+      title: 'Đã đặt',
       value: (reservationStats?.pending || 0).toString(),
       icon: FiClock,
       color: 'bg-yellow-500'
     },
     {
-      title: 'Đã xác nhận',
+      title: 'Hoàn thành',
       value: (reservationStats?.confirmed || 0).toString(),
       icon: FiCalendar,
       color: 'bg-green-500'

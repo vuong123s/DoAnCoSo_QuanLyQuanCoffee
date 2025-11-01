@@ -26,10 +26,7 @@ timeout /t 2 >nul
 echo [5/6] Starting Billing Service (Port 3004)...
 start "Billing Service - Port 3004" cmd /c "cd services\billing-service && npm run dev"
 timeout /t 2 >nul
-
-echo [6/6] Starting Inventory Service (Port 3007)...
-start "Inventory Service - Port 3007" cmd /c "cd services\inventory-service && npm run dev"
-timeout /t 2 >nul
+ 
 
 
 echo.

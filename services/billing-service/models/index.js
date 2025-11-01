@@ -2,6 +2,7 @@ const { DonHang, ThanhToan } = require('./Bill');
 const { CTDonHang } = require('./BillItem');
 const DonHangOnline = require('./DonHangOnline');
 const CTDonHangOnline = require('./CTDonHangOnline');
+const Voucher = require('./Voucher');
 
 // Define associations
 CTDonHang.belongsTo(DonHang, {
@@ -40,5 +41,6 @@ module.exports = {
   ThanhToan,
   CTDonHang,
   DonHangOnline,
-  CTDonHangOnline
+  CTDonHangOnline,
+  Voucher
 };

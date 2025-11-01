@@ -155,7 +155,7 @@ export const tableAPI = {
   updateTable: (id, tableData) => tableApi.put(`/api/tables/${id}`, tableData),
   deleteTable: (id) => tableApi.delete(`/api/tables/${id}`),
   updateTableStatus: (id, statusData) => tableApi.patch(`/api/tables/${id}/status`, statusData),
-  getTableStats: () => api.get('/api/tables/stats'),
+  getTableStats: () => tableApi.get('/api/tables/stats'),
   
   // Legacy area endpoints (for backward compatibility)
   getAreas: () => api.get('/api/tables/areas'),
@@ -178,7 +178,7 @@ export const reservationAPI = {
   getReservation: (id) => api.get(`/api/reservations/${id}`),
   createReservation: (reservationData) => api.post('/api/reservations', reservationData),
   updateReservation: (id, reservationData) => api.put(`/api/reservations/${id}`, reservationData),
-  updateReservationStatus: (id, statusData) => api.put(`/api/reservations/${id}/status`, statusData),
+  updateReservationStatus: (id, statusData) => api.patch(`/api/reservations/${id}/status`, statusData),
   deleteReservation: (id) => api.delete(`/api/reservations/${id}`),
   cancelReservation: (id) => api.patch(`/api/reservations/${id}/cancel`),
   checkTimeConflict: (tableId, date, startTime, endTime, excludeReservationId) => 
@@ -236,7 +236,7 @@ export const billingAPI = {
   updateBill: (id, billData) => billingApi.put(`/api/billing/${id}`, billData),
   deleteBill: (id) => billingApi.delete(`/api/billing/${id}`),
   updatePaymentStatus: (id, paymentData) => billingApi.put(`/api/billing/${id}/payment`, paymentData),
-  getBillingStats: () => billingApi.get('/api/billing/stats'),
+  getBillingStats: (params) => billingApi.get('/api/billing/stats', { params }),
   
   // Order management (DonHang schema)
   createOrder: (orderData) => billingApi.post('/api/billing', orderData),
@@ -248,6 +248,9 @@ export const billingAPI = {
   getOrderItems: (orderId) => billingApi.get(`/api/billing/${orderId}/items`),
   updateOrderItem: (orderId, itemId, itemData) => billingApi.patch(`/api/billing/${orderId}/items/${itemId}`, itemData),
   removeOrderItem: (orderId, itemId) => billingApi.delete(`/api/billing/${orderId}/items/${itemId}`),
+  
+  // Create order with items (for table reservation with pre-order)
+  createOrderWithItems: (orderData) => billingApi.post('/api/billing/with-items', orderData),
 };
 
 
@@ -267,6 +270,7 @@ export const onlineOrderAPI = {
   updateOnlineOrder: (id, orderData) => api.put(`/api/online-orders/${id}`, orderData),
   updateOrderStatus: (id, statusData) => api.put(`/api/online-orders/${id}/status`, statusData),
   cancelOnlineOrder: (id) => api.patch(`/api/online-orders/${id}/cancel`),
+  deleteOnlineOrder: (id) => api.delete(`/api/online-orders/${id}`),
   getOrderStats: () => api.get('/api/online-orders/stats'),
   
   // Order tracking
@@ -293,6 +297,18 @@ export const healthAPI = {
   getGatewayHealth: () => api.get('/health'),
   getServicesHealth: () => api.get('/health/services'),
   getServiceHealth: (serviceName) => api.get(`/health/services/${serviceName}`),
+};
+
+// Analytics API via API Gateway (database stored procedures)
+export const analyticsAPI = {
+  getTopSelling: (params) =>
+    api.get('/api/analytics/mon-ban-chay', {
+      params: { period: '30days', limit: 5, ...params },
+    }),
+  getCategoryRevenue: (params) =>
+    api.get('/api/analytics/doanh-thu-theo-danh-muc', {
+      params: { period: '30days', ...params },
+    }),
 };
 
 export default api;

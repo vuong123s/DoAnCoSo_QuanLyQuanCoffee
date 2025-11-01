@@ -13,7 +13,8 @@ import {
   FiMapPin,
   FiPhone,
   FiUser,
-  FiDownload
+  FiDownload,
+  FiTrash2
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -225,7 +226,7 @@ const OnlineOrderManagement = () => {
 
   const handleViewDetails = async (orderId) => {
     try {
-      console.log('Fetching order details for ID:', orderId);
+      console.log('Fetching order details for ID:', orderId, 'Type:', typeof orderId);
       const response = await onlineOrderAPI.getOnlineOrder(orderId);
       console.log('Order details response:', response);
       console.log('Order details data:', response.data);
@@ -270,18 +271,23 @@ const OnlineOrderManagement = () => {
 
   const handleUpdateStatus = async (orderId, newStatus) => {
     try {
+      console.log('Update status called with ID:', orderId, 'Type:', typeof orderId, 'New status:', newStatus);
       setUpdating(true);
       await onlineOrderAPI.updateOrderStatus(orderId, { TrangThai: newStatus });
       
       // Update local state
-      setOrders(orders.map(order => 
-        order.MaDonHang === orderId 
+      setOrders(orders.map(order => {
+        const id = order.MaDHOnline || order.MaDonHang;
+        return id === orderId 
           ? { ...order, TrangThai: newStatus }
-          : order
-      ));
+          : order;
+      }));
       
-      if (selectedOrder && selectedOrder.MaDonHang === orderId) {
-        setSelectedOrder({ ...selectedOrder, TrangThai: newStatus });
+      if (selectedOrder) {
+        const selectedId = selectedOrder.MaDHOnline || selectedOrder.MaDonHang;
+        if (selectedId === orderId) {
+          setSelectedOrder({ ...selectedOrder, TrangThai: newStatus });
+        }
       }
       
       toast.success('Cập nhật trạng thái thành công');
@@ -319,6 +325,51 @@ const OnlineOrderManagement = () => {
 
   const canUpdateStatus = (status) => {
     return !['Hoàn thành', 'Đã hủy'].includes(status);
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    console.log('Delete order called with ID:', orderId, 'Type:', typeof orderId);
+    
+    if (!window.confirm('Bạn có chắc chắn muốn xóa đơn hàng này? Hành động này không thể hoàn tác.')) {
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      console.log('Calling deleteOnlineOrder API with ID:', orderId);
+      await onlineOrderAPI.deleteOnlineOrder(orderId);
+      
+      // Remove from local state
+      setOrders(orders.filter(order => {
+        const id = order.MaDHOnline || order.MaDonHang;
+        return id !== orderId;
+      }));
+      
+      // Close modal if this order is being viewed
+      if (selectedOrder) {
+        const selectedId = selectedOrder.MaDHOnline || selectedOrder.MaDonHang;
+        if (selectedId === orderId) {
+          setShowDetails(false);
+          setSelectedOrder(null);
+        }
+      }
+      
+      toast.success('Xóa đơn hàng thành công');
+    } catch (error) {
+      console.error('Delete order error:', error);
+      
+      if (error.response?.status === 503) {
+        toast.error('Dịch vụ đơn hàng online tạm thời không khả dụng');
+      } else if (error.response?.status === 401) {
+        toast.error('Không có quyền xóa đơn hàng');
+      } else if (error.response?.status === 404) {
+        toast.error('Không tìm thấy đơn hàng này');
+      } else {
+        toast.error('Có lỗi khi xóa đơn hàng: ' + (error.response?.data?.message || error.message || 'Lỗi không xác định'));
+      }
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const exportOrders = () => {
@@ -445,14 +496,16 @@ const OnlineOrderManagement = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredOrders.map((order) => (
-                <tr key={order.MaDonHang} className="hover:bg-gray-50">
+              {filteredOrders.map((order) => {
+                const orderId = order.MaDHOnline || order.MaDonHang;
+                return (
+                <tr key={orderId} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       {getStatusIcon(order.TrangThai)}
                       <div className="ml-2">
                         <div className="text-sm font-medium text-gray-900">
-                          #{order.MaDonHang}
+                          #{orderId}
                         </div>
                       </div>
                     </div>
@@ -480,7 +533,7 @@ const OnlineOrderManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => handleViewDetails(order.MaDonHang)}
+                        onClick={() => handleViewDetails(orderId)}
                         className="text-blue-600 hover:text-blue-900"
                         title="Xem chi tiết"
                       >
@@ -488,7 +541,7 @@ const OnlineOrderManagement = () => {
                       </button>
                       {canUpdateStatus(order.TrangThai) && getNextStatus(order.TrangThai) && (
                         <button
-                          onClick={() => handleUpdateStatus(order.MaDonHang, getNextStatus(order.TrangThai))}
+                          onClick={() => handleUpdateStatus(orderId, getNextStatus(order.TrangThai))}
                           disabled={updating}
                           className="text-green-600 hover:text-green-900 disabled:opacity-50"
                           title={`Chuyển sang: ${getNextStatus(order.TrangThai)}`}
@@ -496,10 +549,19 @@ const OnlineOrderManagement = () => {
                           <FiEdit className="w-4 h-4" />
                         </button>
                       )}
+                      <button
+                        onClick={() => handleDeleteOrder(orderId)}
+                        disabled={updating}
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                        title="Xóa đơn hàng"
+                      >
+                        <FiTrash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
 
@@ -529,7 +591,7 @@ const OnlineOrderManagement = () => {
           <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold">Chi tiết đơn hàng #{selectedOrder.MaDonHang}</h2>
+                <h2 className="text-xl font-bold">Chi tiết đơn hàng #{selectedOrder.MaDHOnline || selectedOrder.MaDonHang}</h2>
                 <button
                   onClick={() => setShowDetails(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -684,7 +746,7 @@ const OnlineOrderManagement = () => {
                   <div className="flex space-x-2">
                     {getNextStatus(selectedOrder.TrangThai) && (
                       <button
-                        onClick={() => handleUpdateStatus(selectedOrder.MaDonHang, getNextStatus(selectedOrder.TrangThai))}
+                        onClick={() => handleUpdateStatus(selectedOrder.MaDHOnline || selectedOrder.MaDonHang, getNextStatus(selectedOrder.TrangThai))}
                         disabled={updating}
                         className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
                       >
@@ -693,13 +755,20 @@ const OnlineOrderManagement = () => {
                     )}
                     {selectedOrder.TrangThai === 'Chờ xác nhận' && (
                       <button
-                        onClick={() => handleUpdateStatus(selectedOrder.MaDonHang, 'Đã hủy')}
+                        onClick={() => handleUpdateStatus(selectedOrder.MaDHOnline || selectedOrder.MaDonHang, 'Đã hủy')}
                         disabled={updating}
                         className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
                       >
                         Hủy đơn hàng
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDeleteOrder(selectedOrder.MaDHOnline || selectedOrder.MaDonHang)}
+                      disabled={updating}
+                      className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      Xóa đơn hàng
+                    </button>
                   </div>
                 </div>
               )}

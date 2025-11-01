@@ -11,11 +11,15 @@ const {
   addItemToOrder,
   updateOrderItem,
   removeOrderItem,
-  getOrderItems
+  getOrderItems,
+  createOrderWithItems
 } = require('../controllers/billingController');
 
 // Create a new bill
 router.post('/', createBill);
+
+// Create order with items (for table reservation with pre-order)
+router.post('/with-items', createOrderWithItems);
 
 // Get all bills with optional filters (no auth for testing)
 router.get('/', getBills);

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { reservationAPI } from '../../shared/services/api';
+import { reservationAPI, billingAPI } from '../../shared/services/api';
 import { useAuthStore } from '../../app/stores/authStore';
 import TablesByArea from '../../components/tables/TablesByArea';
-import { FiCalendar, FiClock, FiUsers, FiPhone, FiMail, FiMessageSquare, FiCheck, FiX, FiAlertCircle } from 'react-icons/fi';
+import MultiTableMenuSelection from '../../components/MultiTableMenuSelection';
+import { FiCalendar, FiClock, FiUsers, FiPhone, FiMail, FiMessageSquare, FiCheck, FiX, FiAlertCircle, FiShoppingCart } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const BookTable = () => {
@@ -11,6 +12,7 @@ const BookTable = () => {
   const [bookingType, setBookingType] = useState('single'); // 'single' or 'group'
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedTables, setSelectedTables] = useState([]);
+  const [tableOrders, setTableOrders] = useState({}); // {tableId: [order items]}
   const [loading, setLoading] = useState(false);
   const [timeConflicts, setTimeConflicts] = useState({});
 
@@ -168,8 +170,16 @@ const BookTable = () => {
         const response = await reservationAPI.createReservation(reservationData);
 
         if (response.data.success) {
+          // Nếu có món ăn được chọn, tạo đơn hàng cho bàn đó
+          const tableId = selectedTables[0].MaBan || selectedTables[0].id;
+          const tableOrder = tableOrders[tableId] || [];
+          
+          if (tableOrder.length > 0) {
+            await createOrderWithItems(tableId, tableOrder);
+          }
+          
           toast.success('Đặt bàn thành công!');
-          setCurrentStep(3);
+          setCurrentStep(4);
         } else {
           toast.error(response.data.message || 'Có lỗi xảy ra khi đặt bàn');
         }
@@ -185,8 +195,34 @@ const BookTable = () => {
         const response = await reservationAPI.createMultiTableReservation(reservationData);
 
         if (response.data.success) {
+          // Tạo đơn hàng riêng cho TỪNG bàn với món ăn riêng biệt
+          const orderPromises = selectedTables.map(table => {
+            const tableId = table.MaBan || table.id;
+            const tableOrder = tableOrders[tableId] || [];
+            
+            // Chỉ tạo đơn hàng nếu bàn có món ăn
+            if (tableOrder.length > 0) {
+              return createOrderWithItems(tableId, tableOrder);
+            }
+            return Promise.resolve(); // Bàn không có món ăn
+          });
+          
+          try {
+            await Promise.all(orderPromises);
+            const tablesWithOrders = selectedTables.filter(table => {
+              const tableId = table.MaBan || table.id;
+              return (tableOrders[tableId] || []).length > 0;
+            });
+            
+            if (tablesWithOrders.length > 0) {
+              console.log(`Đã tạo ${tablesWithOrders.length} đơn hàng cho ${tablesWithOrders.length} bàn có món ăn`);
+            }
+          } catch (error) {
+            console.error('Một số đơn hàng không tạo được:', error);
+          }
+          
           toast.success(`Đặt bàn thành công! Đã đặt ${response.data.data.length}/${selectedTables.length} bàn`);
-          setCurrentStep(3);
+          setCurrentStep(4);
         } else {
           toast.error(response.data.message || 'Có lỗi xảy ra khi đặt bàn');
         }
@@ -202,8 +238,39 @@ const BookTable = () => {
   const resetForm = () => {
     reset();
     setSelectedTables([]);
+    setTableOrders({});
     setTimeConflicts({});
     setCurrentStep(1);
+  };
+
+  const handleTableOrdersChange = (orders) => {
+    setTableOrders(orders);
+  };
+
+  const createOrderWithItems = async (tableId, orderItems) => {
+    try {
+      // Tạo đơn hàng kèm món ăn trong một lần gọi API
+      const orderData = {
+        MaBan: tableId,
+        MaNV: null, // Chưa có nhân viên phục vụ
+        TrangThai: 'Đang xử lý',
+        items: orderItems.map(item => ({
+          MaMon: item.MaMon,
+          SoLuong: item.SoLuong,
+          DonGia: item.DonGia,
+          GhiChu: item.GhiChu || ''
+        }))
+      };
+
+      const response = await billingAPI.createOrderWithItems(orderData);
+      
+      if (response.data.success) {
+        console.log('Đã tạo đơn hàng với món ăn thành công:', response.data.order);
+      }
+    } catch (error) {
+      console.error('Error creating order with items:', error);
+      // Không hiển thị lỗi cho user vì đặt bàn đã thành công
+    }
   };
 
   const renderStep1 = () => (
@@ -422,17 +489,73 @@ const BookTable = () => {
           Quay lại
         </button>
         <button
-          onClick={handleSubmit(onSubmit)}
-          disabled={selectedTables.length === 0 || hasTimeConflicts() || loading}
+          onClick={() => setCurrentStep(3)}
+          disabled={selectedTables.length === 0 || hasTimeConflicts()}
           className="bg-amber-600 text-white px-8 py-3 rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Đang đặt bàn...' : 'Xác nhận đặt bàn'}
+          Tiếp theo: Chọn món
         </button>
       </div>
     </div>
   );
 
   const renderStep3 = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <FiShoppingCart className="inline w-6 h-6 mr-2" />
+          Chọn món ăn
+        </h2>
+        <p className="text-gray-600">
+          Bạn có thể chọn món ăn trước (tùy chọn) hoặc bỏ qua để đặt món sau
+        </p>
+        {selectedTables.length > 1 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+            <p className="text-amber-800 text-sm">
+              <strong>Lưu ý:</strong> Bạn đã chọn {selectedTables.length} bàn. 
+              Mỗi bàn có thể đặt món khác nhau hoặc không đặt món nào. 
+              Hệ thống sẽ tạo đơn hàng riêng cho từng bàn có món ăn.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Menu Selection */}
+      <MultiTableMenuSelection
+        tables={selectedTables}
+        onOrdersChange={handleTableOrdersChange}
+        initialOrders={tableOrders}
+      />
+
+      {/* Navigation */}
+      <div className="flex justify-between">
+        <button
+          onClick={() => setCurrentStep(2)}
+          className="bg-gray-500 text-white px-8 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium"
+        >
+          Quay lại
+        </button>
+        <div className="space-x-4">
+          <button
+            onClick={handleSubmit(onSubmit)}
+            disabled={loading}
+            className="bg-gray-400 text-white px-8 py-3 rounded-lg hover:bg-gray-500 transition-colors font-medium disabled:opacity-50"
+          >
+            {loading ? 'Đang đặt bàn...' : 'Bỏ qua - Đặt bàn'}
+          </button>
+          <button
+            onClick={handleSubmit(onSubmit)}
+            disabled={loading || Object.keys(tableOrders).length === 0}
+            className="bg-amber-600 text-white px-8 py-3 rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Đang đặt bàn...' : 'Đặt bàn + Món ăn'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderStep4 = () => (
     <div className="text-center space-y-6">
       <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
         <FiCheck className="w-10 h-10 text-green-600" />
@@ -450,6 +573,30 @@ const BookTable = () => {
           <p><span className="text-gray-600">Thời gian:</span> {watch('GioDat')} - {watch('GioKetThuc')}</p>
           <p><span className="text-gray-600">Số bàn:</span> {selectedTables.length}</p>
           <p><span className="text-gray-600">Tổng sức chứa:</span> {getTotalCapacity()} chỗ</p>
+          {/* Hiển thị thông tin món ăn */}
+          {Object.keys(tableOrders).length > 0 && (
+            <div className="space-y-2">
+              <p className="text-gray-600 font-medium">Món đã đặt:</p>
+              {selectedTables.map(table => {
+                const tableId = table.MaBan || table.id;
+                const tableName = table.TenBan || `Bàn ${tableId}`;
+                const tableOrder = tableOrders[tableId] || [];
+                
+                if (tableOrder.length === 0) return null;
+                
+                return (
+                  <div key={tableId} className="text-sm">
+                    <span className="text-gray-600">• {tableName}:</span> {tableOrder.length} món
+                  </div>
+                );
+              })}
+              {selectedTables.length > 1 && (
+                <p className="text-amber-600 text-xs">
+                  * Mỗi bàn có đơn hàng riêng biệt
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <button
@@ -508,7 +655,7 @@ const BookTable = () => {
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-center">
-            {[1, 2, 3].map((step) => (
+            {[1, 2, 3, 4].map((step) => (
               <React.Fragment key={step}>
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${
@@ -521,9 +668,9 @@ const BookTable = () => {
                 >
                   {step < currentStep ? <FiCheck className="w-5 h-5" /> : step}
                 </div>
-                {step < 3 && (
+                {step < 4 && (
                   <div
-                    className={`w-16 h-1 mx-2 ${
+                    className={`w-12 h-1 mx-2 ${
                       step < currentStep ? 'bg-green-600' : 'bg-gray-300'
                     }`}
                   />
@@ -532,14 +679,17 @@ const BookTable = () => {
             ))}
           </div>
           <div className="flex justify-center mt-4">
-            <div className="flex space-x-8 text-sm">
+            <div className="flex space-x-6 text-sm">
               <span className={currentStep === 1 ? 'text-amber-600 font-medium' : 'text-gray-500'}>
                 Thông tin
               </span>
               <span className={currentStep === 2 ? 'text-amber-600 font-medium' : 'text-gray-500'}>
                 Chọn bàn
               </span>
-              <span className={currentStep === 3 ? 'text-green-600 font-medium' : 'text-gray-500'}>
+              <span className={currentStep === 3 ? 'text-amber-600 font-medium' : 'text-gray-500'}>
+                Chọn món
+              </span>
+              <span className={currentStep === 4 ? 'text-green-600 font-medium' : 'text-gray-500'}>
                 Hoàn thành
               </span>
             </div>
@@ -551,6 +701,7 @@ const BookTable = () => {
           {currentStep === 1 && renderStep1()}
           {currentStep === 2 && renderStep2()}
           {currentStep === 3 && renderStep3()}
+          {currentStep === 4 && renderStep4()}
         </div>
       </div>
     </div>

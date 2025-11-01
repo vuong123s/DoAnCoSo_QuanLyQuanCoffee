@@ -1,9 +1,12 @@
-const { DonHangOnline, CTDonHangOnline } = require('../models');
+const { DonHangOnline, CTDonHangOnline, Voucher, ThanhToan } = require('../models');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 
 // Create a new online order
 const createOnlineOrder = async (req, res) => {
   try {
+    console.log('📦 Creating online order with data:', JSON.stringify(req.body, null, 2));
+    
     const { 
       MaKH,
       TenKhach, 
@@ -20,17 +23,42 @@ const createOnlineOrder = async (req, res) => {
       items = []
     } = req.body;
 
+    console.log('📋 Extracted fields:', { TenKhach, SDTKhach, DiaChiGiaoHang, LoaiDonHang, TongTien, MaVC, items: items.length });
+
     if (!TenKhach || !SDTKhach || !DiaChiGiaoHang) {
+      console.log('❌ Missing required fields:', { TenKhach: !!TenKhach, SDTKhach: !!SDTKhach, DiaChiGiaoHang: !!DiaChiGiaoHang });
       return res.status(400).json({
         error: 'Missing required fields',
         message: 'Thiếu thông tin: TenKhach, SDTKhach, DiaChiGiaoHang là bắt buộc'
       });
     }
 
+    // Lookup voucher ID if voucher code is provided
+    let voucherID = null;
+    if (MaVC) {
+      console.log('🎫 Looking up voucher:', MaVC);
+      // Check if MaVC is already an ID (number) or a code (string)
+      if (typeof MaVC === 'string' && isNaN(MaVC)) {
+        // It's a voucher code, lookup the ID
+        const voucher = await Voucher.findOne({ where: { MaCode: MaVC } });
+        if (voucher) {
+          voucherID = voucher.MaVC;
+          console.log('✅ Found voucher ID:', voucherID);
+        } else {
+          console.log('⚠️  Voucher code not found:', MaVC);
+        }
+      } else {
+        // It's already an ID
+        voucherID = parseInt(MaVC);
+      }
+    }
+
     // Calculate TongThanhToan
     const tongThanhToan = parseFloat(TongTien) + parseFloat(PhiGiaoHang) - parseFloat(GiamGia);
+    console.log('💰 Calculated total:', { TongTien, PhiGiaoHang, GiamGia, tongThanhToan, voucherID });
 
     // Create online order
+    console.log('📝 Creating order in database...');
     const onlineOrder = await DonHangOnline.create({
       MaKH: MaKH ? parseInt(MaKH) : null,
       TenKhach: TenKhach.trim(),
@@ -42,27 +70,42 @@ const createOnlineOrder = async (req, res) => {
       TongTien: parseFloat(TongTien),
       PhiGiaoHang: parseFloat(PhiGiaoHang),
       TongThanhToan: tongThanhToan,
-      MaVC: MaVC ? parseInt(MaVC) : null,
+      MaVC: voucherID,
       GiamGia: parseFloat(GiamGia),
       GhiChu: GhiChu
     });
+    console.log('✅ Order created with ID:', onlineOrder.MaDHOnline);
 
     // Add items if provided
     if (items && items.length > 0) {
+      console.log(`📦 Adding ${items.length} items to order...`);
       for (const item of items) {
-        const thanhTien = parseFloat(item.DonGia) * parseInt(item.SoLuong);
-        await CTDonHangOnline.create({
-          MaDHOnline: onlineOrder.MaDHOnline,
-          MaMon: parseInt(item.MaMon),
-          SoLuong: parseInt(item.SoLuong),
-          DonGia: parseFloat(item.DonGia),
-          ThanhTien: thanhTien,
-          GhiChu: item.GhiChu || item.GhiChuMon || null
-        });
+        try {
+          const thanhTien = parseFloat(item.DonGia) * parseInt(item.SoLuong);
+          console.log(`  - Item: MaMon=${item.MaMon}, SoLuong=${item.SoLuong}, DonGia=${item.DonGia}`);
+          
+          const itemData = {
+            MaDHOnline: onlineOrder.MaDHOnline,
+            MaMon: parseInt(item.MaMon),
+            SoLuong: parseInt(item.SoLuong),
+            DonGia: parseFloat(item.DonGia),
+            ThanhTien: thanhTien,
+            GhiChu: item.GhiChu || item.GhiChuMon || null
+          };
+          
+          console.log('  - Creating item with data:', itemData);
+          await CTDonHangOnline.create(itemData);
+          console.log('  ✅ Item added successfully');
+        } catch (itemError) {
+          console.error(`  ❌ Error adding item MaMon=${item.MaMon}:`, itemError.message);
+          // Continue with other items even if one fails
+        }
       }
+      console.log('✅ All items processed');
     }
 
     // Get complete order with items
+    console.log('📋 Fetching complete order with items...');
     const completeOrder = await DonHangOnline.findByPk(onlineOrder.MaDHOnline, {
       include: [{
         model: CTDonHangOnline,
@@ -70,16 +113,22 @@ const createOnlineOrder = async (req, res) => {
       }]
     });
 
+    console.log('✅ Order creation completed successfully!');
+    console.log('📦 Response:', { MaDHOnline: completeOrder.MaDHOnline, items: completeOrder.chitiet?.length || 0 });
+
     res.status(201).json({
       message: 'Online order created successfully',
-      order: completeOrder
+      order: completeOrder,
+      MaDHOnline: completeOrder.MaDHOnline // Add for easier access
     });
 
   } catch (error) {
-    console.error('Error creating online order:', error);
+    console.error('❌ Error creating online order:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       error: 'Failed to create online order',
-      message: error.message
+      message: error.message,
+      details: error.toString()
     });
   }
 };
@@ -188,12 +237,16 @@ const getOnlineOrderById = async (req, res) => {
 const updateOnlineOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('📝 Updating order status:', { id, body: req.body });
+    
     const { TrangThai, LyDoHuy, MaNVXuLy } = req.body;
 
     if (!TrangThai) {
+      console.log('❌ Missing TrangThai field');
       return res.status(400).json({
         error: 'Status is required',
-        message: 'Trạng thái là bắt buộc'
+        message: 'Trạng thái là bắt buộc',
+        received: req.body
       });
     }
 
@@ -365,6 +418,70 @@ const getOnlineOrderStats = async (req, res) => {
   }
 };
 
+// Delete online order
+const deleteOnlineOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('🗑️ Deleting online order:', id);
+    
+    const order = await DonHangOnline.findByPk(id);
+    
+    if (!order) {
+      return res.status(404).json({
+        error: 'Online order not found',
+        message: 'Không tìm thấy đơn hàng online'
+      });
+    }
+    
+    // Allow deleting any order (removed status restriction)
+    // Note: Be careful when deleting completed orders as it may affect reports
+    console.log('⚠️ Deleting order with status:', order.TrangThai);
+    
+    // Delete related records in correct order (due to foreign key constraints)
+    
+    // 1. Delete order tracking records (TheoDoiDonHang) if exists
+    try {
+      await sequelize.query(
+        'DELETE FROM TheoDoiDonHang WHERE MaDHOnline = ?',
+        { replacements: [id], type: sequelize.QueryTypes.DELETE }
+      );
+      console.log('✅ Deleted tracking records for order:', id);
+    } catch (err) {
+      console.log('⚠️ No tracking records or table not exists:', err.message);
+    }
+    
+    // 2. Delete any bills (ThanhToan) referencing this online order
+    await ThanhToan.destroy({
+      where: { MaDHOnline: id }
+    });
+    console.log('✅ Deleted related bills for order:', id);
+    
+    // 3. Delete order items (CTDonHangOnline)
+    await CTDonHangOnline.destroy({
+      where: { MaDHOnline: id }
+    });
+    console.log('✅ Deleted order items for order:', id);
+    
+    // 4. Delete the order itself
+    await order.destroy();
+    
+    console.log('✅ Online order deleted:', id);
+    
+    res.json({
+      success: true,
+      message: 'Xóa đơn hàng thành công'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error deleting online order:', error);
+    res.status(500).json({
+      error: 'Failed to delete online order',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   // Online order management
   createOnlineOrder,
@@ -372,5 +489,6 @@ module.exports = {
   getOnlineOrderById,
   updateOnlineOrderStatus,
   cancelOnlineOrder,
+  deleteOnlineOrder,
   getOnlineOrderStats
 };

@@ -567,6 +567,75 @@ const getOrderItems = async (req, res) => {
   }
 };
 
+// Create order with items (for table reservation with pre-order)
+const createOrderWithItems = async (req, res) => {
+  try {
+    const { 
+      MaBan, 
+      MaNV,
+      TrangThai = 'Đang xử lý',
+      items = [] // Array of items: [{MaMon, SoLuong, DonGia, GhiChu}]
+    } = req.body;
+
+    if (!MaBan) {
+      return res.status(400).json({
+        error: 'Missing required field: MaBan'
+      });
+    }
+
+    // Calculate total amount from items
+    let totalAmount = 0;
+    if (items.length > 0) {
+      totalAmount = items.reduce((sum, item) => {
+        return sum + (item.SoLuong * item.DonGia);
+      }, 0);
+    }
+
+    // Create DonHang record
+    const donHang = await DonHang.create({
+      MaBan: parseInt(MaBan),
+      MaNV: MaNV ? parseInt(MaNV) : null,
+      TongTien: totalAmount,
+      TrangThai: TrangThai
+    });
+
+    // Add items to order if provided
+    if (items.length > 0) {
+      const orderItems = items.map(item => ({
+        MaDH: donHang.MaDH,
+        MaMon: parseInt(item.MaMon),
+        SoLuong: parseInt(item.SoLuong),
+        DonGia: parseFloat(item.DonGia),
+        ThanhTien: parseInt(item.SoLuong) * parseFloat(item.DonGia),
+        GhiChu: item.GhiChu || null
+      }));
+
+      await CTDonHang.bulkCreate(orderItems);
+    }
+
+    // Fetch complete order with items
+    const completeOrder = await DonHang.findByPk(donHang.MaDH, {
+      include: [{
+        model: CTDonHang,
+        as: 'items'
+      }]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Order with items created successfully',
+      order: completeOrder
+    });
+
+  } catch (error) {
+    console.error('Error creating order with items:', error);
+    res.status(500).json({
+      error: 'Failed to create order with items',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   // New DonHang schema methods
   createOrder,
@@ -580,6 +649,7 @@ module.exports = {
   updateOrderItem,
   removeOrderItem,
   getOrderItems,
+  createOrderWithItems,
   // Legacy aliases for compatibility
   createBill: createOrder,
   updatePaymentStatus: updateOrderStatus,

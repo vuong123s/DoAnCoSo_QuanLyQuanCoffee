@@ -11,6 +11,7 @@ const serviceRegistry = require('./config/serviceRegistry');
 const healthCheck = require('./routes/health');
 const authMiddleware = require('./middleware/auth');
 const mediaRoutes = require('./routes/media');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,6 +57,9 @@ app.use('/health', healthCheck);
 app.use('/uploads', express.static('uploads')); // Serve static files
 
 app.use('/api/media', mediaRoutes);
+
+// Analytics routes (phân tích doanh thu)
+app.use('/api/analytics', analyticsRoutes);
 
 // Rate limiting (after health check)
 const limiter = rateLimit({
@@ -191,9 +195,9 @@ app.use('/api/revenue', ...requireStaff, createServiceProxy('Billing Service', 3
 console.log('🔧 Setting up Online Order Service proxy...');
 app.use('/api/online-orders', createServiceProxy('Billing Service', 3004));
 
-// Voucher Service
+// Voucher Service (now handled by Billing Service)
 console.log('🔧 Setting up Voucher Service proxy...');
-app.use('/api/vouchers', createServiceProxy('Voucher Service', 3006));
+app.use('/api/vouchers', createServiceProxy('Billing Service', 3004));
 
 // Inventory Service (staff access required)
 console.log('🔧 Setting up Inventory Service proxy...');

@@ -81,15 +81,15 @@ CREATE TABLE Mon (
 -- ======================
 CREATE TABLE DonHang (
     MaDH INT AUTO_INCREMENT PRIMARY KEY,
+    MaDat INT,                                       -- Liên kết với đơn đặt bàn
     MaBan INT,
-    MaNV INT NULL,               -- Mã nhân viên (có thể null nếu chưa có NV phục vụ)
-    MaKH INT NULL,               -- Mã khách hàng (có thể null cho khách vãng lai)
+    MaNV INT,
     NgayLap DATETIME DEFAULT CURRENT_TIMESTAMP,
     TongTien DECIMAL(12,2),
-    TrangThai VARCHAR(20),       -- Đang xử lý, Hoàn thành, Đã hủy
+    TrangThai VARCHAR(20) DEFAULT 'Chờ thanh toán',  -- Chờ thanh toán, Hoàn thành, Đã hủy
+    -- FOREIGN KEY (MaDat) REFERENCES DatBan(MaDat), -- Sẽ thêm sau khi tạo bảng DatBan
     FOREIGN KEY (MaBan) REFERENCES Ban(MaBan),
-    FOREIGN KEY (MaNV) REFERENCES NhanVien(MaNV),
-    FOREIGN KEY (MaKH) REFERENCES KhachHang(MaKH)
+    FOREIGN KEY (MaNV) REFERENCES NhanVien(MaNV)
 );
 
 -- ======================
@@ -161,6 +161,9 @@ CREATE TABLE DatBan (
     FOREIGN KEY (MaBan) REFERENCES Ban(MaBan),
     FOREIGN KEY (MaNVXuLy) REFERENCES NhanVien(MaNV)
 );
+
+-- Thêm foreign key constraint cho bảng DonHang sau khi tạo bảng DatBan
+ALTER TABLE DonHang ADD CONSTRAINT FK_DonHang_DatBan FOREIGN KEY (MaDat) REFERENCES DatBan(MaDat);
 
 -- ======================
 -- BẢNG VOUCHER / KHUYẾN MÃI
@@ -393,13 +396,13 @@ INSERT INTO Voucher (MaKH, TenVC, MaCode, LoaiGiamGia, GiaTri, GiaTriToiDa, DonH
 (3, 'Khách Hàng Thân Thiết', 'LOYAL50', 'Tiền', 150000, NULL, 500000, 1, '2024-01-01', '2024-12-31', 'Tạm dừng', 'Giảm 150k cho khách VIP'),
 (NULL, 'Cuối Tuần Vui Vẻ', 'WEEKEND15', 'Phần trăm', 15, 75000, 200000, 50, '2024-01-01', '2024-12-31', 'Còn hạn', 'Giảm 15% cuối tuần');
 
--- Thêm đơn hàng mẫu
-INSERT INTO DonHang (MaBan, MaNV, NgayLap, TongTien, TrangThai) VALUES
-(1, 3, '2024-01-15 10:30:00', 125000, 'Hoàn thành'),
-(2, 4, '2024-01-15 14:15:00', 85000, 'Hoàn thành'),
-(3, 3, '2024-01-16 09:45:00', 200000, 'Hoàn thành'),
-(4, 5, '2024-01-16 16:20:00', 65000, 'Đang xử lý'),
-(5, 4, '2024-01-17 11:10:00', 150000, 'Hoàn thành');
+-- Thêm đơn hàng mẫu (liên kết với đơn đặt bàn)
+INSERT INTO DonHang (MaDat, MaBan, MaNV, NgayLap, TongTien, TrangThai) VALUES
+(1, 2, 3, '2024-01-15 19:30:00', 125000, 'Hoàn thành'),  -- Đơn hàng từ đặt bàn 1
+(2, 5, 4, '2024-01-16 18:45:00', 85000, 'Hoàn thành'),   -- Đơn hàng từ đặt bàn 2
+(3, 3, 3, '2024-01-17 20:15:00', 200000, 'Hoàn thành'),  -- Đơn hàng từ đặt bàn 3
+(NULL, 1, 5, '2024-01-18 10:30:00', 65000, 'Hoàn thành'), -- Đơn hàng walk-in (không có đặt bàn)
+(NULL, 4, 4, '2024-01-18 14:20:00', 150000, 'Hoàn thành'); -- Đơn hàng walk-in (không có đặt bàn)
 
 -- Thêm chi tiết đơn hàng
 INSERT INTO CTDonHang (MaDH, MaMon, SoLuong, DonGia, ThanhTien, GhiChu) VALUES
@@ -696,6 +699,250 @@ CREATE TABLE IF NOT EXISTS LogHeThong (
 
 -- Ví dụ 4: Tính thời gian còn lại
 -- SELECT TinhThoiGianConLai('2024-01-15', '19:00:00') as ThoiGianConLai;
+
+-- ==============================================
+-- STORED PROCEDURES PHÂN TÍCH DOANH THU
+-- ==============================================
+
+DELIMITER //
+
+-- ==============================================
+-- 1. PROCEDURE: Tính tổng doanh thu từ đơn hàng đã thanh toán
+-- ==============================================
+CREATE PROCEDURE TinhTongDoanhThu()
+BEGIN
+    SELECT 
+        COALESCE(SUM(dh.TongTien), 0) as TongDoanhThu,
+        COUNT(DISTINCT dh.MaDH) as TongDonHang,
+        COUNT(DISTINCT dh.MaNV) as SoNhanVienPhucVu,
+        COALESCE(AVG(dh.TongTien), 0) as DoanhThuTrungBinh
+    FROM DonHang dh
+    INNER JOIN ThanhToan tt ON dh.MaDH = tt.MaDH
+    WHERE dh.TrangThai = 'Hoàn thành' 
+      AND tt.TrangThai = 'Thành công';
+END //
+
+-- ==============================================
+-- 2. PROCEDURE: Doanh thu theo khoảng thời gian
+-- ==============================================
+CREATE PROCEDURE DoanhThuTheoKhoangThoiGian(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE
+)
+BEGIN
+    SELECT 
+        DATE(dh.NgayLap) as Ngay,
+        COALESCE(SUM(dh.TongTien), 0) as DoanhThu,
+        COUNT(DISTINCT dh.MaDH) as SoDonHang,
+        COALESCE(AVG(dh.TongTien), 0) as DoanhThuTrungBinh,
+        COUNT(DISTINCT dh.MaBan) as SoBanPhucVu
+    FROM DonHang dh
+    INNER JOIN ThanhToan tt ON dh.MaDH = tt.MaDH
+    WHERE dh.TrangThai = 'Hoàn thành'
+      AND tt.TrangThai = 'Thành công'
+      AND DATE(dh.NgayLap) BETWEEN p_NgayBatDau AND p_NgayKetThuc
+    GROUP BY DATE(dh.NgayLap)
+    ORDER BY DATE(dh.NgayLap) ASC;
+END //
+
+-- ==============================================
+-- 3. PROCEDURE: Doanh thu theo món
+-- ==============================================
+CREATE PROCEDURE DoanhThuTheoMon(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE
+)
+BEGIN
+    SELECT 
+        m.MaMon,
+        m.TenMon,
+        m.DonGia as GiaHienTai,
+        lm.TenLoai as LoaiMon,
+        COALESCE(SUM(ct.SoLuong), 0) as TongSoLuongBan,
+        COALESCE(SUM(ct.ThanhTien), 0) as TongDoanhThu,
+        COALESCE(AVG(ct.DonGia), 0) as GiaBanTrungBinh,
+        COUNT(DISTINCT ct.MaDH) as SoDonHang
+    FROM Mon m
+    LEFT JOIN CTDonHang ct ON m.MaMon = ct.MaMon
+    LEFT JOIN DonHang dh ON ct.MaDH = dh.MaDH
+    LEFT JOIN ThanhToan tt ON dh.MaDH = tt.MaDH
+    LEFT JOIN LoaiMon lm ON m.MaLoai = lm.MaLoai
+    WHERE (p_NgayBatDau IS NULL OR DATE(dh.NgayLap) >= p_NgayBatDau)
+      AND (p_NgayKetThuc IS NULL OR DATE(dh.NgayLap) <= p_NgayKetThuc)
+      AND (dh.TrangThai = 'Hoàn thành' OR dh.TrangThai IS NULL)
+      AND (tt.TrangThai = 'Thành công' OR tt.TrangThai IS NULL)
+    GROUP BY m.MaMon, m.TenMon, m.DonGia, lm.TenLoai
+    ORDER BY TongDoanhThu DESC;
+END //
+
+-- ==============================================
+-- 4. PROCEDURE: Xếp hạng món bán chạy
+-- ==============================================
+CREATE PROCEDURE XepHangMonBanChay(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE,
+    IN p_SoLuong INT
+)
+BEGIN
+    DECLARE v_SoLuong INT DEFAULT 10;
+    
+    IF p_SoLuong IS NOT NULL AND p_SoLuong > 0 THEN
+        SET v_SoLuong = p_SoLuong;
+    END IF;
+    
+    SELECT 
+        m.MaMon,
+        m.TenMon,
+        m.HinhAnh,
+        lm.TenLoai as LoaiMon,
+        COALESCE(SUM(ct.SoLuong), 0) as TongSoLuongBan,
+        COALESCE(SUM(ct.ThanhTien), 0) as TongDoanhThu,
+        COUNT(DISTINCT ct.MaDH) as SoDonHang,
+        COALESCE(AVG(ct.DonGia), 0) as GiaBanTrungBinh
+    FROM Mon m
+    INNER JOIN CTDonHang ct ON m.MaMon = ct.MaMon
+    INNER JOIN DonHang dh ON ct.MaDH = dh.MaDH
+    LEFT JOIN ThanhToan tt ON dh.MaDH = tt.MaDH
+    LEFT JOIN LoaiMon lm ON m.MaLoai = lm.MaLoai
+    WHERE dh.TrangThai = 'Hoàn thành'
+      AND (tt.TrangThai = 'Thành công' OR tt.TrangThai IS NULL)
+      AND (p_NgayBatDau IS NULL OR DATE(dh.NgayLap) >= p_NgayBatDau)
+      AND (p_NgayKetThuc IS NULL OR DATE(dh.NgayLap) <= p_NgayKetThuc)
+    GROUP BY m.MaMon, m.TenMon, m.HinhAnh, lm.TenLoai
+    ORDER BY TongSoLuongBan DESC
+    LIMIT v_SoLuong;
+END //
+
+-- ==============================================
+-- 5. PROCEDURE: Doanh thu theo danh mục
+-- ==============================================
+CREATE PROCEDURE DoanhThuTheoDanhMuc(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE
+)
+BEGIN
+    SELECT 
+        lm.MaLoai,
+        lm.TenLoai,
+        lm.HinhAnh,
+        COALESCE(SUM(ct.SoLuong), 0) as TongSoLuongBan,
+        COALESCE(SUM(ct.ThanhTien), 0) as TongDoanhThu,
+        COUNT(DISTINCT m.MaMon) as SoMonKhacNhau,
+        COUNT(DISTINCT ct.MaDH) as SoDonHang,
+        COALESCE(AVG(ct.ThanhTien), 0) as DoanhThuTrungBinhMoiMon
+    FROM LoaiMon lm
+    LEFT JOIN Mon m ON lm.MaLoai = m.MaLoai
+    LEFT JOIN CTDonHang ct ON m.MaMon = ct.MaMon
+    LEFT JOIN DonHang dh ON ct.MaDH = dh.MaDH
+    LEFT JOIN ThanhToan tt ON dh.MaDH = tt.MaDH
+    WHERE (p_NgayBatDau IS NULL OR DATE(dh.NgayLap) >= p_NgayBatDau)
+      AND (p_NgayKetThuc IS NULL OR DATE(dh.NgayLap) <= p_NgayKetThuc)
+      AND (dh.TrangThai = 'Hoàn thành' OR dh.TrangThai IS NULL)
+      AND (tt.TrangThai = 'Thành công' OR tt.TrangThai IS NULL)
+    GROUP BY lm.MaLoai, lm.TenLoai, lm.HinhAnh
+    ORDER BY TongDoanhThu DESC;
+END //
+
+-- ==============================================
+-- 6. PROCEDURE: Thống kê doanh thu theo giờ trong ngày
+-- ==============================================
+CREATE PROCEDURE DoanhThuTheoGio(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE
+)
+BEGIN
+    SELECT 
+        HOUR(dh.NgayLap) as Gio,
+        COALESCE(SUM(dh.TongTien), 0) as DoanhThu,
+        COUNT(DISTINCT dh.MaDH) as SoDonHang,
+        COALESCE(AVG(dh.TongTien), 0) as DoanhThuTrungBinh
+    FROM DonHang dh
+    INNER JOIN ThanhToan tt ON dh.MaDH = tt.MaDH
+    WHERE dh.TrangThai = 'Hoàn thành'
+      AND tt.TrangThai = 'Thành công'
+      AND DATE(dh.NgayLap) BETWEEN p_NgayBatDau AND p_NgayKetThuc
+    GROUP BY HOUR(dh.NgayLap)
+    ORDER BY Gio ASC;
+END //
+
+-- ==============================================
+-- 7. PROCEDURE: Thống kê doanh thu theo nhân viên
+-- ==============================================
+CREATE PROCEDURE DoanhThuTheoNhanVien(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE
+)
+BEGIN
+    SELECT 
+        nv.MaNV,
+        nv.HoTen,
+        nv.ChucVu,
+        COALESCE(SUM(dh.TongTien), 0) as TongDoanhThu,
+        COUNT(DISTINCT dh.MaDH) as SoDonHang,
+        COALESCE(AVG(dh.TongTien), 0) as DoanhThuTrungBinh
+    FROM NhanVien nv
+    LEFT JOIN DonHang dh ON nv.MaNV = dh.MaNV
+    LEFT JOIN ThanhToan tt ON dh.MaDH = tt.MaDH
+    WHERE (p_NgayBatDau IS NULL OR DATE(dh.NgayLap) >= p_NgayBatDau)
+      AND (p_NgayKetThuc IS NULL OR DATE(dh.NgayLap) <= p_NgayKetThuc)
+      AND (dh.TrangThai = 'Hoàn thành' OR dh.TrangThai IS NULL)
+      AND (tt.TrangThai = 'Thành công' OR tt.TrangThai IS NULL)
+    GROUP BY nv.MaNV, nv.HoTen, nv.ChucVu
+    ORDER BY TongDoanhThu DESC;
+END //
+
+-- ==============================================
+-- 8. PROCEDURE: Thống kê doanh thu theo hình thức thanh toán
+-- ==============================================
+CREATE PROCEDURE DoanhThuTheoHinhThucThanhToan(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE
+)
+BEGIN
+    SELECT 
+        tt.HinhThuc,
+        COALESCE(SUM(tt.SoTien), 0) as TongDoanhThu,
+        COUNT(DISTINCT tt.MaTT) as SoGiaoDich,
+        COALESCE(AVG(tt.SoTien), 0) as GiaTriTrungBinh,
+        ROUND(SUM(tt.SoTien) * 100.0 / (SELECT SUM(SoTien) FROM ThanhToan WHERE TrangThai = 'Thành công'), 2) as TyLePhanTram
+    FROM ThanhToan tt
+    INNER JOIN DonHang dh ON tt.MaDH = dh.MaDH
+    WHERE tt.TrangThai = 'Thành công'
+      AND dh.TrangThai = 'Hoàn thành'
+      AND DATE(tt.NgayTT) BETWEEN p_NgayBatDau AND p_NgayKetThuc
+    GROUP BY tt.HinhThuc
+    ORDER BY TongDoanhThu DESC;
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- EXAMPLES SỬ DỤNG STORED PROCEDURES
+-- ==============================================
+
+-- Ví dụ 1: Tính tổng doanh thu
+-- CALL TinhTongDoanhThu();
+
+-- Ví dụ 2: Doanh thu theo khoảng thời gian (7 ngày qua)
+-- CALL DoanhThuTheoKhoangThoiGian(DATE_SUB(CURDATE(), INTERVAL 7 DAY), CURDATE());
+
+-- Ví dụ 3: Doanh thu theo món (tháng này)
+-- CALL DoanhThuTheoMon(DATE_FORMAT(CURDATE(), '%Y-%m-01'), CURDATE());
+
+-- Ví dụ 4: Top 10 món bán chạy (tháng này)
+-- CALL XepHangMonBanChay(DATE_FORMAT(CURDATE(), '%Y-%m-01'), CURDATE(), 10);
+
+-- Ví dụ 5: Doanh thu theo danh mục (tuần này)
+-- CALL DoanhThuTheoDanhMuc(DATE_SUB(CURDATE(), INTERVAL 7 DAY), CURDATE());
+
+-- Ví dụ 6: Doanh thu theo giờ (hôm nay)
+-- CALL DoanhThuTheoGio(CURDATE(), CURDATE());
+
+-- Ví dụ 7: Doanh thu theo nhân viên (tháng này)
+-- CALL DoanhThuTheoNhanVien(DATE_FORMAT(CURDATE(), '%Y-%m-01'), CURDATE());
+
+-- Ví dụ 8: Doanh thu theo hình thức thanh toán (tháng này)
+-- CALL DoanhThuTheoHinhThucThanhToan(DATE_FORMAT(CURDATE(), '%Y-%m-01'), CURDATE());
 
 -- Ví dụ 5: Xem log hệ thống
 -- SELECT * FROM LogHeThong WHERE HanhDong = 'AUTO_CANCEL_RESERVATIONS' ORDER BY ThoiGian DESC LIMIT 10;
@@ -1330,300 +1577,203 @@ DELIMITER ;
 -- Bật Event Scheduler (cần chạy với quyền admin)
 -- SET GLOBAL event_scheduler = ON;
 
+DELIMITER ;
+
 -- ==============================================
--- STORED PROCEDURE: LỌC SẢN PHẨM BÁN CHẠY
+-- STORED PROCEDURES CHO ĐƠN ĐẶT BÀN VÀ ĐƠN HÀNG
 -- ==============================================
 
+-- ==============================================
+-- 1. PROCEDURE: Lấy đơn hàng từ đơn đặt bàn
+-- ==============================================
 DELIMITER //
-
--- ==============================================
--- 18. PROCEDURE: Lọc sản phẩm bán chạy
--- ==============================================
-CREATE PROCEDURE LocSanPhamBanChay(
-    IN p_NgayBatDau DATE,
-    IN p_NgayKetThuc DATE,
-    IN p_SoLuongTop INT,
-    IN p_LoaiDonHang VARCHAR(20) -- 'TatCa', 'TaiCho', 'Online'
+CREATE PROCEDURE LayDonHangTuDatBan(
+    IN p_MaDat INT
 )
 BEGIN
-    DECLARE v_NgayBatDau DATE DEFAULT CURDATE() - INTERVAL 30 DAY;
-    DECLARE v_NgayKetThuc DATE DEFAULT CURDATE();
-    DECLARE v_SoLuongTop INT DEFAULT 10;
+    SELECT 
+        dh.MaDH,
+        dh.MaDat,
+        dh.MaBan,
+        b.TenBan,
+        dh.MaNV,
+        nv.HoTen as TenNhanVien,
+        dh.NgayLap,
+        dh.TongTien,
+        dh.TrangThai as TrangThaiDonHang,
+        -- Thông tin đặt bàn
+        db.TenKhach,
+        db.SoDienThoai,
+        db.EmailKhach,
+        db.NgayDat,
+        db.GioDat,
+        db.GioKetThuc,
+        db.SoNguoi,
+        db.TrangThai as TrangThaiDatBan,
+        db.GhiChu as GhiChuDatBan
+    FROM DonHang dh
+    LEFT JOIN DatBan db ON dh.MaDat = db.MaDat
+    LEFT JOIN Ban b ON dh.MaBan = b.MaBan
+    LEFT JOIN NhanVien nv ON dh.MaNV = nv.MaNV
+    WHERE dh.MaDat = p_MaDat
+    ORDER BY dh.NgayLap DESC;
+END //
+
+-- ==============================================
+-- 2. PROCEDURE: Lấy chi tiết đơn hàng từ đơn đặt bàn  
+-- ==============================================
+CREATE PROCEDURE LayChiTietDonHangTuDatBan(
+    IN p_MaDat INT
+)
+BEGIN
+    SELECT 
+        ct.MaDH,
+        ct.MaMon,
+        m.TenMon,
+        m.HinhAnh,
+        ct.SoLuong,
+        ct.DonGia,
+        ct.ThanhTien,
+        ct.GhiChu,
+        -- Thông tin đơn hàng
+        dh.NgayLap,
+        dh.TrangThai as TrangThaiDonHang
+    FROM CTDonHang ct
+    INNER JOIN DonHang dh ON ct.MaDH = dh.MaDH
+    INNER JOIN Mon m ON ct.MaMon = m.MaMon
+    WHERE dh.MaDat = p_MaDat
+    ORDER BY dh.NgayLap DESC, m.TenMon;
+END //
+
+-- ==============================================
+-- 3. PROCEDURE: Tạo đơn hàng từ đơn đặt bàn
+-- ==============================================
+CREATE PROCEDURE TaoDonHangTuDatBan(
+    IN p_MaDat INT,
+    IN p_MaNV INT,
+    OUT p_MaDH INT,
+    OUT p_ThongBao VARCHAR(255)
+)
+BEGIN
+    DECLARE v_MaBan INT;
+    DECLARE v_TrangThaiDatBan VARCHAR(20);
+    DECLARE v_SoDonHangHienTai INT DEFAULT 0;
     
-    -- Xử lý tham số mặc định
-    IF p_NgayBatDau IS NOT NULL THEN
-        SET v_NgayBatDau = p_NgayBatDau;
-    END IF;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        SET p_MaDH = 0;
+        SET p_ThongBao = 'Lỗi khi tạo đơn hàng từ đơn đặt bàn';
+    END;
     
-    IF p_NgayKetThuc IS NOT NULL THEN
-        SET v_NgayKetThuc = p_NgayKetThuc;
-    END IF;
+    START TRANSACTION;
     
-    IF p_SoLuongTop IS NOT NULL AND p_SoLuongTop > 0 THEN
-        SET v_SoLuongTop = p_SoLuongTop;
-    END IF;
+    -- Kiểm tra đơn đặt bàn có tồn tại không
+    SELECT MaBan, TrangThai 
+    INTO v_MaBan, v_TrangThaiDatBan
+    FROM DatBan 
+    WHERE MaDat = p_MaDat;
     
-    -- Tạo bảng tạm để tổng hợp dữ liệu
-    DROP TEMPORARY TABLE IF EXISTS temp_san_pham_ban_chay;
-    CREATE TEMPORARY TABLE temp_san_pham_ban_chay (
-        MaMon INT,
-        TenMon VARCHAR(100),
-        TenLoai VARCHAR(100),
-        DonGiaHienTai DECIMAL(12,2),
-        TongSoLuongBan INT,
-        TongDoanhThu DECIMAL(12,2),
-        SoLanDatHang INT,
-        TrungBinhSoLuongMoiDon DECIMAL(10,2),
-        LoaiDonHang VARCHAR(50)
-    );
-    
-    -- Xử lý theo loại đơn hàng
-    IF p_LoaiDonHang = 'TaiCho' OR p_LoaiDonHang IS NULL OR p_LoaiDonHang = 'TatCa' THEN
-        -- Thêm dữ liệu từ đơn hàng tại chỗ
-        INSERT INTO temp_san_pham_ban_chay
-        SELECT 
-            m.MaMon,
-            m.TenMon,
-            lm.TenLoai,
-            m.DonGia as DonGiaHienTai,
-            SUM(ct.SoLuong) as TongSoLuongBan,
-            SUM(ct.ThanhTien) as TongDoanhThu,
-            COUNT(DISTINCT ct.MaDH) as SoLanDatHang,
-            ROUND(AVG(ct.SoLuong), 2) as TrungBinhSoLuongMoiDon,
-            'Tại chỗ' as LoaiDonHang
-        FROM CTDonHang ct
-        JOIN DonHang dh ON ct.MaDH = dh.MaDH
-        JOIN Mon m ON ct.MaMon = m.MaMon
-        LEFT JOIN LoaiMon lm ON m.MaLoai = lm.MaLoai
-        WHERE DATE(dh.NgayLap) BETWEEN v_NgayBatDau AND v_NgayKetThuc
-          AND dh.TrangThai = 'Hoàn thành'
-        GROUP BY m.MaMon, m.TenMon, lm.TenLoai, m.DonGia;
-    END IF;
-    
-    IF p_LoaiDonHang = 'Online' OR p_LoaiDonHang IS NULL OR p_LoaiDonHang = 'TatCa' THEN
-        -- Thêm dữ liệu từ đơn hàng online
-        INSERT INTO temp_san_pham_ban_chay
-        SELECT 
-            m.MaMon,
-            m.TenMon,
-            lm.TenLoai,
-            m.DonGia as DonGiaHienTai,
-            SUM(cto.SoLuong) as TongSoLuongBan,
-            SUM(cto.ThanhTien) as TongDoanhThu,
-            COUNT(DISTINCT cto.MaDHOnline) as SoLanDatHang,
-            ROUND(AVG(cto.SoLuong), 2) as TrungBinhSoLuongMoiDon,
-            'Online' as LoaiDonHang
-        FROM CTDonHangOnline cto
-        JOIN DonHangOnline dho ON cto.MaDHOnline = dho.MaDHOnline
-        JOIN Mon m ON cto.MaMon = m.MaMon
-        LEFT JOIN LoaiMon lm ON m.MaLoai = lm.MaLoai
-        WHERE DATE(dho.NgayDat) BETWEEN v_NgayBatDau AND v_NgayKetThuc
-          AND dho.TrangThai = 'Hoàn thành'
-        GROUP BY m.MaMon, m.TenMon, lm.TenLoai, m.DonGia;
-    END IF;
-    
-    -- Tổng hợp kết quả cuối cùng
-    IF p_LoaiDonHang = 'TatCa' OR p_LoaiDonHang IS NULL THEN
-        -- Tổng hợp tất cả loại đơn hàng
-        SELECT 
-            MaMon,
-            TenMon,
-            TenLoai,
-            DonGiaHienTai,
-            SUM(TongSoLuongBan) as TongSoLuongBan,
-            SUM(TongDoanhThu) as TongDoanhThu,
-            SUM(SoLanDatHang) as TongSoLanDatHang,
-            ROUND(SUM(TongSoLuongBan) / SUM(SoLanDatHang), 2) as TrungBinhSoLuongMoiDon,
-            'Tất cả' as LoaiDonHang,
-            RANK() OVER (ORDER BY SUM(TongSoLuongBan) DESC) as XepHang
-        FROM temp_san_pham_ban_chay
-        GROUP BY MaMon, TenMon, TenLoai, DonGiaHienTai
-        ORDER BY TongSoLuongBan DESC
-        LIMIT v_SoLuongTop;
+    IF v_MaBan IS NULL THEN
+        SET p_MaDH = 0;
+        SET p_ThongBao = 'Không tìm thấy đơn đặt bàn';
+        ROLLBACK;
+    ELSEIF v_TrangThaiDatBan NOT IN ('Đã xác nhận', 'Đã đặt') THEN
+        SET p_MaDH = 0;
+        SET p_ThongBao = CONCAT('Đơn đặt bàn có trạng thái: ', v_TrangThaiDatBan, '. Không thể tạo đơn hàng');
+        ROLLBACK;
     ELSE
-        -- Hiển thị theo loại đơn hàng cụ thể
-        SELECT 
-            MaMon,
-            TenMon,
-            TenLoai,
-            DonGiaHienTai,
-            TongSoLuongBan,
-            TongDoanhThu,
-            SoLanDatHang as TongSoLanDatHang,
-            TrungBinhSoLuongMoiDon,
-            LoaiDonHang,
-            RANK() OVER (ORDER BY TongSoLuongBan DESC) as XepHang
-        FROM temp_san_pham_ban_chay
-        ORDER BY TongSoLuongBan DESC
-        LIMIT v_SoLuongTop;
+        -- Kiểm tra đã có đơn hàng cho đơn đặt bàn này chưa
+        SELECT COUNT(*) INTO v_SoDonHangHienTai
+        FROM DonHang 
+        WHERE MaDat = p_MaDat AND TrangThai != 'Đã hủy';
+        
+        IF v_SoDonHangHienTai > 0 THEN
+            SET p_MaDH = 0;
+            SET p_ThongBao = 'Đơn đặt bàn này đã có đơn hàng';
+            ROLLBACK;
+        ELSE
+            -- Tạo đơn hàng mới
+            INSERT INTO DonHang (MaDat, MaBan, MaNV, NgayLap, TongTien, TrangThai)
+            VALUES (p_MaDat, v_MaBan, p_MaNV, NOW(), 0, 'Chờ thanh toán');
+            
+            SET p_MaDH = LAST_INSERT_ID();
+            
+            -- Cập nhật trạng thái đặt bàn
+            UPDATE DatBan 
+            SET TrangThai = 'Đang phục vụ'
+            WHERE MaDat = p_MaDat;
+            
+            -- Cập nhật trạng thái bàn
+            UPDATE Ban 
+            SET TrangThai = 'Đang phục vụ'
+            WHERE MaBan = v_MaBan;
+            
+            SET p_ThongBao = 'Tạo đơn hàng thành công';
+            COMMIT;
+        END IF;
     END IF;
-    
-    -- Xóa bảng tạm
-    DROP TEMPORARY TABLE temp_san_pham_ban_chay;
-    
 END //
 
 -- ==============================================
--- 19. PROCEDURE: Báo cáo chi tiết sản phẩm bán chạy theo thời gian
+-- 4. VIEW: Thông tin tổng hợp đơn đặt bàn và đơn hàng
 -- ==============================================
-CREATE PROCEDURE BaoCaoSanPhamBanChayTheoThoiGian(
-    IN p_MaMon INT,
-    IN p_NgayBatDau DATE,
-    IN p_NgayKetThuc DATE,
-    IN p_LoaiThoiGian VARCHAR(10) -- 'NGAY', 'TUAN', 'THANG'
-)
-BEGIN
-    DECLARE v_NgayBatDau DATE DEFAULT CURDATE() - INTERVAL 30 DAY;
-    DECLARE v_NgayKetThuc DATE DEFAULT CURDATE();
-    
-    -- Xử lý tham số mặc định
-    IF p_NgayBatDau IS NOT NULL THEN
-        SET v_NgayBatDau = p_NgayBatDau;
-    END IF;
-    
-    IF p_NgayKetThuc IS NOT NULL THEN
-        SET v_NgayKetThuc = p_NgayKetThuc;
-    END IF;
-    
-    -- Báo cáo theo ngày
-    IF p_LoaiThoiGian = 'NGAY' OR p_LoaiThoiGian IS NULL THEN
-        SELECT 
-            DATE(dh.NgayLap) as NgayBan,
-            m.TenMon,
-            SUM(ct.SoLuong) as SoLuongBan,
-            SUM(ct.ThanhTien) as DoanhThu,
-            COUNT(DISTINCT ct.MaDH) as SoLanDatHang
-        FROM CTDonHang ct
-        JOIN DonHang dh ON ct.MaDH = dh.MaDH
-        JOIN Mon m ON ct.MaMon = m.MaMon
-        WHERE (p_MaMon IS NULL OR ct.MaMon = p_MaMon)
-          AND DATE(dh.NgayLap) BETWEEN v_NgayBatDau AND v_NgayKetThuc
-          AND dh.TrangThai = 'Hoàn thành'
-        GROUP BY DATE(dh.NgayLap), m.MaMon, m.TenMon
-        
-        UNION ALL
-        
-        SELECT 
-            DATE(dho.NgayDat) as NgayBan,
-            m.TenMon,
-            SUM(cto.SoLuong) as SoLuongBan,
-            SUM(cto.ThanhTien) as DoanhThu,
-            COUNT(DISTINCT cto.MaDHOnline) as SoLanDatHang
-        FROM CTDonHangOnline cto
-        JOIN DonHangOnline dho ON cto.MaDHOnline = dho.MaDHOnline
-        JOIN Mon m ON cto.MaMon = m.MaMon
-        WHERE (p_MaMon IS NULL OR cto.MaMon = p_MaMon)
-          AND DATE(dho.NgayDat) BETWEEN v_NgayBatDau AND v_NgayKetThuc
-          AND dho.TrangThai = 'Hoàn thành'
-        GROUP BY DATE(dho.NgayDat), m.MaMon, m.TenMon
-        ORDER BY NgayBan DESC, SoLuongBan DESC;
-    END IF;
-    
-END //
+CREATE VIEW VW_DatBan_DonHang AS
+SELECT 
+    db.MaDat,
+    db.MaKH,
+    db.MaBan,
+    b.TenBan,
+    kv.TenKhuVuc,
+    db.NgayDat,
+    db.GioDat,
+    db.GioKetThuc,
+    db.SoNguoi,
+    db.TrangThai as TrangThaiDatBan,
+    db.TenKhach,
+    db.SoDienThoai,
+    db.EmailKhach,
+    db.GhiChu as GhiChuDatBan,
+    db.NgayTaoDat,
+    -- Thông tin đơn hàng (nếu có)
+    dh.MaDH,
+    dh.NgayLap,
+    dh.TongTien,
+    dh.TrangThai as TrangThaiDonHang,
+    nv.HoTen as TenNhanVien,
+    -- Thông tin thanh toán (nếu có)
+    tt.MaTT,
+    tt.HinhThuc as HinhThucThanhToan,
+    tt.SoTien as SoTienThanhToan,
+    tt.NgayTT,
+    CASE 
+        WHEN dh.MaDH IS NULL THEN 'Chưa có đơn hàng'
+        WHEN tt.MaTT IS NULL THEN 'Chưa thanh toán'
+        ELSE 'Đã thanh toán'
+    END as TrangThaiTongHop
+FROM DatBan db
+LEFT JOIN Ban b ON db.MaBan = b.MaBan
+LEFT JOIN KhuVuc kv ON b.MaKhuVuc = kv.MaKhuVuc
+LEFT JOIN DonHang dh ON db.MaDat = dh.MaDat
+LEFT JOIN NhanVien nv ON dh.MaNV = nv.MaNV
+LEFT JOIN ThanhToan tt ON dh.MaDH = tt.MaDH;
 
 DELIMITER ;
 
 -- ==============================================
--- EXAMPLES SỬ DỤNG PROCEDURES SẢN PHẨM BÁN CHẠY
+-- CÁC PROCEDURE HỖ TRỢ FRONTEND
 -- ==============================================
 
--- Ví dụ 1: Top 10 sản phẩm bán chạy nhất trong 30 ngày qua (tất cả loại đơn hàng)
--- CALL LocSanPhamBanChay(DATE_SUB(CURDATE(), INTERVAL 30 DAY), CURDATE(), 10, 'TatCa');
+-- Ví dụ sử dụng:
+-- 1. Lấy đơn hàng từ đơn đặt bàn
+-- CALL LayDonHangTuDatBan(1);
 
--- Ví dụ 2: Top 5 sản phẩm bán chạy nhất chỉ đơn hàng tại chỗ
--- CALL LocSanPhamBanChay('2024-01-01', '2024-01-31', 5, 'TaiCho');
+-- 2. Lấy chi tiết đơn hàng từ đơn đặt bàn  
+-- CALL LayChiTietDonHangTuDatBan(1);
 
--- Ví dụ 3: Top 15 sản phẩm bán chạy nhất chỉ đơn hàng online
--- CALL LocSanPhamBanChay('2024-01-01', CURDATE(), 15, 'Online');
+-- 3. Tạo đơn hàng từ đơn đặt bàn
+-- CALL TaoDonHangTuDatBan(1, 3, @maDH, @thongBao);
+-- SELECT @maDH as MaDonHang, @thongBao as ThongBao;
 
--- Ví dụ 4: Báo cáo chi tiết sản phẩm theo ngày
--- CALL BaoCaoSanPhamBanChayTheoThoiGian(1, '2024-01-01', '2024-01-31', 'NGAY');
-
--- Ví dụ 5: Báo cáo tất cả sản phẩm theo ngày
--- CALL BaoCaoSanPhamBanChayTheoThoiGian(NULL, '2024-01-01', '2024-01-31', 'NGAY');
-
-DELIMITER ;
-CREATE TABLE IF NOT EXISTS Media (
-    MaMedia INT AUTO_INCREMENT PRIMARY KEY,
-    TenFile VARCHAR(255) NOT NULL COMMENT 'Tên file gốc',
-    TenFileHienThi VARCHAR(255) NOT NULL COMMENT 'Tên file hiển thị cho người dùng',
-    DuongDan VARCHAR(500) NOT NULL COMMENT 'Đường dẫn file trên server',
-    URL VARCHAR(500) NOT NULL COMMENT 'URL truy cập file',
-    LoaiMedia ENUM('image', 'video') NOT NULL COMMENT 'Loại media: image hoặc video',
-    KichThuoc BIGINT NOT NULL COMMENT 'Kích thước file (bytes)',
-    DinhDang VARCHAR(20) NOT NULL COMMENT 'Định dạng file (jpg, png, mp4, etc.)',
-    ChieuRong INT NULL COMMENT 'Chiều rộng (pixels) - cho ảnh/video',
-    ChieuCao INT NULL COMMENT 'Chiều cao (pixels) - cho ảnh/video',
-    ThoiLuong INT NULL COMMENT 'Thời lượng (giây) - cho video',
-    MucDich ENUM('main', 'thumbnail', 'gallery', 'banner') NOT NULL DEFAULT 'main' COMMENT 'Mục đích sử dụng media',
-    MaLienKet INT NULL COMMENT 'ID của món ăn hoặc loại món liên kết',
-    LoaiLienKet ENUM('menu', 'category') NULL COMMENT 'Loại đối tượng liên kết',
-    TrangThai ENUM('active', 'inactive', 'processing', 'error') NOT NULL DEFAULT 'active' COMMENT 'Trạng thái media',
-    MoTa TEXT NULL COMMENT 'Mô tả media',
-    ThuTu INT NOT NULL DEFAULT 0 COMMENT 'Thứ tự hiển thị',
-    NgayTao DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    NgayCapNhat DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    NguoiTao VARCHAR(100) NULL COMMENT 'Người tạo media',
-    
-    -- Indexes
-    INDEX idx_ma_lien_ket_loai (MaLienKet, LoaiLienKet),
-    INDEX idx_muc_dich (MucDich),
-    INDEX idx_trang_thai (TrangThai),
-    INDEX idx_ngay_tao (NgayTao)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Thêm sample data cho demo
-INSERT INTO Media (
-    TenFile, TenFileHienThi, DuongDan, URL, LoaiMedia, KichThuoc, DinhDang,
-    ChieuRong, ChieuCao, MucDich, MaLienKet, LoaiLienKet, MoTa, ThuTu, NguoiTao
-) VALUES
--- Media cho món Americano (MaMon = 1)
-('americano-main.jpg', 'Americano - Ảnh chính', '/uploads/images/menu/americano-main.jpg', 
- 'http://localhost:3000/uploads/images/menu/americano-main.jpg', 'image', 245760, 'jpg',
- 800, 600, 'main', 1, 'menu', 'Ảnh chính của món Americano', 1, 'admin'),
-
-('americano-thumb.jpg', 'Americano - Thumbnail', '/uploads/images/menu/americano-thumb.jpg',
- 'http://localhost:3000/uploads/images/menu/americano-thumb.jpg', 'image', 45760, 'jpg',
- 300, 300, 'thumbnail', 1, 'menu', 'Thumbnail của món Americano', 1, 'admin'),
-
--- Media cho danh mục Cà phê (MaLoai = 1)
-('coffee-category.jpg', 'Danh mục Cà phê', '/uploads/images/categories/coffee-category.jpg',
- 'http://localhost:3000/uploads/images/categories/coffee-category.jpg', 'image', 512000, 'jpg',
- 1200, 800, 'main', 1, 'category', 'Ảnh đại diện cho danh mục Cà phê', 1, 'admin'),
-
--- Media cho món Cappuccino (MaMon = 2)
-('cappuccino-gallery-1.jpg', 'Cappuccino - Gallery 1', '/uploads/images/menu/cappuccino-gallery-1.jpg',
- 'http://localhost:3000/uploads/images/menu/cappuccino-gallery-1.jpg', 'image', 387200, 'jpg',
- 800, 600, 'gallery', 2, 'menu', 'Ảnh gallery của Cappuccino', 1, 'admin');
-
--- Kiểm tra dữ liệu đã tạo
-SELECT 
-    m.MaMedia,
-    m.TenFileHienThi,
-    m.LoaiMedia,
-    m.MucDich,
-    m.LoaiLienKet,
-    m.MaLienKet,
-    m.TrangThai,
-    m.NgayTao
-FROM Media m
-ORDER BY m.NgayTao DESC;
-
--- Thống kê media
-SELECT 
-    'Tổng số media' as ThongKe,
-    COUNT(*) as SoLuong
-FROM Media
-UNION ALL
-SELECT 
-    CONCAT('Media cho ', LoaiLienKet) as ThongKe,
-    COUNT(*) as SoLuong
-FROM Media 
-WHERE LoaiLienKet IS NOT NULL
-GROUP BY LoaiLienKet
-UNION ALL
-SELECT 
-    CONCAT('Media loại ', LoaiMedia) as ThongKe,
-    COUNT(*) as SoLuong
-FROM Media 
-GROUP BY LoaiMedia;
+-- 4. Xem tổng hợp đơn đặt bàn và đơn hàng
+-- SELECT * FROM VW_DatBan_DonHang WHERE MaDat = 1;
