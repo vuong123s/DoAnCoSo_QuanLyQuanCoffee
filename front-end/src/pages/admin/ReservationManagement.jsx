@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { reservationAPI, tableAPI } from '../../shared/services/api';
-import { FiCalendar, FiClock, FiUsers, FiPhone, FiMail, FiEdit, FiTrash2, FiEye, FiFilter, FiDownload, FiX } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { reservationAPI, tableAPI, billingAPI } from '../../shared/services/api';
+import { FiCalendar, FiClock, FiUsers, FiPhone, FiMail, FiEdit, FiTrash2, FiEye, FiFilter, FiDownload, FiX, FiShoppingCart } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const ReservationManagement = () => {
+  const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
   const [filteredReservations, setFilteredReservations] = useState([]);
   const [tables, setTables] = useState([]);
@@ -139,6 +141,43 @@ const ReservationManagement = () => {
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+    }
+  };
+
+  const handleConvertToOrder = async (reservation) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const loadingToast = toast.loading('Đang tạo đơn hàng...');
+
+      // Chuyển đổi đặt bàn thành đơn hàng
+      const response = await billingAPI.convertReservationToOrder({
+        MaDat: reservation.MaDat,
+        MaNV: user.id || null,
+        items: [] // Có thể thêm món đã đặt trước nếu có
+      });
+
+      toast.dismiss(loadingToast);
+
+      if (response.data.success) {
+        const orderId = response.data.order.MaDH;
+        toast.success('Đã tạo đơn hàng thành công!');
+        
+        // Chuyển đến trang Sales Management với order ID
+        navigate('/admin/sales', { 
+          state: { 
+            orderId: orderId,
+            fromReservation: true,
+            reservationInfo: {
+              TenKhach: reservation.TenKhach,
+              SoDienThoai: reservation.SoDienThoai,
+              MaBan: reservation.MaBan
+            }
+          } 
+        });
+      }
+    } catch (error) {
+      console.error('Error converting reservation to order:', error);
+      toast.error(error.response?.data?.message || 'Có lỗi khi tạo đơn hàng');
     }
   };
 
@@ -422,6 +461,15 @@ const ReservationManagement = () => {
                     >
                       <FiEye className="w-4 h-4" />
                     </button>
+                    {(reservation.TrangThai === 'Đã đặt' || reservation.TrangThai === 'Đã xác nhận') && (
+                      <button
+                        onClick={() => handleConvertToOrder(reservation)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Chuyển sang bán hàng"
+                      >
+                        <FiShoppingCart className="w-4 h-4" />
+                      </button>
+                    )}
                     {reservation.TrangThai !== 'Đã hủy' && reservation.TrangThai !== 'Hoàn thành' && (
                       <button
                         onClick={() => handleCancel(reservation)}

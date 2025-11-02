@@ -8,6 +8,15 @@ const DonHang = sequelize.define('DonHang', {
     primaryKey: true,
     autoIncrement: true
   },
+  MaKH: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'KhachHang',
+      key: 'MaKH'
+    },
+    comment: 'Mã khách hàng để cộng điểm'
+  },
   MaBan: {
     type: DataTypes.INTEGER,
     allowNull: true,

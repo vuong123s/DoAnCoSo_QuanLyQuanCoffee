@@ -1,5 +1,6 @@
 const { DonHang, CTDonHang } = require('../models');
 const { Op } = require('sequelize');
+const { processOrderPoints } = require('../utils/loyaltyPoints');
 
 // Create a new order (DonHang schema)
 const createOrder = async (req, res) => {
@@ -7,9 +8,11 @@ const createOrder = async (req, res) => {
     const { 
       MaBan, 
       MaNV,
+      MaKH, // Customer ID for loyalty points
       TrangThai = 'Đang xử lý',
       TongTien = 0,
-      GhiChu
+      GhiChu,
+      items = [] // Optional: Array of items [{MaMon, SoLuong, DonGia, GhiChu}]
     } = req.body;
 
     if (!MaBan) {
@@ -18,17 +21,51 @@ const createOrder = async (req, res) => {
       });
     }
 
+    // Calculate total amount from items if provided
+    let totalAmount = parseFloat(TongTien);
+    if (items.length > 0) {
+      totalAmount = items.reduce((sum, item) => {
+        return sum + (item.SoLuong * item.DonGia);
+      }, 0);
+    }
+
     // Create DonHang record
     const donHang = await DonHang.create({
       MaBan: parseInt(MaBan),
       MaNV: MaNV ? parseInt(MaNV) : null,
-      TongTien: parseFloat(TongTien),
+      MaKH: MaKH ? parseInt(MaKH) : null,
+      TongTien: totalAmount,
       TrangThai: TrangThai
     });
 
+    // Add items to order if provided
+    if (items.length > 0) {
+      const orderItems = items.map(item => ({
+        MaDH: donHang.MaDH,
+        MaMon: parseInt(item.MaMon),
+        SoLuong: parseInt(item.SoLuong),
+        DonGia: parseFloat(item.DonGia),
+        ThanhTien: parseInt(item.SoLuong) * parseFloat(item.DonGia),
+        GhiChu: item.GhiChu || null
+      }));
+
+      await CTDonHang.bulkCreate(orderItems);
+    }
+
+    // Fetch complete order with items
+    const completeOrder = await DonHang.findByPk(donHang.MaDH, {
+      include: [{
+        model: CTDonHang,
+        as: 'chitiet'
+      }]
+    });
+
     res.status(201).json({
+      success: true,
       message: 'Order created successfully',
-      order: donHang
+      order: completeOrder,
+      MaDH: donHang.MaDH,
+      orderId: donHang.MaDH
     });
 
   } catch (error) {
@@ -98,6 +135,51 @@ const getBills = async (req, res) => {
   }
 };
 
+// Cancel order
+const cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { LyDoHuy } = req.body;
+
+    const order = await DonHang.findByPk(id);
+    
+    if (!order) {
+      return res.status(404).json({
+        error: 'Order not found',
+        message: 'Không tìm thấy đơn hàng'
+      });
+    }
+
+    // Only allow canceling orders that are not completed or already canceled
+    if (order.TrangThai === 'Hoàn thành' || order.TrangThai === 'Đã hủy') {
+      return res.status(400).json({
+        error: 'Cannot cancel order',
+        message: `Không thể hủy đơn hàng đã ${order.TrangThai.toLowerCase()}`
+      });
+    }
+
+    await order.update({
+      TrangThai: 'Đã hủy',
+      GhiChu: LyDoHuy || 'Đơn hàng đã bị hủy'
+    });
+
+    console.log(`🚫 Order ${id} canceled:`, LyDoHuy);
+
+    res.json({
+      success: true,
+      message: 'Đơn hàng đã được hủy',
+      order: order
+    });
+
+  } catch (error) {
+    console.error('Error canceling order:', error);
+    res.status(500).json({
+      error: 'Failed to cancel order',
+      message: error.message
+    });
+  }
+};
+
 // Get order by ID (DonHang schema)
 const getBillById = async (req, res) => {
   try {
@@ -161,7 +243,23 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
+    const previousStatus = order.TrangThai;
     await order.update({ TrangThai });
+
+    // Cộng điểm cho khách hàng khi đơn hàng hoàn thành
+    if (TrangThai === 'Hoàn thành' && previousStatus !== 'Hoàn thành' && order.MaKH) {
+      console.log(`🎁 Processing loyalty points for order #${id}, customer #${order.MaKH}`);
+      const pointsResult = await processOrderPoints(
+        order.MaKH,
+        order.TongTien,
+        'DonHang',
+        order.MaDH
+      );
+      
+      if (pointsResult.success) {
+        console.log(`✅ Successfully added ${pointsResult.pointsAdded} points to customer ${order.MaKH}`);
+      }
+    }
 
     const updatedOrder = await DonHang.findByPk(id, {
       include: [{
@@ -573,6 +671,7 @@ const createOrderWithItems = async (req, res) => {
     const { 
       MaBan, 
       MaNV,
+      MaKH, // Customer ID for loyalty points
       TrangThai = 'Đang xử lý',
       items = [] // Array of items: [{MaMon, SoLuong, DonGia, GhiChu}]
     } = req.body;
@@ -595,6 +694,7 @@ const createOrderWithItems = async (req, res) => {
     const donHang = await DonHang.create({
       MaBan: parseInt(MaBan),
       MaNV: MaNV ? parseInt(MaNV) : null,
+      MaKH: MaKH ? parseInt(MaKH) : null,
       TongTien: totalAmount,
       TrangThai: TrangThai
     });
@@ -642,6 +742,7 @@ module.exports = {
   getBills,
   getBillById,
   updateOrderStatus,
+  cancelOrder,
   deleteOrder,
   getBillingStats,
   // Order items management (bán hàng)

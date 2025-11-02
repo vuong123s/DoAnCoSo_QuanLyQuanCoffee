@@ -45,7 +45,7 @@ import TableManagement from "../pages/admin/TableManagement";
 import ReservationManagement from "../pages/admin/ReservationManagement";
 import OrderManagement from "../pages/admin/OrderManagement";
 import OnlineOrderManagement from "../pages/admin/OnlineOrderManagement";
-import SalesManagement from "../pages/admin/SalesManagement";
+import POSSystem from "../pages/admin/POSSystem";
 import ScheduleManagement from "../pages/admin/ScheduleManagement";
 import UserManagement from "../pages/admin/UserManagement";
 import InventoryManagement from "../pages/admin/InventoryManagement";
@@ -121,7 +121,7 @@ function App() {
             <Route path="reservations" element={<ReservationManagement />} />
             <Route path="orders" element={<OrderManagement />} />
             <Route path="online-orders" element={<OnlineOrderManagement />} />
-            <Route path="sales" element={<SalesManagement />} />
+            <Route path="sales" element={<POSSystem />} />
             <Route path="schedules" element={<ScheduleManagement />} />
             <Route path="users" element={<UserManagement />} />
             <Route path="inventory" element={<InventoryManagement />} />

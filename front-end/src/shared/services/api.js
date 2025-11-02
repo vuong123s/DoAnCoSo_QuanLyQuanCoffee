@@ -233,6 +233,8 @@ export const billingAPI = {
   getBills: (params) => billingApi.get('/api/billing/test-orders', { params }),
   getBill: (id) => billingApi.get(`/api/billing/${id}`),
   createBill: (billData) => billingApi.post('/api/billing', billData),
+  convertReservationToOrder: (data) => api.post('/api/reservation-orders/convert', data),
+  getOrderByReservation: (reservationId) => api.get(`/api/reservation-orders/by-reservation/${reservationId}`),
   updateBill: (id, billData) => billingApi.put(`/api/billing/${id}`, billData),
   deleteBill: (id) => billingApi.delete(`/api/billing/${id}`),
   updatePaymentStatus: (id, paymentData) => billingApi.put(`/api/billing/${id}/payment`, paymentData),
@@ -241,6 +243,7 @@ export const billingAPI = {
   // Order management (DonHang schema)
   createOrder: (orderData) => billingApi.post('/api/billing', orderData),
   updateOrderStatus: (id, statusData) => billingApi.put(`/api/billing/${id}/payment`, statusData),
+  cancelOrder: (id, reason) => billingApi.post(`/api/billing/${id}/cancel`, { LyDoHuy: reason }),
   deleteOrder: (id) => billingApi.delete(`/api/billing/${id}`),
   
   // Order items management (bán hàng)

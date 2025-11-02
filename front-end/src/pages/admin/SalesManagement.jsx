@@ -1,45 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { FiSearch, FiPlus, FiRefreshCw, FiClock, FiMapPin, FiTrash2, FiMinus, FiEdit3 } from 'react-icons/fi';
+import { 
+  FiSearch, 
+  FiPlus, 
+  FiRefreshCw, 
+  FiShoppingCart, 
+  FiTrash2, 
+  FiCheck,
+  FiX,
+  FiClock,
+  FiDollarSign,
+  FiUsers,
+  FiPackage
+} from 'react-icons/fi';
 import { billingAPI, menuAPI, tableAPI } from '../../shared/services/api';
 import LoadingSpinner from '../../components/common/ui/LoadingSpinner';
 import { useAuthStore } from '../../app/stores/authStore';
 
-// Sales Management Component - Updated with 3-column layout
+// POS System - Bán hàng tại chỗ
 const SalesManagement = () => {
-  const { user } = useAuthStore(); // Get current user from auth store
-  const [orders, setOrders] = useState([]);
+  const { user } = useAuthStore();
+  
+  // State management
+  const [loading, setLoading] = useState(true);
+  const [activeOrders, setActiveOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [tables, setTables] = useState([]);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [currentOrder, setCurrentOrder] = useState({ items: [], total: 0 });
-  const [orderItems, setOrderItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
   
-  // Filter states for menu
+  // Current order being created/edited
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [cart, setCart] = useState([]);
+  const [orderNote, setOrderNote] = useState('');
+  
+  // Selected order for viewing
+  const [viewingOrder, setViewingOrder] = useState(null);
+  
+  // UI states
+  const [activeTab, setActiveTab] = useState('new'); // 'new' | 'orders'
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredMenuItems, setFilteredMenuItems] = useState([]);
   
-  // Filter states for orders
-  const [orderStatusFilter, setOrderStatusFilter] = useState(''); // All, Đang xử lý, Hoàn thành, Đã hủy
-  const [orderDateFilter, setOrderDateFilter] = useState(''); // Today, Yesterday, This week, etc.
-  const [filteredOrders, setFilteredOrders] = useState([]);
-  
-  const [newOrder, setNewOrder] = useState({
-    MaBan: '',
-    MaNV: user?.MaNV || user?.id || 1, // Get employee ID from logged-in user
-    TrangThai: 'Đang xử lý',
-    GhiChu: ''
-  });
-  
-  const [newItem, setNewItem] = useState({
-    MaMon: '',
-    SoLuong: 1,
-    GhiChu: ''
+  // Statistics
+  const [stats, setStats] = useState({
+    todayOrders: 0,
+    todayRevenue: 0,
+    activeOrders: 0
   });
   useEffect(() => {
     fetchData();

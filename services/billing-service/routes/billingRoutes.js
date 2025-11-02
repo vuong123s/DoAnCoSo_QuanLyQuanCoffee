@@ -5,6 +5,7 @@ const {
   getBills,
   getBillById,
   updatePaymentStatus,
+  cancelOrder,
   getBillingStats,
   deleteBill,
   // Order items management (bán hàng)
@@ -152,7 +153,10 @@ router.put('/:id/payment', (req, res, next) => {
   next();
 }, updatePaymentStatus);
 
-// Delete/Cancel bill
+// Cancel order (soft delete with reason)
+router.post('/:id/cancel', cancelOrder);
+
+// Delete/Cancel bill (hard delete)
 router.delete('/:id', deleteBill);
 
 // Order items management routes (bán hàng)

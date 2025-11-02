@@ -77,17 +77,36 @@ CREATE TABLE Mon (
 );
 
 -- ======================
+-- BẢNG KHÁCH HÀNG
+-- ======================
+CREATE TABLE KhachHang (
+    MaKH INT AUTO_INCREMENT PRIMARY KEY,
+    HoTen VARCHAR(100) NOT NULL,
+    GioiTinh VARCHAR(10),
+    NgaySinh DATE,
+    SDT VARCHAR(20) UNIQUE NOT NULL,
+    Email VARCHAR(100) UNIQUE,
+    MatKhau VARCHAR(255) NOT NULL,
+    DiaChi TEXT,
+    DiemTichLuy INT DEFAULT 0,
+    NgayDangKy DATETIME DEFAULT CURRENT_TIMESTAMP,
+    TrangThai VARCHAR(20) DEFAULT 'Hoạt động'  -- Hoạt động, Tạm khóa
+);
+
+-- ======================
 -- BẢNG ĐƠN HÀNG
 -- ======================
 CREATE TABLE DonHang (
     MaDH INT AUTO_INCREMENT PRIMARY KEY,
     MaDat INT,                                       -- Liên kết với đơn đặt bàn
+    MaKH INT,                                        -- Mã khách hàng (để cộng điểm)
     MaBan INT,
     MaNV INT,
     NgayLap DATETIME DEFAULT CURRENT_TIMESTAMP,
     TongTien DECIMAL(12,2),
     TrangThai VARCHAR(20) DEFAULT 'Chờ thanh toán',  -- Chờ thanh toán, Hoàn thành, Đã hủy
     -- FOREIGN KEY (MaDat) REFERENCES DatBan(MaDat), -- Sẽ thêm sau khi tạo bảng DatBan
+    FOREIGN KEY (MaKH) REFERENCES KhachHang(MaKH),
     FOREIGN KEY (MaBan) REFERENCES Ban(MaBan),
     FOREIGN KEY (MaNV) REFERENCES NhanVien(MaNV)
 );
@@ -120,23 +139,6 @@ CREATE TABLE Kho (
     NgayNhap DATE,                         -- Ngày nhập gần nhất
     NgayHetHan DATE,                       -- Ngày hết hạn (nếu có)
     TrangThai VARCHAR(20) DEFAULT 'Còn hàng'  -- Còn hàng, Hết hàng, Gần hết
-);
-
--- ======================
--- BẢNG KHÁCH HÀNG
--- ======================
-CREATE TABLE KhachHang (
-    MaKH INT AUTO_INCREMENT PRIMARY KEY,
-    HoTen VARCHAR(100) NOT NULL,
-    GioiTinh VARCHAR(10),
-    NgaySinh DATE,
-    SDT VARCHAR(20) UNIQUE NOT NULL,
-    Email VARCHAR(100) UNIQUE,
-    MatKhau VARCHAR(255) NOT NULL,
-    DiaChi TEXT,
-    DiemTichLuy INT DEFAULT 0,
-    NgayDangKy DATETIME DEFAULT CURRENT_TIMESTAMP,
-    TrangThai VARCHAR(20) DEFAULT 'Hoạt động'  -- Hoạt động, Tạm khóa
 );
 
 -- ======================
@@ -374,11 +376,11 @@ INSERT INTO Kho (TenNL, DonVi, SoLuong, MucCanhBao, DonGiaNhap, NgayNhap, TrangT
 
 -- Thêm khách hàng mẫu
 INSERT INTO KhachHang (HoTen, GioiTinh, NgaySinh, SDT, Email, MatKhau, DiaChi, DiemTichLuy) VALUES
-('Phạm Văn Khách', 'Nam', '1985-03-15', '0999888777', 'khach1@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '123 Nguyễn Huệ, Q1, TP.HCM', 150),
-('Hoàng Thị Lan', 'Nữ', '1990-07-22', '0888777666', 'khach2@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '456 Lê Lợi, Q3, TP.HCM', 230),
-('Nguyễn Minh Tuấn', 'Nam', '1988-12-08', '0777666555', 'khach3@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '789 Trần Hưng Đạo, Q5, TP.HCM', 80),
-('Lê Thị Hoa', 'Nữ', '1992-04-18', '0666555444', 'khach4@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '321 Võ Văn Tần, Q3, TP.HCM', 320),
-('Trần Văn Đức', 'Nam', '1987-09-25', '0555444333', 'khach5@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '654 Pasteur, Q1, TP.HCM', 95);
+('Phạm Văn Khách', 'Nam', '1985-03-15', '0999888777', 'khach1@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '123 Nguyễn Huệ, Q1, TP.HCM', 18),  -- 12 điểm (125k) + 6 điểm (65k) = 18 điểm
+('Hoàng Thị Lan', 'Nữ', '1990-07-22', '0888777666', 'khach2@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '456 Lê Lợi, Q3, TP.HCM', 8),    -- 8 điểm (85k)
+('Nguyễn Minh Tuấn', 'Nam', '1988-12-08', '0777666555', 'khach3@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '789 Trần Hưng Đạo, Q5, TP.HCM', 0),    -- Chưa có đơn hàng hoàn thành
+('Lê Thị Hoa', 'Nữ', '1992-04-18', '0666555444', 'khach4@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '321 Võ Văn Tần, Q3, TP.HCM', 0),    -- Chưa có đơn hàng hoàn thành
+('Trần Văn Đức', 'Nam', '1987-09-25', '0555444333', 'khach5@email.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '654 Pasteur, Q1, TP.HCM', 0);       -- Chưa có đơn hàng hoàn thành
 
 -- Thêm đặt bàn mẫu
 INSERT INTO DatBan (MaKH, MaBan, NgayDat, GioDat, GioKetThuc, SoNguoi, TrangThai, TenKhach, SoDienThoai, EmailKhach, GhiChu, MaNVXuLy) VALUES
@@ -396,13 +398,13 @@ INSERT INTO Voucher (MaKH, TenVC, MaCode, LoaiGiamGia, GiaTri, GiaTriToiDa, DonH
 (3, 'Khách Hàng Thân Thiết', 'LOYAL50', 'Tiền', 150000, NULL, 500000, 1, '2024-01-01', '2024-12-31', 'Tạm dừng', 'Giảm 150k cho khách VIP'),
 (NULL, 'Cuối Tuần Vui Vẻ', 'WEEKEND15', 'Phần trăm', 15, 75000, 200000, 50, '2024-01-01', '2024-12-31', 'Còn hạn', 'Giảm 15% cuối tuần');
 
--- Thêm đơn hàng mẫu (liên kết với đơn đặt bàn)
-INSERT INTO DonHang (MaDat, MaBan, MaNV, NgayLap, TongTien, TrangThai) VALUES
-(1, 2, 3, '2024-01-15 19:30:00', 125000, 'Hoàn thành'),  -- Đơn hàng từ đặt bàn 1
-(2, 5, 4, '2024-01-16 18:45:00', 85000, 'Hoàn thành'),   -- Đơn hàng từ đặt bàn 2
-(3, 3, 3, '2024-01-17 20:15:00', 200000, 'Hoàn thành'),  -- Đơn hàng từ đặt bàn 3
-(NULL, 1, 5, '2024-01-18 10:30:00', 65000, 'Hoàn thành'), -- Đơn hàng walk-in (không có đặt bàn)
-(NULL, 4, 4, '2024-01-18 14:20:00', 150000, 'Hoàn thành'); -- Đơn hàng walk-in (không có đặt bàn)
+-- Thêm đơn hàng mẫu (liên kết với đơn đặt bàn và khách hàng)
+INSERT INTO DonHang (MaDat, MaKH, MaBan, MaNV, NgayLap, TongTien, TrangThai) VALUES
+(1, 1, 2, 3, '2024-01-15 19:30:00', 125000, 'Hoàn thành'),  -- Đơn hàng từ đặt bàn 1, khách hàng 1 (đã cộng 12 điểm)
+(2, 2, 5, 4, '2024-01-16 18:45:00', 85000, 'Hoàn thành'),   -- Đơn hàng từ đặt bàn 2, khách hàng 2 (đã cộng 8 điểm)
+(3, NULL, 3, 3, '2024-01-17 20:15:00', 200000, 'Hoàn thành'),  -- Đơn hàng từ đặt bàn 3, khách vãng lai
+(NULL, 1, 1, 5, '2024-01-18 10:30:00', 65000, 'Hoàn thành'), -- Đơn hàng walk-in, khách hàng 1 (đã cộng 6 điểm)
+(NULL, NULL, 4, 4, '2024-01-18 14:20:00', 150000, 'Đang xử lý'); -- Đơn hàng walk-in, khách vãng lai (chưa hoàn thành)
 
 -- Thêm chi tiết đơn hàng
 INSERT INTO CTDonHang (MaDH, MaMon, SoLuong, DonGia, ThanhTien, GhiChu) VALUES

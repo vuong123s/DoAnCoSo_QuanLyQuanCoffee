@@ -1,6 +1,7 @@
 const { DonHangOnline, CTDonHangOnline, Voucher, ThanhToan } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
+const { processOrderPoints } = require('../utils/loyaltyPoints');
 
 // Create a new online order
 const createOnlineOrder = async (req, res) => {
@@ -270,7 +271,23 @@ const updateOnlineOrderStatus = async (req, res) => {
     if (LyDoHuy !== undefined) updateData.LyDoHuy = LyDoHuy;
     if (MaNVXuLy !== undefined) updateData.MaNVXuLy = parseInt(MaNVXuLy);
 
+    const previousStatus = order.TrangThai;
     await order.update(updateData);
+
+    // Cộng điểm cho khách hàng khi đơn hàng online hoàn thành
+    if (TrangThai === 'Hoàn thành' && previousStatus !== 'Hoàn thành' && order.MaKH) {
+      console.log(`🎁 Processing loyalty points for online order #${id}, customer #${order.MaKH}`);
+      const pointsResult = await processOrderPoints(
+        order.MaKH,
+        order.TongTien,
+        'DonHangOnline',
+        order.MaDHOnline
+      );
+      
+      if (pointsResult.success) {
+        console.log(`✅ Successfully added ${pointsResult.pointsAdded} points to customer ${order.MaKH}`);
+      }
+    }
 
     const updatedOrder = await DonHangOnline.findByPk(id, {
       include: [{

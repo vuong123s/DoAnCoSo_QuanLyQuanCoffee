@@ -166,7 +166,34 @@ app.get('/api/users-test/test-stats', async (req, res) => {
   }
 });
 
+// Public routes for customers (MUST be before /api/users with auth middleware)
+console.log('🔧 Setting up public customer routes...');
+
+app.get('/api/users/customers', async (req, res) => {
+  try {
+    console.log('📞 Fetching customers from user-service...');
+    const axios = require('axios');
+    const response = await axios.get('http://localhost:3001/api/users/customers', {
+      params: req.query,
+      timeout: 5000
+    });
+    console.log('✅ Customers fetched:', response.data.customers?.length || 0);
+    res.json(response.data);
+  } catch (error) {
+    console.error('❌ Error fetching customers:', error.message);
+    console.error('Details:', error.response?.data || error);
+    res.status(error.response?.status || 500).json({ 
+      error: 'Failed to fetch customers', 
+      message: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
 app.use('/api/users', ...requireStaff, createServiceProxy('User Service', 3001, true)); // User management requires staff auth
+
+// Customer loyalty points (internal service calls, no auth required)
+app.use('/api/customers', createServiceProxy('User Service', 3001)); // Customer points management
 
 // Table Service
 console.log('🔧 Setting up Table Service proxy...');
@@ -193,6 +220,7 @@ app.get('/api/billing-test', (req, res) => {
 
 
 app.use('/api/billing', ...requireStaff, createServiceProxy('Billing Service', 3004, true));
+app.use('/api/reservation-orders', createServiceProxy('Billing Service', 3004)); // Convert reservation to order
 app.use('/api/revenue', ...requireStaff, createServiceProxy('Billing Service', 3004, true)); // Revenue analytics
 
 // Online Order Service (handled by Billing Service)

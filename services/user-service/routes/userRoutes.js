@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
   getUsers,
+  getCustomers,
+  getEmployees,
   getUserById,
   createUser,
   createEmployee,
@@ -37,6 +39,21 @@ router.get('/public-test', (req, res) => {
 // Get user statistics (Admin/Manager only)
 router.get('/stats', authenticateToken, requireManager, getUserStats);
 
+// ⚠️ SPECIFIC ROUTES MUST COME BEFORE WILDCARD ROUTES /:id
+
+// Customer specific routes (PUBLIC - no auth for GET)
+router.get('/customers', getCustomers); // Allow access for POS system
+router.post('/customers', createCustomer); // Public registration
+router.put('/customers/:id', authenticateToken, updateCustomer);
+router.delete('/customers/:id', authenticateToken, requireAdmin, deleteCustomer);
+
+// Employee specific routes
+router.get('/employees', authenticateToken, requireManager, getEmployees);
+router.post('/employees', authenticateToken, requireAdmin, createEmployee);
+router.put('/employees/:id', authenticateToken, requireManager, updateEmployee);
+router.delete('/employees/:id', authenticateToken, requireAdmin, deleteEmployee);
+
+// Generic user routes (with wildcard :id)
 // Get all users (Admin/Manager only)
 router.get('/', authenticateToken, requireManager, getUsers);
 
@@ -60,17 +77,5 @@ router.patch('/:id/unlock', authenticateToken, requireManager, unlockUser);
 
 // Delete user (Admin only)
 router.delete('/:id', authenticateToken, requireAdmin, deleteUser);
-
-// Employee specific routes
-router.get('/employees', authenticateToken, requireManager, getUsers);
-router.post('/employees', authenticateToken, requireAdmin, createEmployee);
-router.put('/employees/:id', authenticateToken, requireManager, updateEmployee);
-router.delete('/employees/:id', authenticateToken, requireAdmin, deleteEmployee);
-
-// Customer specific routes
-router.get('/customers', authenticateToken, requireManager, getUsers);
-router.post('/customers', createCustomer); // Public registration
-router.put('/customers/:id', authenticateToken, updateCustomer);
-router.delete('/customers/:id', authenticateToken, requireAdmin, deleteCustomer);
 
 module.exports = router;

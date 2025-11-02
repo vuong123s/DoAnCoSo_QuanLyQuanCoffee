@@ -393,6 +393,115 @@ const deleteCustomer = async (req, res) => {
   }
 };
 
+// Get all customers
+const getCustomers = async (req, res) => {
+  try {
+    console.log('📋 getCustomers called with params:', req.query);
+    
+    const { 
+      page = 1, 
+      limit = 100, 
+      search,
+      status
+    } = req.query;
+
+    const whereClause = {};
+    
+    if (search) {
+      whereClause[Op.or] = [
+        { HoTen: { [Op.like]: `%${search}%` } },
+        { Email: { [Op.like]: `%${search}%` } },
+        { SDT: { [Op.like]: `%${search}%` } }
+      ];
+    }
+
+    if (status) {
+      whereClause.TrangThai = status;
+    }
+
+    const customers = await KhachHang.findAll({
+      where: whereClause,
+      order: [['MaKH', 'DESC']],
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit)
+    });
+
+    const total = await KhachHang.count({ where: whereClause });
+
+    console.log(`✅ Found ${customers.length} customers (total: ${total})`);
+
+    res.json({
+      success: true,
+      customers: customers,
+      total: total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching customers:', error);
+    console.error('Stack:', error.stack);
+    res.status(500).json({
+      error: 'Failed to fetch customers',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+// Get all employees
+const getEmployees = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 100, 
+      search,
+      role
+    } = req.query;
+
+    const whereClause = {};
+    
+    if (search) {
+      whereClause[Op.or] = [
+        { HoTen: { [Op.like]: `%${search}%` } },
+        { Email: { [Op.like]: `%${search}%` } },
+        { SDT: { [Op.like]: `%${search}%` } },
+        { ChucVu: { [Op.like]: `%${search}%` } }
+      ];
+    }
+
+    if (role) {
+      whereClause.ChucVu = role;
+    }
+
+    const employees = await NhanVien.findAll({
+      where: whereClause,
+      order: [['MaNV', 'DESC']],
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit)
+    });
+
+    const total = await NhanVien.count({ where: whereClause });
+
+    res.json({
+      success: true,
+      employees: employees,
+      total: total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+
+  } catch (error) {
+    console.error('Error fetching employees:', error);
+    res.status(500).json({
+      error: 'Failed to fetch employees',
+      message: error.message
+    });
+  }
+};
+
 // Get user statistics (Admin/Manager only)
 const getUserStats = async (req, res) => {
   try {
@@ -611,6 +720,8 @@ const unlockUser = async (req, res) => {
 
 module.exports = {
   getUsers,
+  getCustomers,
+  getEmployees,
   getUserById,
   createUser,
   createEmployee,
