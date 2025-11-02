@@ -1,11 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { billingAPI, healthAPI, tableAPI, reservationAPI, menuAPI, analyticsAPI } from '../../shared/services/api';
+import { billingAPI, healthAPI, tableAPI, reservationAPI, menuAPI, analyticsAPI, onlineOrderAPI, userAPI } from '../../shared/services/api';
 import { useAuthStore } from '../../app/stores/authStore';
-import { FiTrendingUp, FiUsers, FiShoppingCart, FiDollarSign, FiCoffee, FiCalendar, FiActivity, FiAlertCircle, FiGrid, FiClock } from 'react-icons/fi';
+import { FiTrendingUp, FiUsers, FiShoppingCart, FiDollarSign, FiCoffee, FiCalendar, FiActivity, FiAlertCircle, FiGrid, FiClock, FiStar, FiShoppingBag, FiPieChart, FiBarChart2 } from 'react-icons/fi';
+import { toast } from 'react-hot-toast';
 
 const Dashboard = () => {
   const { isAuthenticated, user, isLoading } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+  const [dataFetched, setDataFetched] = useState(false);
+  
+  // Analytics state - default to 'all' to get all time data
+  const [dateRange, setDateRange] = useState('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [analytics, setAnalytics] = useState({
+    revenue: { total: 0, growth: 0, chart: [] },
+    orders: { total: 0, growth: 0, chart: [] },
+    onlineOrders: { total: 0, growth: 0 },
+    products: { topSelling: [], categories: [] },
+    hourlyStats: []
+  });
+  
+  // Default to 'all' to get all time data
+  const [defaultDateRange] = useState('all');
+  
+  // Dashboard stats
   const [stats, setStats] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -33,8 +53,106 @@ const Dashboard = () => {
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [systemHealth, setSystemHealth] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [dataFetched, setDataFetched] = useState(false);
+
+  // Helper functions
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND'
+    }).format(amount);
+  };
+
+  const getGrowthColor = (growth) => {
+    return growth >= 0 ? 'text-green-600' : 'text-red-600';
+  };
+
+  const getGrowthIcon = (growth) => {
+    return growth >= 0 ? '↗' : '↘';
+  };
+
+  // Fetch analytics data
+  const fetchAnalytics = async () => {
+    try {
+      let startDateStr, endDateStr;
+      
+      if (dateRange === 'custom') {
+        if (!customStartDate || !customEndDate) {
+          toast.error('Vui lòng chọn khoảng thời gian');
+          return;
+        }
+        startDateStr = customStartDate;
+        endDateStr = customEndDate;
+      } else if (dateRange === 'all') {
+        // Query all time data - no date filtering
+        startDateStr = null;
+        endDateStr = null;
+      } else {
+        const now = new Date();
+        const endDateObj = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+        const startDateObj = new Date(endDateObj);
+        if (dateRange === 'month') startDateObj.setUTCDate(startDateObj.getUTCDate() - 29);
+        else startDateObj.setUTCDate(startDateObj.getUTCDate() - 6);
+        const fmt = (d) => d.toISOString().slice(0, 10);
+        startDateStr = fmt(startDateObj);
+        endDateStr = fmt(endDateObj);
+      }
+      
+      const [billingRes, topRes, catRes] = await Promise.all([
+        billingAPI.getBillingStats({ start_date: startDateStr, end_date: endDateStr }).catch(() => null),
+        analyticsAPI.getTopSelling({ startDate: startDateStr, endDate: endDateStr, limit: 5 }).catch(() => null),
+        analyticsAPI.getCategoryRevenue({ startDate: startDateStr, endDate: endDateStr }).catch(() => null),
+      ]);
+
+      const billStats = billingRes?.data?.stats || billingRes?.data || {};
+      const revenueTotal = billStats.total_revenue ?? billStats.revenue?.total ?? 0;
+      const ordersTotal = billStats.total_orders ?? billStats.orders?.total ?? 0;
+
+      // Top selling products
+      let topSelling = [];
+      const arr = topRes?.data?.data || topRes?.data || [];
+      topSelling = Array.isArray(arr)
+        ? arr.slice(0, 5).map((r) => ({
+            name: r.TenMon || r.name || 'Sản phẩm',
+            sold: Number(r.TongSoLuongBan ?? r.SoLuongBan ?? r.SoLuong ?? r.sold ?? 0),
+            revenue: Number(r.TongDoanhThu ?? r.DoanhThu ?? r.revenue ?? 0),
+          }))
+        : [];
+
+      // Categories
+      let categories = [];
+      const catArr = catRes?.data?.data || catRes?.data || [];
+      if (Array.isArray(catArr) && catArr.length) {
+        const totalRev = catArr.reduce((s, r) => s + Number(r.TongDoanhThu ?? r.DoanhThu ?? r.revenue ?? 0), 0) || 1;
+        categories = catArr.map((r) => {
+          const rev = Number(r.TongDoanhThu ?? r.DoanhThu ?? r.revenue ?? 0);
+          return {
+            name: r.TenLoai || r.name || 'Danh mục',
+            revenue: rev,
+            percentage: Math.round((rev / totalRev) * 100),
+          };
+        });
+      }
+
+      setAnalytics({
+        revenue: { total: revenueTotal, growth: 0, chart: [] },
+        orders: { total: ordersTotal, growth: 0, chart: [] },
+        onlineOrders: { total: 0, growth: 0 },
+        products: {
+          topSelling: topSelling.length ? topSelling : [],
+          categories: categories.length ? categories : [],
+        },
+        hourlyStats: []
+      });
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user?.id && !dataFetched) {
+      fetchAnalytics();
+    }
+  }, [dateRange, isLoading, isAuthenticated, user?.id, dataFetched]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -518,6 +636,123 @@ const Dashboard = () => {
               <p className="text-sm text-blue-700">15 đặt bàn cho khung giờ 19:00-21:00 hôm nay</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Analytics Section */}
+      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg p-6 text-white">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold mb-2">Phân tích & Báo cáo</h2>
+            <p className="opacity-90">Theo dõi hiệu suất kinh doanh và xu hướng bán hàng</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="px-4 py-2 border border-white/30 bg-white/20 text-white rounded-lg focus:ring-2 focus:ring-white/50 focus:border-transparent backdrop-blur-sm"
+            >
+              <option value="all" className="text-gray-900">Tất cả thời gian</option>
+              <option value="week" className="text-gray-900">7 ngày qua</option>
+              <option value="month" className="text-gray-900">30 ngày qua</option>
+              <option value="custom" className="text-gray-900">Tùy chỉnh</option>
+            </select>
+            {dateRange === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="px-3 py-2 border border-white/30 bg-white/20 text-white rounded-lg focus:ring-2 focus:ring-white/50 focus:border-transparent backdrop-blur-sm"
+                  placeholder="Từ ngày"
+                />
+                <span className="text-white/70">-</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="px-3 py-2 border border-white/30 bg-white/20 text-white rounded-lg focus:ring-2 focus:ring-white/50 focus:border-transparent backdrop-blur-sm"
+                  placeholder="Đến ngày"
+                />
+                <button
+                  onClick={fetchAnalytics}
+                  className="px-4 py-2 bg-white text-purple-600 rounded-lg hover:bg-white/90 transition-colors font-medium"
+                >
+                  Áp dụng
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Product Analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Selling Products */}
+        <div className="bg-white p-6 rounded-lg shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <FiStar className="w-5 h-5 mr-2 text-amber-500" />
+            Sản phẩm bán chạy
+          </h3>
+          {analytics.products.topSelling.length > 0 ? (
+            <div className="space-y-4">
+              {analytics.products.topSelling.map((product, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="flex items-center justify-center w-8 h-8 bg-amber-100 text-amber-600 rounded-full text-sm font-medium">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{product.name}</p>
+                      <p className="text-xs text-gray-500">{product.sold} đã bán</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {formatCurrency(product.revenue)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <FiBarChart2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>Chưa có dữ liệu</p>
+            </div>
+          )}
+        </div>
+
+        {/* Category Distribution */}
+        <div className="bg-white p-6 rounded-lg shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <FiPieChart className="w-5 h-5 mr-2 text-indigo-600" />
+            Phân bố theo danh mục
+          </h3>
+          {analytics.products.categories.length > 0 ? (
+            <div className="space-y-4">
+              {analytics.products.categories.map((category, index) => (
+                <div key={index} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-900">{category.name}</span>
+                    <span className="text-sm text-gray-600">{category.percentage}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${category.percentage}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {formatCurrency(category.revenue)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <FiPieChart className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>Chưa có dữ liệu</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -12,6 +12,7 @@ const healthCheck = require('./routes/health');
 const authMiddleware = require('./middleware/auth');
 const mediaRoutes = require('./routes/media');
 const analyticsRoutes = require('./routes/analytics');
+const inventoryRoutes = require('./routes/inventory');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -60,6 +61,9 @@ app.use('/api/media', mediaRoutes);
 
 // Analytics routes (phân tích doanh thu)
 app.use('/api/analytics', analyticsRoutes);
+
+// Inventory routes (quản lý kho)
+app.use('/api/inventory', inventoryRoutes);
 
 // Rate limiting (after health check)
 const limiter = rateLimit({
@@ -202,6 +206,13 @@ app.use('/api/vouchers', createServiceProxy('Billing Service', 3004));
 // Inventory Service (staff access required)
 console.log('🔧 Setting up Inventory Service proxy...');
 app.use('/api/inventory', ...requireStaff, createServiceProxy('Inventory Service', 3007, true));
+
+// Schedule & Employee Management (in User Service - authenticated access)
+console.log('🔧 Setting up Schedule & Employee Management proxy...');
+// TEMPORARY: Remove auth for debugging - ADD BACK IN PRODUCTION
+app.use('/api/schedules', createServiceProxy('User Service', 3001, false));
+app.use('/api/employees', createServiceProxy('User Service', 3001, false));
+app.use('/api/requests', createServiceProxy('User Service', 3001, false));
 
 console.log('✅ All proxy routes configured!');
 

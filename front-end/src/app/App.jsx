@@ -30,11 +30,13 @@ import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
 
 // Customer Pages
-import Profile from "../pages/customer/Profile";
 import OrderHistory from "../pages/customer/OrderHistory";
 import OrderTracking from "../pages/customer/OrderTracking";
 import Cart from "../pages/customer/Cart";
 import BookTable from "../pages/customer/BookTable";
+
+// Common Pages
+import Profile from "../pages/common/Profile";
 
 // Admin Pages
 import Dashboard from "../pages/admin/Dashboard";
@@ -44,9 +46,9 @@ import ReservationManagement from "../pages/admin/ReservationManagement";
 import OrderManagement from "../pages/admin/OrderManagement";
 import OnlineOrderManagement from "../pages/admin/OnlineOrderManagement";
 import SalesManagement from "../pages/admin/SalesManagement";
+import ScheduleManagement from "../pages/admin/ScheduleManagement";
 import UserManagement from "../pages/admin/UserManagement";
-import Analytics from "../pages/admin/Analytics";
-import MediaManagement from "../pages/admin/MediaManagement";
+import InventoryManagement from "../pages/admin/InventoryManagement";
 
 // Components
 import ProtectedRoute from "../components/common/ui/ProtectedRoute";
@@ -91,13 +93,21 @@ function App() {
             <Route path="register" element={<Register />} />
           </Route>
 
+          {/* Profile Route - For all authenticated users */}
+          <Route path="/profile" element={
+            <ProtectedRoute allowedRoles={['customer', 'staff', 'manager', 'admin', 'Nhân viên', 'Quản lý', 'Admin']}>
+              <MainLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Profile />} />
+          </Route>
+
           {/* Customer Routes */}
           <Route path="/customer" element={
             <ProtectedRoute allowedRoles={['customer', 'staff', 'manager', 'admin']}>
               <MainLayout />
             </ProtectedRoute>
           }>
-            <Route path="profile" element={<Profile />} />
             <Route path="orders" element={<OrderHistory />} />
             <Route path="orders/:orderId" element={<OrderTracking />} />
             <Route path="cart" element={<Cart />} />
@@ -112,9 +122,9 @@ function App() {
             <Route path="orders" element={<OrderManagement />} />
             <Route path="online-orders" element={<OnlineOrderManagement />} />
             <Route path="sales" element={<SalesManagement />} />
-            <Route path="analytics" element={<Analytics />} />
+            <Route path="schedules" element={<ScheduleManagement />} />
             <Route path="users" element={<UserManagement />} />
-            <Route path="media" element={<MediaManagement />} />
+            <Route path="inventory" element={<InventoryManagement />} />
           </Route>
 
           {/* Redirects */}

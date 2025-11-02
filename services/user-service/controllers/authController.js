@@ -272,23 +272,31 @@ const getProfile = async (req, res) => {
       }
 
       const userData = {
+        MaKH: khachhang.MaKH,
+        HoTen: khachhang.HoTen,
+        Email: khachhang.Email,
+        SDT: khachhang.SDT,
+        GioiTinh: khachhang.GioiTinh,
+        NgaySinh: khachhang.NgaySinh,
+        DiaChi: khachhang.DiaChi,
+        DiemTichLuy: khachhang.DiemTichLuy,
+        NgayTaoTaiKhoan: khachhang.NgayDangKy,
+        TrangThai: khachhang.TrangThai,
+        // English fields for backward compatibility
         id: khachhang.MaKH,
         name: khachhang.HoTen,
         email: khachhang.Email,
         phone: khachhang.SDT,
-        gender: khachhang.GioiTinh,
-        dateOfBirth: khachhang.NgaySinh,
         address: khachhang.DiaChi,
         points: khachhang.DiemTichLuy,
-        registrationDate: khachhang.NgayDangKy,
-        status: khachhang.TrangThai,
         role: 'customer',
-        chucVu: null // Khách hàng không có chức vụ
+        chucVu: null
       };
 
       return res.json({
         success: true,
-        user: userData
+        user: userData,
+        profile: userData
       });
     } else {
       // Get employee profile
@@ -301,14 +309,27 @@ const getProfile = async (req, res) => {
       }
 
       const userData = {
+        MaNV: nhanvien.MaNV,
+        HoTen: nhanvien.HoTen,
+        Email: nhanvien.Email,
+        SDT: nhanvien.SDT,
+        ChucVu: nhanvien.ChucVu,
+        GioiTinh: nhanvien.GioiTinh,
+        NgaySinh: nhanvien.NgaySinh,
+        NgayVaoLam: nhanvien.NgayVaoLam,
+        Luong: nhanvien.Luong,
+        // English fields for backward compatibility
         id: nhanvien.MaNV,
         name: nhanvien.HoTen,
         email: nhanvien.Email,
+        phone: nhanvien.SDT,
         chucVu: nhanvien.ChucVu,
-        phone: nhanvien.SDT
+        role: nhanvien.ChucVu
       };
 
       return res.json({
+        success: true,
+        employee: userData,
         user: userData
       });
     }

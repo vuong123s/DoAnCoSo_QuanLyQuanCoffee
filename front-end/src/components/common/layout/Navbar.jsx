@@ -73,22 +73,24 @@ const Navbar = () => {
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                     <Link
-                      to="/customer/profile"
+                      to="/profile"
                       className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setUserMenuOpen(false)}
                     >
                       <FiUser className="mr-3 w-4 h-4" />
                       Thông tin cá nhân
                     </Link>
-                    <Link
-                      to="/customer/orders"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <FiShoppingCart className="mr-3 w-4 h-4" />
-                      Lịch sử đơn hàng
-                    </Link>
-                    {user && (
+                    {user && (user.role === 'customer') && (
+                      <Link
+                        to="/customer/orders"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <FiShoppingCart className="mr-3 w-4 h-4" />
+                        Lịch sử đơn hàng
+                      </Link>
+                    )}
+                    {user && (user.role !== 'customer') && (
                       <Link
                         to="/admin"
                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

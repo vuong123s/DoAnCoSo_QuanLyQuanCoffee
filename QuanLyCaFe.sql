@@ -812,7 +812,6 @@ BEGIN
     ORDER BY TongSoLuongBan DESC
     LIMIT v_SoLuong;
 END //
-
 -- ==============================================
 -- 5. PROCEDURE: Doanh thu theo danh mục
 -- ==============================================
@@ -1777,3 +1776,169 @@ DELIMITER ;
 
 -- 4. Xem tổng hợp đơn đặt bàn và đơn hàng
 -- SELECT * FROM VW_DatBan_DonHang WHERE MaDat = 1;
+
+-- ==============================================
+-- HỆ THỐNG QUẢN LÝ LỊCH LÀM VIỆC NHÂN VIÊN (TỐI ƯU)
+-- ==============================================
+
+-- ======================
+-- BẢNG LỊCH LÀM VIỆC (Đơn giản hóa)
+-- ======================
+CREATE TABLE LichLamViec (
+    MaLich INT AUTO_INCREMENT PRIMARY KEY,
+    MaNV INT NOT NULL,                       -- Nhân viên
+    NgayLam DATE NOT NULL,                   -- Ngày làm việc
+    CaLam VARCHAR(20) NOT NULL,              -- Ca sáng, Ca chiều, Ca tối
+    TrangThai VARCHAR(30) DEFAULT 'Đã xếp lịch', -- Đã xếp lịch, Hoàn thành, Vắng mặt
+    GhiChu TEXT,
+    NgayTao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (MaNV) REFERENCES NhanVien(MaNV),
+    UNIQUE KEY unique_schedule (MaNV, NgayLam, CaLam) -- Tránh trùng lịch
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- ======================
+-- BẢNG NGHỈ PHÉP & TĂNG CA (Gộp 2 bảng thành 1)
+-- ======================
+CREATE TABLE YeuCauNhanVien (
+    MaYeuCau INT AUTO_INCREMENT PRIMARY KEY,
+    MaNV INT NOT NULL,                       -- Nhân viên
+    LoaiYeuCau VARCHAR(30) NOT NULL,         -- Nghỉ phép, Nghỉ ốm, Tăng ca
+    NgayBatDau DATE NOT NULL,                -- Ngày bắt đầu
+    NgayKetThuc DATE,                        -- Ngày kết thúc (NULL nếu tăng ca 1 ngày)
+    GioBatDau TIME,                          -- Giờ bắt đầu (cho tăng ca)
+    GioKetThuc TIME,                         -- Giờ kết thúc (cho tăng ca)
+    LyDo TEXT NOT NULL,                      -- Lý do
+    TrangThai VARCHAR(30) DEFAULT 'Chờ duyệt', -- Chờ duyệt, Đã duyệt, Từ chối
+    NguoiDuyet INT,                          -- Quản lý duyệt
+    NgayDuyet DATETIME,
+    GhiChuDuyet TEXT,
+    NgayTao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (MaNV) REFERENCES NhanVien(MaNV),
+    FOREIGN KEY (NguoiDuyet) REFERENCES NhanVien(MaNV)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- ==============================================
+-- DỮ LIỆU MẪU
+-- ==============================================
+-- Lịch làm việc mẫu (tháng hiện tại)
+INSERT INTO LichLamViec (MaNV, NgayLam, CaLam, TrangThai, GhiChu) VALUES
+-- Tuần 1 - Nguyễn Văn Admin (MaNV=1)
+(1, DATE_SUB(CURDATE(), INTERVAL 20 DAY), 'Ca sáng', 'Hoàn thành', 'Đúng giờ'),
+(1, DATE_SUB(CURDATE(), INTERVAL 19 DAY), 'Ca chiều', 'Hoàn thành', 'Làm thêm giờ'),
+(1, DATE_SUB(CURDATE(), INTERVAL 18 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 17 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+
+-- Tuần 2
+(1, DATE_SUB(CURDATE(), INTERVAL 13 DAY), 'Ca sáng', 'Hoàn thành', 'Đến muộn 10 phút'),
+(1, DATE_SUB(CURDATE(), INTERVAL 12 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 11 DAY), 'Ca sáng', 'Vắng mặt', 'Nghỉ phép'),
+(1, DATE_SUB(CURDATE(), INTERVAL 10 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+
+-- Tuần 3
+(1, DATE_SUB(CURDATE(), INTERVAL 6 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 5 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 4 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+(1, DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'Ca chiều', 'Hoàn thành', 'Đang làm việc'),
+
+-- Tuần hiện tại
+(1, DATE_SUB(CURDATE(), INTERVAL 1 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+(1, CURDATE(), 'Ca chiều', 'Đã xếp lịch', NULL),
+(1, DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'Ca sáng', 'Đã xếp lịch', NULL),
+(1, DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'Ca chiều', 'Đã xếp lịch', NULL),
+
+-- Trần Thị Manager (MaNV=2)
+(2, DATE_SUB(CURDATE(), INTERVAL 20 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 19 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 18 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 17 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+
+(2, DATE_SUB(CURDATE(), INTERVAL 13 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 12 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 11 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 10 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+
+(2, DATE_SUB(CURDATE(), INTERVAL 6 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 5 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 4 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(2, DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'Ca sáng', 'Hoàn thành', NULL),
+
+(2, DATE_SUB(CURDATE(), INTERVAL 1 DAY), 'Ca chiều', 'Hoàn thành', NULL),
+(2, CURDATE(), 'Ca sáng', 'Đã xếp lịch', NULL),
+(2, DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'Ca chiều', 'Đã xếp lịch', NULL),
+(2, DATE_ADD(CURDATE(), INTERVAL 2 DAY), 'Ca sáng', 'Đã xếp lịch', NULL);
+
+-- Yêu cầu nghỉ phép / tăng ca mẫu
+INSERT INTO YeuCauNhanVien (MaNV, LoaiYeuCau, NgayBatDau, NgayKetThuc, GioBatDau, GioKetThuc, LyDo, TrangThai, NguoiDuyet, GhiChuDuyet) VALUES
+-- Yêu cầu đã duyệt
+(1, 'Nghỉ phép', DATE_SUB(CURDATE(), INTERVAL 11 DAY), DATE_SUB(CURDATE(), INTERVAL 11 DAY), NULL, NULL, 'Nghỉ phép có việc gia đình', 'Đã duyệt', 2, 'Đồng ý cho nghỉ'),
+(2, 'Tăng ca', DATE_SUB(CURDATE(), INTERVAL 15 DAY), DATE_SUB(CURDATE(), INTERVAL 15 DAY), '22:00:00', '24:00:00', 'Tăng ca hoàn thành dự án', 'Đã duyệt', 1, 'Đồng ý tăng ca'),
+
+-- Yêu cầu chờ duyệt
+(1, 'Nghỉ phép', DATE_ADD(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), NULL, NULL, 'Nghỉ phép du lịch', 'Chờ duyệt', NULL, NULL),
+(2, 'Tăng ca', DATE_ADD(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 3 DAY), '22:00:00', '01:00:00', 'Tăng ca chuẩn bị sự kiện', 'Chờ duyệt', NULL, NULL),
+
+-- Yêu cầu từ chối
+(1, 'Nghỉ phép', DATE_SUB(CURDATE(), INTERVAL 5 DAY), DATE_SUB(CURDATE(), INTERVAL 3 DAY), NULL, NULL, 'Nghỉ phép không lý do', 'Từ chối', 2, 'Không đủ lý do chính đáng');
+
+-- ==============================================
+-- STORED PROCEDURES (ĐƠN GIẢN HÓA)
+-- ==============================================
+DELIMITER //
+
+-- Duyệt yêu cầu (nghỉ phép/tăng ca)
+CREATE PROCEDURE DuyetYeuCau(
+    IN p_MaYeuCau INT,
+    IN p_NguoiDuyet INT,
+    IN p_TrangThai VARCHAR(30),
+    IN p_GhiChu TEXT
+)
+BEGIN
+    UPDATE YeuCauNhanVien
+    SET TrangThai = p_TrangThai,
+        NguoiDuyet = p_NguoiDuyet,
+        NgayDuyet = NOW(),
+        GhiChuDuyet = p_GhiChu
+    WHERE MaYeuCau = p_MaYeuCau;
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- VIEW - BÁO CÁO
+-- ==============================================
+
+-- Báo cáo lịch làm việc tháng
+CREATE VIEW VW_BaoCaoThang AS
+SELECT 
+    nv.MaNV,
+    nv.HoTen,
+    nv.ChucVu,
+    MONTH(l.NgayLam) as Thang,
+    YEAR(l.NgayLam) as Nam,
+    COUNT(*) as SoCa,
+    COUNT(CASE WHEN l.TrangThai = 'Hoàn thành' THEN 1 END) as SoCaHoanThanh,
+    COUNT(CASE WHEN l.TrangThai = 'Vắng mặt' THEN 1 END) as SoCaVang
+FROM NhanVien nv
+LEFT JOIN LichLamViec l ON nv.MaNV = l.MaNV
+GROUP BY nv.MaNV, nv.HoTen, nv.ChucVu, MONTH(l.NgayLam), YEAR(l.NgayLam);
+
+-- ==============================================
+-- HƯỚNG DẪN SỬ DỤNG
+-- ==============================================
+
+-- 1. Tạo lịch làm việc:
+-- INSERT INTO LichLamViec (MaNV, NgayLam, CaLam, TrangThai, GhiChu) 
+-- VALUES (1, '2025-11-05', 'Ca sáng', 'Đã xếp lịch', NULL);
+
+-- 2. Xin nghỉ phép:
+-- INSERT INTO YeuCauNhanVien (MaNV, LoaiYeuCau, NgayBatDau, NgayKetThuc, LyDo)
+-- VALUES (1, 'Nghỉ phép', '2025-11-10', '2025-11-12', 'Nghỉ việc riêng');
+
+-- 3. Duyệt yêu cầu:
+-- CALL DuyetYeuCau(1, 2, 'Đã duyệt', 'Đồng ý');
+
+-- 4. Xem báo cáo tháng:
+-- SELECT * FROM VW_BaoCaoThang WHERE MaNV = 1 AND Thang = 11 AND Nam = 2025;
+
+-- 5. Cập nhật trạng thái lịch làm việc:
+-- UPDATE LichLamViec SET TrangThai = 'Hoàn thành' WHERE MaLich = 1;

@@ -1,4 +1,4 @@
-const db = require('../config/database');
+const { pool: db } = require('../config/database');
 
 // Helper function để format ngày
 const formatDate = (date) => {

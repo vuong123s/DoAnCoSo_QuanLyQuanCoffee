@@ -303,11 +303,11 @@ export const healthAPI = {
 export const analyticsAPI = {
   getTopSelling: (params) =>
     api.get('/api/analytics/mon-ban-chay', {
-      params: { period: '30days', limit: 5, ...params },
+      params: { limit: 10, ...params },
     }),
   getCategoryRevenue: (params) =>
     api.get('/api/analytics/doanh-thu-theo-danh-muc', {
-      params: { period: '30days', ...params },
+      params: { ...params },
     }),
 };
 

@@ -49,15 +49,8 @@ const AdminLayout = () => {
           icon: FiHome, 
           label: 'Dashboard', 
           exact: true,
-          description: 'Tổng quan hệ thống',
+          description: 'Tổng quan & phân tích',
           color: 'from-blue-500 to-blue-600'
-        },
-        { 
-          path: '/admin/analytics', 
-          icon: FiTrendingUp, 
-          label: 'Phân tích', 
-          description: 'Báo cáo & thống kê',
-          color: 'from-purple-500 to-purple-600'
         }
       ]
     },
@@ -86,11 +79,11 @@ const AdminLayout = () => {
           color: 'from-pink-500 to-pink-600'
         },
         { 
-          path: '/admin/media', 
-          icon: FiImage, 
-          label: 'Media', 
-          description: 'Quản lý ảnh & video',
-          color: 'from-violet-500 to-violet-600'
+          path: '/admin/inventory', 
+          icon: FiPackage, 
+          label: 'Kho', 
+          description: 'Quản lý nguyên liệu',
+          color: 'from-emerald-500 to-emerald-600'
         },
       ]
     },
@@ -121,7 +114,7 @@ const AdminLayout = () => {
       ]
     },
     {
-      title: 'Hệ thống',
+      title: 'Nhân sự',
       items: [
         { 
           path: '/admin/users', 
@@ -130,6 +123,18 @@ const AdminLayout = () => {
           description: 'Quản lý tài khoản',
           color: 'from-cyan-500 to-cyan-600'
         },
+        { 
+          path: '/admin/schedules', 
+          icon: FiClock, 
+          label: 'Lịch làm việc', 
+          description: 'Xếp ca & chấm công',
+          color: 'from-teal-500 to-teal-600'
+        }
+      ]
+    },
+    {
+      title: 'Hệ thống',
+      items: [
         { 
           path: '/admin/settings', 
           icon: FiSettings, 
@@ -156,6 +161,7 @@ const AdminLayout = () => {
       'from-emerald-500 to-emerald-600': 'text-emerald-600',
       'from-cyan-500 to-cyan-600': 'text-cyan-600',
       'from-violet-500 to-violet-600': 'text-violet-600',
+      'from-teal-500 to-teal-600': 'text-teal-600',
       'from-gray-500 to-gray-600': 'text-gray-600'
     };
     return colorMap[colorGradient] || 'text-blue-600';

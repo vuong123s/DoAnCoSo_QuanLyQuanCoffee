@@ -7,10 +7,16 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 // Verify JWT token and get user info
 const authenticateToken = async (req, res, next) => {
   try {
-    const authHeader = req.headers['authorization'];
+    // Check both lowercase and uppercase Authorization header
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
+    console.log('🔐 Auth middleware - Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('🔐 Auth header:', authHeader);
+    console.log('🔐 Token:', token ? 'Present' : 'Missing');
+
     if (!token) {
+      console.log('❌ No token found in request');
       return res.status(401).json({
         error: 'Access token required'
       });
