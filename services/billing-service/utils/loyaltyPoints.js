@@ -56,6 +56,43 @@ const addPointsToCustomer = async (customerId, points) => {
 };
 
 /**
+ * Trừ điểm tích lũy của khách hàng khi sử dụng điểm giảm giá
+ * @param {number} customerId - Mã khách hàng
+ * @param {number} points - Số điểm cần trừ
+ * @returns {Promise<Object>} Kết quả trừ điểm
+ */
+const deductPointsFromCustomer = async (customerId, points) => {
+  try {
+    if (!customerId || points <= 0) {
+      return {
+        success: false,
+        message: 'Invalid customer ID or points'
+      };
+    }
+
+    // Gọi API user-service để trừ điểm
+    const response = await axios.post(
+      `http://localhost:3001/api/customers/${customerId}/deduct-points`,
+      { points },
+      { timeout: 5000 }
+    );
+
+    return {
+      success: true,
+      data: response.data,
+      pointsDeducted: points
+    };
+  } catch (error) {
+    console.error(`Error deducting points from customer ${customerId}:`, error.message);
+    return {
+      success: false,
+      message: error.message,
+      pointsDeducted: 0
+    };
+  }
+};
+
+/**
  * Xử lý cộng điểm khi đơn hàng hoàn thành
  * @param {number} customerId - Mã khách hàng
  * @param {number} totalAmount - Tổng tiền đơn hàng
@@ -108,6 +145,7 @@ const processOrderPoints = async (customerId, totalAmount, orderType = 'DonHang'
 module.exports = {
   calculatePoints,
   addPointsToCustomer,
+  deductPointsFromCustomer,
   processOrderPoints,
   POINTS_PER_AMOUNT
 };

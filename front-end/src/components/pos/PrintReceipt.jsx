@@ -4,7 +4,7 @@ const PrintReceipt = ({ order, items, table, customer, formatCurrency }) => {
   const today = new Date();
   
   return (
-    <div id="print-receipt" className="print-receipt p-8 max-w-[80mm] mx-auto bg-white text-black font-mono text-sm">
+    <div id="print-receipt" className="print-receipt p-8 max-w-[120mm] mx-auto bg-white text-black font-mono text-sm">
       {/* Header */}
       <div className="text-center mb-4">
         <h1 className="text-2xl font-bold">QUÁN COFFEE</h1>
@@ -55,7 +55,7 @@ const PrintReceipt = ({ order, items, table, customer, formatCurrency }) => {
         <tbody>
           {items && items.length > 0 ? items.map((item, index) => (
             <tr key={index} className="border-b border-gray-200">
-              <td className="py-2">{item.TenMon || item.name || `Món #${item.MaMon}`}</td>
+              <td className="py-2">{item.Mon?.TenMon || item.TenMon || item.name || `Món #${item.MaMon}`}</td>
               <td className="text-center">{item.SoLuong}</td>
               <td className="text-right">{formatCurrency(item.DonGia)}</td>
               <td className="text-right font-semibold">{formatCurrency(item.ThanhTien || item.SoLuong * item.DonGia)}</td>
@@ -70,13 +70,29 @@ const PrintReceipt = ({ order, items, table, customer, formatCurrency }) => {
 
       <div className="border-t border-dashed border-gray-400 my-2"></div>
 
-      {/* Total */}
+      {/* Total Section */}
       <div className="text-sm space-y-1 mb-4">
+        {/* Subtotal if points were used */}
+        {order.DiemSuDung > 0 && (
+          <>
+            <div className="flex justify-between">
+              <span>Tạm tính:</span>
+              <span>{formatCurrency((order.TongTien || 0) + (order.DiemSuDung * 1000))}</span>
+            </div>
+            <div className="flex justify-between text-green-600">
+              <span>🎖️ Giảm giá ({order.DiemSuDung} điểm):</span>
+              <span className="font-semibold">-{formatCurrency(order.DiemSuDung * 1000)}</span>
+            </div>
+            <div className="border-t border-dashed border-gray-300 my-1"></div>
+          </>
+        )}
+        
         <div className="flex justify-between">
-          <span>Tổng cộng:</span>
+          <span className="font-bold">Tổng cộng:</span>
           <span className="font-bold text-lg">{formatCurrency(order.TongTien || 0)}</span>
         </div>
-        <div className="flex justify-between">
+        
+        <div className="flex justify-between mt-2">
           <span>Trạng thái:</span>
           <span className={`font-semibold ${
             order.TrangThai === 'Hoàn thành' ? 'text-green-600' : 

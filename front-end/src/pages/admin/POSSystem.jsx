@@ -23,10 +23,12 @@ const POSSystem = () => {
   const [selectedTable, setSelectedTable] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [cart, setCart] = useState([]);
+  const [pointsUsed, setPointsUsed] = useState(0); // Points to use for discount
   
   // Editing state
   const [editingOrder, setEditingOrder] = useState(null);
   const [editingOrderItems, setEditingOrderItems] = useState([]);
+  const [editingPointsUsed, setEditingPointsUsed] = useState(0);
   
   const [stats, setStats] = useState({
     todayOrders: 0,
@@ -55,7 +57,7 @@ const POSSystem = () => {
       const todayOrders = orders.filter(o => new Date(o.NgayLap).toDateString() === today);
       setStats({
         todayOrders: todayOrders.length,
-        todayRevenue: todayOrders.reduce((sum, o) => sum + (o.TongTien || 0), 0)
+        todayRevenue: todayOrders.reduce((sum, o) => sum + ((o.TongTien || 0) - (o.DiemSuDung || 0) * 1000), 0)
       });
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -67,18 +69,30 @@ const POSSystem = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  const cartTotal = cart.reduce((sum, item) => sum + (item.DonGia * item.SoLuong), 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + (item.DonGia * item.SoLuong), 0);
+  const pointsDiscount = pointsUsed * 1000; // 1 điểm = 1,000 VNĐ
+  const cartTotal = Math.max(0, cartSubtotal - pointsDiscount);
 
   const handleCreateOrder = async () => {
     if (!selectedTable) { toast.error('Vui lòng chọn bàn'); return; }
     if (cart.length === 0) { toast.error('Vui lòng thêm món vào đơn hàng'); return; }
     
+    // Validate points if customer selected
+    if (pointsUsed > 0 && selectedCustomer) {
+      const availablePoints = selectedCustomer.DiemTichLuy || 0;
+      if (pointsUsed > availablePoints) {
+        toast.error(`Khách chỉ có ${availablePoints} điểm!`);
+        return;
+      }
+    }
+    
     try {
-      await billingAPI.createOrder({
+      const response = await billingAPI.createOrder({
         MaBan: selectedTable.MaBan || selectedTable.id,
         MaNV: user?.MaNV || user?.id || 1,
         MaKH: selectedCustomer?.MaKH || selectedCustomer?.id || null,
         TrangThai: 'Đang xử lý',
+        DiemSuDung: pointsUsed, // Save points used for discount
         items: cart.map(item => ({
           MaMon: item.MaMon,
           SoLuong: item.SoLuong,
@@ -87,10 +101,22 @@ const POSSystem = () => {
         }))
       });
       
+      // Deduct points if used
+      if (pointsUsed > 0 && selectedCustomer) {
+        try {
+          await userAPI.deductPoints(selectedCustomer.MaKH || selectedCustomer.id, pointsUsed);
+          toast.success(`Đã dùng ${pointsUsed} điểm (-${pointsUsed * 1000} VNĐ)`);
+        } catch (error) {
+          console.error('Error deducting points:', error);
+          toast.warning('Tạo đơn thành công nhưng không trừ được điểm');
+        }
+      }
+      
       toast.success('Tạo đơn hàng thành công!');
       setCart([]);
       setSelectedTable(null);
       setSelectedCustomer(null);
+      setPointsUsed(0);
       fetchData();
     } catch (error) {
       toast.error('Lỗi khi tạo đơn hàng: ' + (error.response?.data?.message || error.message));
@@ -376,11 +402,11 @@ const POSSystem = () => {
                 <h3 className="font-medium text-gray-900 mb-3">Món trong đơn ({editingOrderItems.length})</h3>
               </div>
 
-              <div className="space-y-3 mb-4 max-h-[300px] overflow-y-auto">
+              <div className="space-y-3 mb-4 max-h-[300px] overflow-y-auto scrollbar-hide">
                 {editingOrderItems.map((item, index) => (
                   <div key={index} className="border border-gray-200 rounded-lg p-3">
                     <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-gray-900 flex-1">{item.TenMon || `Món #${item.MaMon}`}</h4>
+                      <h4 className="font-medium text-gray-900 flex-1">{item.Mon?.TenMon || item.TenMon || `Món #${item.MaMon}`}</h4>
                       <button onClick={() => handleRemoveOrderItem(item.MaCTDH || item.id)} className="text-red-500 hover:text-red-700 ml-2">
                         <FiTrash2 className="w-4 h-4" />
                       </button>
@@ -419,9 +445,23 @@ const POSSystem = () => {
               </div>
 
               <div className="border-t pt-4 mb-4">
+                {/* Show discount if points were used */}
+                {editingOrder.DiemSuDung > 0 && (
+                  <>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-gray-600">Tạm tính:</span>
+                      <span className="text-gray-900">{formatCurrency((editingOrder.TongTien || 0) + (editingOrder.DiemSuDung * 1000))}</span>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-green-600">🎖️ Giảm giá ({editingOrder.DiemSuDung} điểm):</span>
+                      <span className="text-green-600 font-semibold">-{formatCurrency(editingOrder.DiemSuDung * 1000)}</span>
+                    </div>
+                    <div className="border-t border-gray-200 my-2"></div>
+                  </>
+                )}
                 <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold">Tổng tiền:</span>
-                  <span className="text-2xl font-bold text-blue-600">{formatCurrency(editingOrder.TongTien)}</span>
+                  <span className="text-lg font-semibold">Tổng cộng:</span>
+                  <span className="text-2xl font-bold text-blue-600">{formatCurrency(editingOrder.TongTien - editingOrder.DiemSuDung * 1000)}</span>
                 </div>
               </div>
 
@@ -461,15 +501,21 @@ const POSSystem = () => {
               selectedTable={selectedTable}
               selectedCustomer={selectedCustomer}
               cartTotal={cartTotal}
+              cartSubtotal={cartSubtotal}
+              pointsUsed={pointsUsed}
+              onPointsChange={setPointsUsed}
               onTableSelect={setSelectedTable}
-              onCustomerSelect={setSelectedCustomer}
+              onCustomerSelect={(customer) => {
+                setSelectedCustomer(customer);
+                setPointsUsed(0); // Reset points when changing customer
+              }}
               onUpdateQuantity={(maMon, qty) => {
                 if (qty <= 0) setCart(cart.filter(i => i.MaMon !== maMon));
                 else setCart(cart.map(i => i.MaMon === maMon ? { ...i, SoLuong: qty } : i));
               }}
               onUpdateNote={(maMon, note) => setCart(cart.map(i => i.MaMon === maMon ? { ...i, GhiChu: note } : i))}
               onRemove={(maMon) => setCart(cart.filter(i => i.MaMon !== maMon))}
-              onClear={() => { setCart([]); setSelectedTable(null); setSelectedCustomer(null); }}
+              onClear={() => { setCart([]); setSelectedTable(null); setSelectedCustomer(null); setPointsUsed(0); }}
               onCreateOrder={handleCreateOrder}
               formatCurrency={formatCurrency}
             />
@@ -480,7 +526,7 @@ const POSSystem = () => {
         <div className="lg:col-span-3">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sticky top-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Đơn đang xử lý ({activeOrders.length})</h2>
-            <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            <div className="space-y-2 max-h-[600px] overflow-y-auto scrollbar-hide">
               {activeOrders.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <FiPackage className="w-8 h-8 mx-auto mb-2 text-gray-300" />
@@ -503,7 +549,7 @@ const POSSystem = () => {
                         <FiClock className="inline w-3 h-3 mr-1" />
                         {new Date(order.NgayLap).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <span className="font-bold text-sm text-blue-600">{formatCurrency(order.TongTien)}</span>
+                      <span className="font-bold text-sm text-blue-600">{formatCurrency(order.TongTien - (order.DiemSuDung || 0) * 1000)}</span>
                     </div>
                   </button>
                 ))
@@ -557,21 +603,21 @@ const POSSystem = () => {
             transform: translateX(-50%);
           }
           
-          /* Format for 80mm thermal printer */
+          /* Format for 120mm receipt printer */
           @page {
-            size: 80mm auto;
+            size: 120mm auto;
             margin: 0;
           }
           
           html, body {
-            width: 80mm;
+            width: 120mm;
             margin: 0;
             padding: 0;
           }
           
           .print-receipt {
-            width: 80mm !important;
-            max-width: 80mm !important;
+            width: 120mm !important;
+            max-width: 120mm !important;
             margin: 0 !important;
             padding: 10mm !important;
             background: white !important;

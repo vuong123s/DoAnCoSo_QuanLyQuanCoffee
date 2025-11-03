@@ -105,6 +105,7 @@ CREATE TABLE DonHang (
     NgayLap DATETIME DEFAULT CURRENT_TIMESTAMP,
     TongTien DECIMAL(12,2),
     TrangThai VARCHAR(20) DEFAULT 'Chờ thanh toán',  -- Chờ thanh toán, Hoàn thành, Đã hủy
+    DiemSuDung INT DEFAULT 0,                        -- Số điểm tích lũy đã sử dụng để giảm giá (1 điểm = 1,000 VNĐ)
     -- FOREIGN KEY (MaDat) REFERENCES DatBan(MaDat), -- Sẽ thêm sau khi tạo bảng DatBan
     FOREIGN KEY (MaKH) REFERENCES KhachHang(MaKH),
     FOREIGN KEY (MaBan) REFERENCES Ban(MaBan),
@@ -212,22 +213,18 @@ CREATE TABLE DonHangOnline (
     MaKH INT,
     TenKhach VARCHAR(100) NOT NULL,
     SDTKhach VARCHAR(20) NOT NULL,
-    EmailKhach VARCHAR(100),
     DiaChiGiaoHang TEXT NOT NULL,
     LoaiDonHang VARCHAR(20) DEFAULT 'Giao hàng',  -- Giao hàng, Mang đi
     NgayDat DATETIME DEFAULT CURRENT_TIMESTAMP,
     NgayGiaoMong DATETIME,       -- Thời gian mong muốn nhận hàng
-    TongTien DECIMAL(12,2),
+    TongTien DECIMAL(12,2) DEFAULT 0,
     PhiGiaoHang DECIMAL(12,2) DEFAULT 0,
-    TongThanhToan DECIMAL(12,2), -- Tổng tiền + phí giao hàng
-    MaVC INT NULL,               -- Voucher áp dụng
-    GiamGia DECIMAL(12,2) DEFAULT 0,
+    DiemSuDung INT DEFAULT 0,    -- Số điểm tích lũy đã sử dụng để giảm giá (1 điểm = 1,000 VNĐ)
+    TongThanhToan DECIMAL(12,2) DEFAULT 0, -- Tổng tiền sau khi trừ điểm: TongTien - (DiemSuDung * 1000) + PhiGiaoHang
     TrangThai VARCHAR(30) DEFAULT 'Chờ xác nhận',  -- Chờ xác nhận, Đã xác nhận, Đang chuẩn bị, Đang giao, Hoàn thành, Đã hủy
-    LyDoHuy TEXT,                -- Lý do hủy đơn (nếu có)
     MaNVXuLy INT,                -- Nhân viên xử lý đơn
     GhiChu TEXT,                 -- Ghi chú của khách hàng
     FOREIGN KEY (MaKH) REFERENCES KhachHang(MaKH),
-    FOREIGN KEY (MaVC) REFERENCES Voucher(MaVC),
     FOREIGN KEY (MaNVXuLy) REFERENCES NhanVien(MaNV)
 );
 
@@ -430,12 +427,17 @@ INSERT INTO ThanhToan (MaDH, HinhThuc, SoTien, NgayTT) VALUES
 (5, 'Tiền mặt', 150000, '2024-01-17 11:25:00');
 
 -- Thêm đơn hàng online mẫu
-INSERT INTO DonHangOnline (MaKH, TenKhach, SDTKhach, EmailKhach, DiaChiGiaoHang, LoaiDonHang, NgayGiaoMong, TongTien, PhiGiaoHang, TongThanhToan, TrangThai, MaNVXuLy, GhiChu) VALUES
-(1, 'Phạm Văn Khách', '0999888777', 'khach1@email.com', '123 Đường ABC, Quận 1, TP.HCM', 'Giao hàng', '2024-01-20 14:00:00', 95000, 15000, 110000, 'Đã xác nhận', 3, 'Giao hàng nhanh'),
-(2, 'Hoàng Thị Lan', '0888777666', 'khach2@email.com', '456 Đường XYZ, Quận 3, TP.HCM', 'Giao hàng', '2024-01-21 10:30:00', 120000, 20000, 140000, 'Đang chuẩn bị', 4, 'Không cay'),
-(NULL, 'Nguyễn Văn Tân', '0777555333', 'tan@email.com', '789 Đường DEF, Quận 7, TP.HCM', 'Giao hàng', '2024-01-22 16:00:00', 85000, 25000, 110000, 'Chờ xác nhận', NULL, 'Gọi trước khi giao'),
-(3, 'Nguyễn Minh Tuấn', '0777666555', 'khach3@email.com', 'Quán cà phê ABC', 'Mang đi', '2024-01-23 09:00:00', 65000, 0, 65000, 'Hoàn thành', 5, 'Đến lấy lúc 9h'),
-(NULL, 'Trần Thị Mai', '0666444222', 'mai@email.com', '321 Đường GHI, Quận 5, TP.HCM', 'Giao hàng', '2024-01-24 18:30:00', 150000, 30000, 180000, 'Đang giao', 3, 'Tầng 5, căn hộ 502');
+INSERT INTO DonHangOnline (MaKH, TenKhach, SDTKhach, DiaChiGiaoHang, LoaiDonHang, NgayGiaoMong, TongTien, PhiGiaoHang, DiemSuDung, TongThanhToan, TrangThai, MaNVXuLy, GhiChu) VALUES
+-- Đơn 1: Khách hàng dùng 10 điểm (giảm 10,000đ)
+(1, 'Phạm Văn Khách', '0999888777', '123 Đường ABC, Quận 1, TP.HCM', 'Giao hàng', '2024-01-20 14:00:00', 120000, 15000, 10, 125000, 'Đã xác nhận', 3, 'Giao hàng nhanh'),
+-- Đơn 2: Không dùng điểm
+(2, 'Hoàng Thị Lan', '0888777666', '456 Đường XYZ, Quận 3, TP.HCM', 'Giao hàng', '2024-01-21 10:30:00', 140000, 20000, 0, 160000, 'Đang chuẩn bị', 4, 'Không cay'),
+-- Đơn 3: Khách vãng lai, dùng 5 điểm (giảm 5,000đ)
+(NULL, 'Nguyễn Văn Tân', '0777555333', '789 Đường DEF, Quận 7, TP.HCM', 'Giao hàng', '2024-01-22 16:00:00', 110000, 25000, 5, 130000, 'Chờ xác nhận', NULL, 'Gọi trước khi giao'),
+-- Đơn 4: Mang đi, dùng 20 điểm (giảm 20,000đ)
+(3, 'Nguyễn Minh Tuấn', '0777666555', 'Quán cà phê ABC', 'Mang đi', '2024-01-23 09:00:00', 85000, 0, 20, 65000, 'Hoàn thành', 5, 'Đến lấy lúc 9h'),
+-- Đơn 5: Khách vãng lai, không dùng điểm
+(NULL, 'Trần Thị Mai', '0666444222', '321 Đường GHI, Quận 5, TP.HCM', 'Giao hàng', '2024-01-24 18:30:00', 150000, 30000, 0, 180000, 'Đang giao', 3, 'Tầng 5, căn hộ 502');
 
 -- Thêm chi tiết đơn hàng online
 INSERT INTO CTDonHangOnline (MaDHOnline, MaMon, SoLuong, DonGia, ThanhTien, GhiChu) VALUES

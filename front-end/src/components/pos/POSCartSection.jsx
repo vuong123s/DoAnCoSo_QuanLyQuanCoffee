@@ -7,7 +7,10 @@ const POSCartSection = ({
   customers = [],
   selectedTable,
   selectedCustomer,
-  cartTotal, 
+  cartTotal,
+  cartSubtotal,
+  pointsUsed = 0,
+  onPointsChange,
   onTableSelect,
   onCustomerSelect,
   onUpdateQuantity, 
@@ -126,10 +129,43 @@ const POSCartSection = ({
         <>
           <div className="border-t pt-4 mb-4">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-600">Tổng số món:</span>
-              <span className="font-medium">{cart.length}</span>
+              <span className="text-gray-600">Tạm tính:</span>
+              <span className="font-medium">{formatCurrency(cartSubtotal)}</span>
             </div>
-            <div className="flex justify-between items-center">
+            
+            {/* Loyalty Points Discount Section */}
+            {selectedCustomer && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-amber-800">🎖️ Điểm tích lũy:</span>
+                  <span className="font-bold text-amber-600">{selectedCustomer.DiemTichLuy || 0} điểm</span>
+                </div>
+                <div className="mb-2">
+                  <label className="block text-xs text-gray-600 mb-1">Sử dụng điểm giảm giá (1 điểm = 1,000 VNĐ):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={Math.min(selectedCustomer.DiemTichLuy || 0, Math.floor(cartSubtotal / 1000))}
+                    value={pointsUsed}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      const maxPoints = Math.min(selectedCustomer.DiemTichLuy || 0, Math.floor(cartSubtotal / 1000));
+                      onPointsChange(Math.min(value, maxPoints));
+                    }}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    placeholder="Nhập số điểm"
+                  />
+                </div>
+                {pointsUsed > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-green-600 font-medium">Giảm giá:</span>
+                    <span className="text-green-600 font-bold">-{formatCurrency(pointsUsed * 1000)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="flex justify-between items-center border-t pt-2">
               <span className="text-lg font-semibold">Tổng tiền:</span>
               <span className="text-2xl font-bold text-blue-600">
                 {formatCurrency(cartTotal)}

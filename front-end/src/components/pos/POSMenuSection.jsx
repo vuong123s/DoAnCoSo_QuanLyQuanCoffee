@@ -45,7 +45,7 @@ const POSMenuSection = ({ menuItems, categories, onAddToCart }) => {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto scrollbar-hide">
         {filteredMenu.map(item => (
           <button
             key={item.MaMon || item.id}

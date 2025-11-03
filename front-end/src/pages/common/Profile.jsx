@@ -157,22 +157,36 @@ const Profile = () => {
         ? `http://localhost:3000/api/online-orders/${orderId}`
         : `http://localhost:3000/api/billing/${orderId}`;
       
+      console.log(`📝 Fetching order details: ${endpoint}`);
+      
       const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('✅ Order details response:', data);
       
       if (isOnline) {
-        setOrderDetails(data.order?.items || data.order?.CTDonHangOnlines || []);
-        setSelectedOrder(data.order);
+        const order = data.order || data.data;
+        const items = order?.chitiet || order?.items || order?.CTDonHangOnlines || [];
+        console.log('🛒 Online order items:', items);
+        setOrderDetails(items);
+        setSelectedOrder(order);
       } else {
-        setOrderDetails(data.bill?.items || data.donhang?.CTDonHangs || []);
-        setSelectedOrder(data.bill || data.donhang);
+        const order = data.bill || data.order || data.donhang;
+        const items = order?.chitiet || order?.items || order?.CTDonHangs || [];
+        console.log('📦 Order items:', items);
+        setOrderDetails(items);
+        setSelectedOrder(order);
       }
       setShowOrderModal(true);
     } catch (error) {
-      console.error('Error fetching order details:', error);
-      toast.error('Lỗi khi tải chi tiết đơn hàng');
+      console.error('❌ Error fetching order details:', error);
+      toast.error(`Lỗi khi tải chi tiết đơn hàng: ${error.message}`);
     }
   };
 

@@ -219,15 +219,20 @@ app.get('/api/billing-test', (req, res) => {
 });
 
 // Customer-specific routes (public access for customers to view their own orders)
-app.use('/api/billing/customer/:customerId', createServiceProxy('Billing Service', 3004));
-app.use('/api/online-orders/customer/:customerId', createServiceProxy('Billing Service', 3004));
+app.get('/api/billing/customer/:customerId', createServiceProxy('Billing Service', 3004));
+app.get('/api/online-orders/customer/:customerId', createServiceProxy('Billing Service', 3004));
+
+// Order details routes (public access for customers to view order details)
+// Note: These must come after /customer routes but before general /api/billing
+app.get('/api/billing/:id', createServiceProxy('Billing Service', 3004));
+app.get('/api/online-orders/:id', createServiceProxy('Billing Service', 3004));
 
 // Staff-protected billing routes
 app.use('/api/billing', ...requireStaff, createServiceProxy('Billing Service', 3004, true));
 app.use('/api/reservation-orders', createServiceProxy('Billing Service', 3004)); // Convert reservation to order
 app.use('/api/revenue', ...requireStaff, createServiceProxy('Billing Service', 3004, true)); // Revenue analytics
 
-// Online Order Service (handled by Billing Service)
+// Online Order Service (handled by Billing Service) - for staff management
 console.log('🔧 Setting up Online Order Service proxy...');
 app.use('/api/online-orders', createServiceProxy('Billing Service', 3004));
 

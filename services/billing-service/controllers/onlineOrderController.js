@@ -1,7 +1,7 @@
 const { DonHangOnline, CTDonHangOnline, Voucher, ThanhToan } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { processOrderPoints } = require('../utils/loyaltyPoints');
+const { processOrderPoints, deductPointsFromCustomer } = require('../utils/loyaltyPoints');
 
 // Create a new online order
 const createOnlineOrder = async (req, res) => {
@@ -12,19 +12,17 @@ const createOnlineOrder = async (req, res) => {
       MaKH,
       TenKhach, 
       SDTKhach,
-      EmailKhach,
       DiaChiGiaoHang,
       LoaiDonHang = 'Giao hàng',
       NgayGiaoMong,
       TongTien = 0,
       PhiGiaoHang = 0,
-      MaVC,
-      GiamGia = 0,
+      DiemSuDung = 0,
       GhiChu,
       items = []
     } = req.body;
 
-    console.log('📋 Extracted fields:', { TenKhach, SDTKhach, DiaChiGiaoHang, LoaiDonHang, TongTien, MaVC, items: items.length });
+    console.log('📋 Extracted fields:', { TenKhach, SDTKhach, DiaChiGiaoHang, LoaiDonHang, TongTien, DiemSuDung, items: items.length });
 
     if (!TenKhach || !SDTKhach || !DiaChiGiaoHang) {
       console.log('❌ Missing required fields:', { TenKhach: !!TenKhach, SDTKhach: !!SDTKhach, DiaChiGiaoHang: !!DiaChiGiaoHang });
@@ -34,29 +32,10 @@ const createOnlineOrder = async (req, res) => {
       });
     }
 
-    // Lookup voucher ID if voucher code is provided
-    let voucherID = null;
-    if (MaVC) {
-      console.log('🎫 Looking up voucher:', MaVC);
-      // Check if MaVC is already an ID (number) or a code (string)
-      if (typeof MaVC === 'string' && isNaN(MaVC)) {
-        // It's a voucher code, lookup the ID
-        const voucher = await Voucher.findOne({ where: { MaCode: MaVC } });
-        if (voucher) {
-          voucherID = voucher.MaVC;
-          console.log('✅ Found voucher ID:', voucherID);
-        } else {
-          console.log('⚠️  Voucher code not found:', MaVC);
-        }
-      } else {
-        // It's already an ID
-        voucherID = parseInt(MaVC);
-      }
-    }
-
-    // Calculate TongThanhToan
-    const tongThanhToan = parseFloat(TongTien) + parseFloat(PhiGiaoHang) - parseFloat(GiamGia);
-    console.log('💰 Calculated total:', { TongTien, PhiGiaoHang, GiamGia, tongThanhToan, voucherID });
+    // Calculate TongThanhToan: TongTien - (DiemSuDung * 1000) + PhiGiaoHang
+    const diemGiamGia = parseInt(DiemSuDung) * 1000;
+    const tongThanhToan = parseFloat(TongTien) - diemGiamGia + parseFloat(PhiGiaoHang);
+    console.log('💰 Calculated total:', { TongTien, DiemSuDung, diemGiamGia, PhiGiaoHang, tongThanhToan });
 
     // Create online order
     console.log('📝 Creating order in database...');
@@ -64,15 +43,13 @@ const createOnlineOrder = async (req, res) => {
       MaKH: MaKH ? parseInt(MaKH) : null,
       TenKhach: TenKhach.trim(),
       SDTKhach: SDTKhach.trim(),
-      EmailKhach: EmailKhach ? EmailKhach.trim() : null,
       DiaChiGiaoHang: DiaChiGiaoHang.trim(),
       LoaiDonHang: LoaiDonHang,
       NgayGiaoMong: NgayGiaoMong ? new Date(NgayGiaoMong) : null,
       TongTien: parseFloat(TongTien),
       PhiGiaoHang: parseFloat(PhiGiaoHang),
+      DiemSuDung: parseInt(DiemSuDung),
       TongThanhToan: tongThanhToan,
-      MaVC: voucherID,
-      GiamGia: parseFloat(GiamGia),
       GhiChu: GhiChu
     });
     console.log('✅ Order created with ID:', onlineOrder.MaDHOnline);
@@ -103,6 +80,19 @@ const createOnlineOrder = async (req, res) => {
         }
       }
       console.log('✅ All items processed');
+    }
+
+    // Deduct loyalty points if customer used points for discount
+    if (MaKH && parseInt(DiemSuDung) > 0) {
+      console.log(`🎯 Deducting ${DiemSuDung} points from customer ${MaKH}...`);
+      const deductResult = await deductPointsFromCustomer(parseInt(MaKH), parseInt(DiemSuDung));
+      
+      if (deductResult.success) {
+        console.log(`✅ Successfully deducted ${DiemSuDung} points from customer ${MaKH}`);
+      } else {
+        console.warn(`⚠️ Failed to deduct points from customer ${MaKH}:`, deductResult.message);
+        // Don't fail the order if points deduction fails, just log the warning
+      }
     }
 
     // Get complete order with items
@@ -147,6 +137,7 @@ const getOnlineOrders = async (req, res) => {
       end_date,
       search
     } = req.query;
+    const { Mon } = require('../models');
 
     const offset = (page - 1) * limit;
     const whereClause = {};
@@ -174,7 +165,12 @@ const getOnlineOrders = async (req, res) => {
       where: whereClause,
       include: [{
         model: CTDonHangOnline,
-        as: 'chitiet'
+        as: 'chitiet',
+        include: [{
+          model: Mon,
+          as: 'Mon',
+          attributes: ['MaMon', 'TenMon', 'DonGia']
+        }]
       }],
       order: [['NgayDat', 'DESC']],
       limit: parseInt(limit),
@@ -206,6 +202,7 @@ const getOnlineOrdersByCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
     const { limit = 100 } = req.query;
+    const { Mon } = require('../models');
 
     if (!customerId) {
       return res.status(400).json({
@@ -220,7 +217,12 @@ const getOnlineOrdersByCustomer = async (req, res) => {
       where: { MaKH: parseInt(customerId) },
       include: [{
         model: CTDonHangOnline,
-        as: 'chitiet'
+        as: 'chitiet',
+        include: [{
+          model: Mon,
+          as: 'Mon',
+          attributes: ['MaMon', 'TenMon', 'DonGia']
+        }]
       }],
       order: [['NgayDat', 'DESC']],
       limit: parseInt(limit)
@@ -249,11 +251,19 @@ const getOnlineOrdersByCustomer = async (req, res) => {
 const getOnlineOrderById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { Mon } = require('../models');
+
+    console.log(`📝 Fetching online order #${id} with details...`);
 
     const order = await DonHangOnline.findByPk(id, {
       include: [{
         model: CTDonHangOnline,
-        as: 'chitiet'
+        as: 'chitiet',
+        include: [{
+          model: Mon,
+          as: 'Mon',
+          attributes: ['MaMon', 'TenMon', 'DonGia']
+        }]
       }]
     });
 
@@ -263,6 +273,8 @@ const getOnlineOrderById = async (req, res) => {
         message: 'Không tìm thấy đơn hàng online'
       });
     }
+
+    console.log(`✅ Online order #${id} found with ${order.chitiet?.length || 0} items`);
 
     res.json({ 
       data: order,
@@ -284,22 +296,22 @@ const updateOnlineOrderStatus = async (req, res) => {
     const { id } = req.params;
     console.log('📝 Updating order status:', { id, body: req.body });
     
-    const { TrangThai, LyDoHuy, MaNVXuLy } = req.body;
+    const { TrangThai, MaNVXuLy } = req.body;
 
     if (!TrangThai) {
       console.log('❌ Missing TrangThai field');
       return res.status(400).json({
-        error: 'Status is required',
-        message: 'Trạng thái là bắt buộc',
-        received: req.body
+        error: 'Missing required field',
+        message: 'Thiếu trường TrangThai'
       });
     }
 
     const validStatuses = ['Chờ xác nhận', 'Đã xác nhận', 'Đang chuẩn bị', 'Đang giao', 'Hoàn thành', 'Đã hủy'];
     if (!validStatuses.includes(TrangThai)) {
+      console.log('❌ Invalid status:', TrangThai);
       return res.status(400).json({
         error: 'Invalid status',
-        message: 'Trạng thái không hợp lệ. Chỉ chấp nhận: Chờ xác nhận, Đã xác nhận, Đang chuẩn bị, Đang giao, Hoàn thành, Đã hủy'
+        message: `Trạng thái không hợp lệ. Phải là một trong: ${validStatuses.join(', ')}`
       });
     }
 
@@ -312,7 +324,6 @@ const updateOnlineOrderStatus = async (req, res) => {
     }
 
     const updateData = { TrangThai };
-    if (LyDoHuy !== undefined) updateData.LyDoHuy = LyDoHuy;
     if (MaNVXuLy !== undefined) updateData.MaNVXuLy = parseInt(MaNVXuLy);
 
     const previousStatus = order.TrangThai;
@@ -358,7 +369,6 @@ const updateOnlineOrderStatus = async (req, res) => {
 const cancelOnlineOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { LyDoHuy } = req.body;
 
     const order = await DonHangOnline.findByPk(id);
     if (!order) {
@@ -368,30 +378,28 @@ const cancelOnlineOrder = async (req, res) => {
       });
     }
 
+    // Only allow canceling orders that are not completed or already canceled
     if (order.TrangThai === 'Hoàn thành') {
       return res.status(400).json({
-        error: 'Cannot cancel a completed order',
-        message: 'Không thể hủy đơn hàng đã hoàn thành',
-        suggestion: 'Đơn hàng đã hoàn thành không thể hủy'
+        error: 'Cannot cancel completed order',
+        message: 'Không thể hủy đơn hàng đã hoàn thành'
       });
     }
 
     if (order.TrangThai === 'Đã hủy') {
       return res.status(400).json({
-        error: 'Order already cancelled',
+        error: 'Order already canceled',
         message: 'Đơn hàng đã được hủy trước đó'
       });
     }
 
     await order.update({ 
-      TrangThai: 'Đã hủy',
-      LyDoHuy: LyDoHuy || 'Hủy bởi khách hàng'
+      TrangThai: 'Đã hủy'
     });
 
     res.json({
       message: 'Online order cancelled successfully'
     });
-
   } catch (error) {
     console.error('Error cancelling online order:', error);
     res.status(500).json({

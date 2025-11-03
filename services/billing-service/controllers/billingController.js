@@ -1,6 +1,6 @@
-const { DonHang, CTDonHang } = require('../models');
+const { DonHang, CTDonHang, Mon } = require('../models');
 const { Op } = require('sequelize');
-const { processOrderPoints } = require('../utils/loyaltyPoints');
+const { processOrderPoints, deductPointsFromCustomer } = require('../utils/loyaltyPoints');
 
 // Create a new order (DonHang schema)
 const createOrder = async (req, res) => {
@@ -9,6 +9,7 @@ const createOrder = async (req, res) => {
       MaBan, 
       MaNV,
       MaKH, // Customer ID for loyalty points
+      DiemSuDung = 0, // Points used for discount (1 point = 1,000 VND)
       TrangThai = 'Đang xử lý',
       TongTien = 0,
       GhiChu,
@@ -35,7 +36,8 @@ const createOrder = async (req, res) => {
       MaNV: MaNV ? parseInt(MaNV) : null,
       MaKH: MaKH ? parseInt(MaKH) : null,
       TongTien: totalAmount,
-      TrangThai: TrangThai
+      TrangThai: TrangThai,
+      DiemSuDung: DiemSuDung ? parseInt(DiemSuDung) : 0
     });
 
     // Add items to order if provided
@@ -50,6 +52,18 @@ const createOrder = async (req, res) => {
       }));
 
       await CTDonHang.bulkCreate(orderItems);
+    }
+
+    // Deduct loyalty points if customer used points for discount
+    if (MaKH && parseInt(DiemSuDung) > 0) {
+      console.log(`🎯 Deducting ${DiemSuDung} points from customer ${MaKH}...`);
+      const deductResult = await deductPointsFromCustomer(parseInt(MaKH), parseInt(DiemSuDung));
+      
+      if (deductResult.success) {
+        console.log(`✅ Successfully deducted ${DiemSuDung} points from customer ${MaKH}`);
+      } else {
+        console.warn(`⚠️ Failed to deduct points from customer ${MaKH}:`, deductResult.message);
+      }
     }
 
     // Fetch complete order with items
@@ -140,6 +154,7 @@ const getOrdersByCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
     const { limit = 100 } = req.query;
+    const { Mon } = require('../models');
 
     if (!customerId) {
       return res.status(400).json({
@@ -154,7 +169,12 @@ const getOrdersByCustomer = async (req, res) => {
       where: { MaKH: parseInt(customerId) },
       include: [{
         model: CTDonHang,
-        as: 'chitiet'
+        as: 'chitiet',
+        include: [{
+          model: Mon,
+          as: 'Mon',
+          attributes: ['MaMon', 'TenMon', 'DonGia']
+        }]
       }],
       order: [['NgayLap', 'DESC']],
       limit: parseInt(limit)
@@ -228,11 +248,19 @@ const cancelOrder = async (req, res) => {
 const getBillById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { Mon } = require('../models');
+
+    console.log(`📝 Fetching order #${id} with details...`);
 
     const order = await DonHang.findByPk(id, {
       include: [{
         model: CTDonHang,
-        as: 'chitiet'
+        as: 'chitiet',
+        include: [{
+          model: Mon,
+          as: 'Mon',
+          attributes: ['MaMon', 'TenMon', 'DonGia']
+        }]
       }]
     });
 
@@ -242,6 +270,8 @@ const getBillById = async (req, res) => {
         message: 'Không tìm thấy đơn hàng'
       });
     }
+
+    console.log(`✅ Order #${id} found with ${order.chitiet?.length || 0} items`);
 
     res.json({ 
       bill: order, // For compatibility
@@ -684,7 +714,12 @@ const getOrderItems = async (req, res) => {
     const order = await DonHang.findByPk(orderId, {
       include: [{
         model: CTDonHang,
-        as: 'chitiet'
+        as: 'chitiet',
+        include: [{
+          model: Mon,
+          as: 'Mon',
+          attributes: ['MaMon', 'TenMon', 'DonGia']
+        }]
       }]
     });
 
@@ -716,6 +751,7 @@ const createOrderWithItems = async (req, res) => {
       MaBan, 
       MaNV,
       MaKH, // Customer ID for loyalty points
+      DiemSuDung = 0, // Points used for discount
       TrangThai = 'Đang xử lý',
       items = [] // Array of items: [{MaMon, SoLuong, DonGia, GhiChu}]
     } = req.body;
@@ -740,7 +776,8 @@ const createOrderWithItems = async (req, res) => {
       MaNV: MaNV ? parseInt(MaNV) : null,
       MaKH: MaKH ? parseInt(MaKH) : null,
       TongTien: totalAmount,
-      TrangThai: TrangThai
+      TrangThai: TrangThai,
+      DiemSuDung: DiemSuDung ? parseInt(DiemSuDung) : 0
     });
 
     // Add items to order if provided
@@ -755,6 +792,18 @@ const createOrderWithItems = async (req, res) => {
       }));
 
       await CTDonHang.bulkCreate(orderItems);
+    }
+
+    // Deduct loyalty points if customer used points for discount
+    if (MaKH && parseInt(DiemSuDung) > 0) {
+      console.log(`🎯 Deducting ${DiemSuDung} points from customer ${MaKH}...`);
+      const deductResult = await deductPointsFromCustomer(parseInt(MaKH), parseInt(DiemSuDung));
+      
+      if (deductResult.success) {
+        console.log(`✅ Successfully deducted ${DiemSuDung} points from customer ${MaKH}`);
+      } else {
+        console.warn(`⚠️ Failed to deduct points from customer ${MaKH}:`, deductResult.message);
+      }
     }
 
     // Fetch complete order with items

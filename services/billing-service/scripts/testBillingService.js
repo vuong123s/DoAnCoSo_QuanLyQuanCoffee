@@ -20,12 +20,11 @@ const testData = {
   onlineOrder: {
     TenKhach: 'Nguyễn Văn Test',
     SDTKhach: '0123456789',
-    EmailKhach: 'test@example.com',
     DiaChiGiaoHang: '123 Test Street, Test City',
     LoaiDonHang: 'Giao hàng',
     TongTien: 100000,
     PhiGiaoHang: 15000,
-    GiamGia: 0,
+    DiemSuDung: 10, // Sử dụng 10 điểm = giảm 10,000đ
     GhiChu: 'Test online order',
     items: [
       {

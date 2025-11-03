@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../app/stores/authStore';
 import useCartStore from '../../app/stores/cartStore';
-import { onlineOrderAPI, voucherAPI } from '../../shared/services/api';
+import { onlineOrderAPI, userAPI, authAPI } from '../../shared/services/api';
 import LoadingSpinner from '../../components/common/ui/LoadingSpinner';
 import { 
   FiShoppingCart, 
@@ -42,31 +42,90 @@ const Cart = () => {
   const [submitting, setSubmitting] = useState(false);
   const [orderType, setOrderType] = useState('delivery'); // 'delivery' or 'pickup'
   const [deliveryInfo, setDeliveryInfo] = useState({
-    TenKhach: user?.TenKH || '',
-    SoDienThoai: user?.SoDienThoai || '',
-    DiaChi: user?.DiaChi || '',
+    TenKhach: '',
+    SoDienThoai: '',
+    DiaChi: '',
     GhiChu: ''
   });
-  const [voucher, setVoucher] = useState({
-    code: '',
-    discount: 0,
-    isValid: false,
-    applied: false
-  });
-  const [availableVouchers, setAvailableVouchers] = useState([]);
+  const [pointsUsed, setPointsUsed] = useState(0);
+  const [customerPoints, setCustomerPoints] = useState(0);
 
+  // Initialize cart on mount
   useEffect(() => {
     initializeCart();
-    fetchAvailableVouchers();
   }, []);
 
-  const fetchAvailableVouchers = async () => {
+  // Helper function to get customer ID (supports both Vietnamese and English field names)
+  const getCustomerId = () => {
+    return user?.MaKH || user?.id;
+  };
+
+  // Helper function to check if user is a customer
+  const isCustomer = () => {
+    return user && (user.MaKH || (user.id && user.role === 'customer'));
+  };
+
+  // Auto-fill customer info and fetch points when user is available
+  useEffect(() => {
+    console.log('🔍 Cart useEffect - User:', user);
+    if (isCustomer()) {
+      const customerId = getCustomerId();
+      console.log('✅ User is customer, ID:', customerId);
+      
+      // Auto-fill delivery info (support both Vietnamese and English field names)
+      setDeliveryInfo(prev => ({
+        ...prev,
+        TenKhach: user.TenKH || user.HoTen || user.name || '',
+        SoDienThoai: user.SoDienThoai || user.SDT || user.phone || '',
+        DiaChi: user.DiaChi || user.address || ''
+      }));
+      console.log('📝 Auto-filled delivery info:', {
+        TenKhach: user.TenKH || user.HoTen || user.name,
+        SoDienThoai: user.SoDienThoai || user.SDT || user.phone
+      });
+      
+      // Always fetch fresh points from database to ensure accuracy
+      fetchCustomerPoints();
+    } else {
+      console.log('❌ No user or not a customer');
+      setCustomerPoints(0);
+      setPointsUsed(0);
+    }
+  }, [user]);
+
+  const fetchCustomerPoints = async () => {
+    const customerId = getCustomerId();
+    console.log('🎯 Fetching customer points from DATABASE for ID:', customerId);
+    
+    if (!customerId) {
+      console.log('⚠️ No customer ID, skipping fetch');
+      setCustomerPoints(0);
+      return;
+    }
+    
     try {
-      const customerType = user?.LoaiKH || 'Khách hàng';
-      const response = await voucherAPI.getAvailableVouchers(customerType);
-      setAvailableVouchers(response.data || []);
+      // Use profile endpoint instead of customer endpoint to avoid 403 error
+      // Customer can only access their own profile, not other customers
+      const response = await authAPI.getProfile();
+      console.log('📊 Profile data response:', response.data);
+      
+      // Support both Vietnamese and English field names
+      const userData = response.data.user || response.data;
+      const points = userData.DiemTichLuy || userData.points || 0;
+      
+      setCustomerPoints(points);
+      console.log('✅ Fetched fresh points from profile:', points);
     } catch (error) {
-      console.error('Fetch vouchers error:', error);
+      console.error('❌ Fetch customer points error:', error);
+      
+      // Handle 403 specifically
+      if (error.response?.status === 403) {
+        console.error('🚫 Access denied: Customer cannot access customer management endpoint');
+        toast.error('Không có quyền truy cập');
+      } else {
+        toast.error('Không thể tải điểm tích lũy');
+      }
+      setCustomerPoints(0);
     }
   };
 
@@ -86,52 +145,24 @@ const Cart = () => {
     await updateItemNote(itemId, note);
   };
 
-  const validateVoucher = async () => {
-    if (!voucher.code.trim()) {
-      toast.error('Vui lòng nhập mã voucher');
-      return;
+  const handlePointsChange = (value) => {
+    const points = parseInt(value) || 0;
+    const maxPoints = Math.min(customerPoints, Math.floor(getCartTotal() / 1000));
+    
+    if (points > maxPoints) {
+      toast.error(`Bạn chỉ có thể dùng tối đa ${maxPoints} điểm`);
+      setPointsUsed(maxPoints);
+    } else if (points < 0) {
+      setPointsUsed(0);
+    } else {
+      setPointsUsed(points);
     }
-
-    try {
-      const orderData = {
-        TongTien: getCartTotal(),
-        MaKH: user?.MaKH,
-        LoaiKH: user?.LoaiKH || 'Khách hàng'
-      };
-
-      const response = await voucherAPI.validateVoucher(voucher.code, orderData);
-      
-      if (response.data.valid) {
-        setVoucher({
-          ...voucher,
-          discount: response.data.discount,
-          isValid: true,
-          applied: true
-        });
-        toast.success(`Áp dụng voucher thành công! Giảm ${formatCurrency(response.data.discount)}`);
-      } else {
-        toast.error(response.data.message || 'Mã voucher không hợp lệ');
-      }
-    } catch (error) {
-      console.error('Validate voucher error:', error);
-      toast.error('Có lỗi khi kiểm tra voucher');
-    }
-  };
-
-  const removeVoucher = () => {
-    setVoucher({
-      code: '',
-      discount: 0,
-      isValid: false,
-      applied: false
-    });
-    toast.success('Đã hủy voucher');
   };
 
   const calculateTotal = () => {
     const subtotal = getCartTotal();
-    const discount = voucher.applied ? voucher.discount : 0;
-    return Math.max(0, subtotal - discount);
+    const pointsDiscount = pointsUsed * 1000; // 1 điểm = 1,000 VNĐ
+    return Math.max(0, subtotal - pointsDiscount);
   };
 
   const formatCurrency = (amount) => {
@@ -160,17 +191,19 @@ const Cart = () => {
 
     setSubmitting(true);
     try {
+      // Get customer ID if user is a customer (supports both Vietnamese and English schema)
+      const customerId = isCustomer() ? getCustomerId() : null;
+      
       const orderData = {
-        MaKH: user?.MaKH || null,
+        MaKH: customerId, // Mã khách hàng từ tài khoản đăng nhập
         LoaiDonHang: orderType === 'delivery' ? 'Giao hàng' : 'Mang đi',
         TenKhach: deliveryInfo.TenKhach,
-        SDTKhach: deliveryInfo.SoDienThoai, // Backend expects SDTKhach
-        DiaChiGiaoHang: orderType === 'delivery' ? deliveryInfo.DiaChi : 'Tự lấy tại cửa hàng', // Backend expects DiaChiGiaoHang
+        SDTKhach: deliveryInfo.SoDienThoai,
+        DiaChiGiaoHang: orderType === 'delivery' ? deliveryInfo.DiaChi : 'Tự lấy tại cửa hàng',
         GhiChu: deliveryInfo.GhiChu,
-        MaVC: voucher.applied ? voucher.code : null,
-        TongTien: getCartTotal(),
-        GiamGia: voucher.applied ? voucher.discount : 0, // Backend expects GiamGia not TienGiam
-        PhiGiaoHang: 0, // Add delivery fee
+        DiemSuDung: pointsUsed, // Số điểm tích lũy đã sử dụng
+        TongTien: calculateTotal(), // Tổng tiền sau khi trừ điểm
+        PhiGiaoHang: 0,
         items: cartItems.map(item => ({
           MaMon: item.MaMon,
           SoLuong: item.SoLuong,
@@ -185,15 +218,30 @@ const Cart = () => {
       
       console.log('✅ Order created successfully:', response.data);
       
-      // Clear cart after successful order
+      // Clear cart and refresh points after successful order
       await clearCart();
+      setPointsUsed(0);
+      
+      // Refresh customer points from database
+      if (isCustomer()) {
+        fetchCustomerPoints();
+      }
       setDeliveryInfo({
         TenKhach: user?.TenKH || '',
         SoDienThoai: user?.SoDienThoai || '',
         DiaChi: user?.DiaChi || '',
         GhiChu: ''
       });
-      removeVoucher();
+      setPointsUsed(0);
+      
+      // Deduct points from customer account
+      if (pointsUsed > 0 && user?.MaKH) {
+        try {
+          await userAPI.deductPoints(user.MaKH, pointsUsed);
+        } catch (error) {
+          console.error('Error deducting points:', error);
+        }
+      }
       
       toast.success('Đặt hàng thành công!');
       
@@ -217,8 +265,10 @@ const Cart = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
+    <div className="min-h-screen bg-white">
       <div className="max-w-7xl mx-auto px-4 py-8">
+        
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -475,77 +525,61 @@ const Cart = () => {
                     </div>
                   </div>
 
-                  {/* Voucher */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center space-x-2">
-                      <FiTag className="w-4 h-4" />
-                      <span>Mã giảm giá</span>
-                    </label>
-                    {!voucher.applied ? (
-                      <div className="flex space-x-2">
-                        <div className="flex-1 relative">
-                          <FiPercent className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="text"
-                            value={voucher.code}
-                            onChange={(e) => setVoucher({...voucher, code: e.target.value})}
-                            placeholder="Nhập mã voucher"
-                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-gray-50 focus:bg-white transition-colors"
-                          />
-                        </div>
-                        <button
-                          onClick={validateVoucher}
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all font-medium"
-                        >
-                          Áp dụng
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 p-4 rounded-xl">
+                  {/* Loyalty Points */}
+                  {isCustomer() && (
+                    <div className="mb-6">
+                      <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center space-x-2">
+                        <FiTag className="w-4 h-4" />
+                        <span>Điểm tích lũy</span>
+                      </label>
+                      
+                      {/* Customer Points Display */}
+                      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 p-4 rounded-xl mb-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
-                            <div className="bg-green-500 p-2 rounded-full">
+                            <div className="bg-amber-500 p-2 rounded-full">
                               <FiTag className="w-4 h-4 text-white" />
                             </div>
                             <div>
-                              <div className="font-bold text-green-800">{voucher.code}</div>
-                              <div className="text-sm text-green-600">Giảm {formatCurrency(voucher.discount)}</div>
+                              <div className="text-sm text-gray-600">Điểm hiện có</div>
+                              <div className="font-bold text-xl text-amber-700">{customerPoints} điểm</div>
                             </div>
                           </div>
-                          <button
-                            onClick={removeVoucher}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                          >
-                            <FiX className="w-4 h-4" />
-                          </button>
+                          <div className="text-right">
+                            <div className="text-xs text-gray-500">Giá trị</div>
+                            <div className="font-semibold text-amber-600">{formatCurrency(customerPoints * 1000)}</div>
+                          </div>
                         </div>
                       </div>
-                    )}
-                    
-                    {/* Available Vouchers */}
-                    {availableVouchers.length > 0 && !voucher.applied && (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium text-gray-600 mb-2">Voucher khả dụng:</p>
-                        <div className="space-y-2">
-                          {availableVouchers.slice(0, 3).map((v) => (
-                            <button
-                              key={v.MaVC}
-                              onClick={() => setVoucher({...voucher, code: v.MaVC})}
-                              className="block w-full text-left p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl hover:from-blue-100 hover:to-indigo-100 transition-all"
-                            >
-                              <div className="flex items-center space-x-2">
-                                <FiTag className="w-4 h-4 text-blue-500" />
-                                <div>
-                                  <span className="font-bold text-blue-700">{v.MaVC}</span>
-                                  <p className="text-xs text-blue-600">{v.TenVC}</p>
-                                </div>
-                              </div>
-                            </button>
-                          ))}
+
+                      {/* Points Input */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <span>Số điểm muốn dùng:</span>
+                          <span className="text-xs">(Tối đa: {Math.min(customerPoints, Math.floor(getCartTotal() / 1000))} điểm)</span>
                         </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max={Math.min(customerPoints, Math.floor(getCartTotal() / 1000))}
+                            value={pointsUsed}
+                            onChange={(e) => handlePointsChange(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-gray-50 focus:bg-white transition-colors"
+                            placeholder="Nhập số điểm"
+                          />
+                        </div>
+                        {pointsUsed > 0 && (
+                          <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-green-700 font-medium">🎖️ Giảm giá:</span>
+                              <span className="text-green-700 font-bold">-{formatCurrency(pointsUsed * 1000)}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {/* Order Summary */}
                   <div className="border-t-2 border-gray-100 pt-6">
@@ -560,13 +594,36 @@ const Cart = () => {
                         <span className="font-medium">{formatCurrency(getCartTotal())}</span>
                       </div>
                       
-                      {voucher.applied && (
-                        <div className="flex justify-between items-center text-green-600 bg-green-50 px-3 py-2 rounded-lg">
-                          <div className="flex items-center space-x-2">
-                            <FiTag className="w-4 h-4" />
-                            <span>Giảm giá ({voucher.code}):</span>
+                      {/* Loyalty Points Discount - Always show if user is logged in */}
+                      {isCustomer() && (
+                        <div className={`border-2 px-4 py-3 rounded-xl ${
+                          pointsUsed > 0 
+                            ? 'border-green-300 bg-gradient-to-r from-green-50 to-emerald-50' 
+                            : 'border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50'
+                        }`}>
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center space-x-2">
+                              <FiTag className={`w-5 h-5 ${
+                                pointsUsed > 0 ? 'text-green-600' : 'text-amber-600'
+                              }`} />
+                              <div>
+                                <div className="text-xs text-gray-600 font-medium">🎖️ Điểm sử dụng giảm giá:</div>
+                                <div className={`text-sm font-bold ${
+                                  pointsUsed > 0 ? 'text-green-700' : 'text-gray-500'
+                                }`}>
+                                  {pointsUsed > 0 ? `${pointsUsed} điểm` : 'Không dùng điểm'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-gray-500">Giảm giá</div>
+                              <div className={`text-lg font-bold ${
+                                pointsUsed > 0 ? 'text-green-600' : 'text-gray-400'
+                              }`}>
+                                {pointsUsed > 0 ? `-${formatCurrency(pointsUsed * 1000)}` : '0đ'}
+                              </div>
+                            </div>
                           </div>
-                          <span className="font-bold">-{formatCurrency(voucher.discount)}</span>
                         </div>
                       )}
                       

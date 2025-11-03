@@ -90,13 +90,13 @@ const AdminLayout = () => {
     {
       title: 'Kinh doanh',
       items: [
-        { 
-          path: '/admin/orders', 
-          icon: FiShoppingCart, 
-          label: 'Đơn hàng', 
-          description: 'Theo dõi đơn hàng',
-          color: 'from-orange-500 to-orange-600'
-        },
+        // { 
+        //   path: '/admin/orders', 
+        //   icon: FiShoppingCart, 
+        //   label: 'Đơn hàng', 
+        //   description: 'Theo dõi đơn hàng',
+        //   color: 'from-orange-500 to-orange-600'
+        // },
         { 
           path: '/admin/online-orders', 
           icon: FiPackage, 
@@ -132,18 +132,7 @@ const AdminLayout = () => {
         }
       ]
     },
-    {
-      title: 'Hệ thống',
-      items: [
-        { 
-          path: '/admin/settings', 
-          icon: FiSettings, 
-          label: 'Cài đặt', 
-          description: 'Thiết lập hệ thống',
-          color: 'from-gray-500 to-gray-600'
-        }
-      ]
-    }
+   
   ];
 
   const allMenuItems = menuCategories.flatMap(category => category.items);

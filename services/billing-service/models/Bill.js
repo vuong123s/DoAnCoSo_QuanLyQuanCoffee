@@ -46,6 +46,12 @@ const DonHang = sequelize.define('DonHang', {
     type: DataTypes.STRING(20),
     allowNull: true,
     comment: 'Đang xử lý, Hoàn thành, Đã hủy'
+  },
+  DiemSuDung: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 0,
+    comment: 'Số điểm tích lũy đã sử dụng để giảm giá (1 điểm = 1,000 VNĐ)'
   }
 }, {
   tableName: 'DonHang',

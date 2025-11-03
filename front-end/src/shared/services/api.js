@@ -226,6 +226,11 @@ export const userAPI = {
   createUser: (userData) => api.post('/api/users', userData),
   updateUser: (id, userData) => api.put(`/api/users/${id}`, userData),
   deleteUser: (userType, userId) => api.delete(`/api/users/${userType}/${userId}`),
+  
+  // Loyalty points management
+  addPoints: (customerId, points) => api.post(`/api/customers/${customerId}/add-points`, { points }),
+  deductPoints: (customerId, points) => api.post(`/api/customers/${customerId}/deduct-points`, { points }),
+  getPointsHistory: (customerId) => api.get(`/api/customers/${customerId}/points-history`),
 };
 
 // Billing API

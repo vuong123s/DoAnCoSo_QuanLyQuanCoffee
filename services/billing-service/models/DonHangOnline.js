@@ -24,10 +24,6 @@ const DonHangOnline = sequelize.define('DonHangOnline', {
     type: DataTypes.STRING(20),
     allowNull: false
   },
-  EmailKhach: {
-    type: DataTypes.STRING(100),
-    allowNull: true
-  },
   DiaChiGiaoHang: {
     type: DataTypes.TEXT,
     allowNull: false
@@ -57,33 +53,23 @@ const DonHangOnline = sequelize.define('DonHangOnline', {
     allowNull: false,
     defaultValue: 0
   },
+  DiemSuDung: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    comment: 'Số điểm tích lũy đã sử dụng để giảm giá (1 điểm = 1,000 VNĐ)'
+  },
   TongThanhToan: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
-    defaultValue: 0
-  },
-  MaVC: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    references: {
-      model: 'Voucher',
-      key: 'MaVC'
-    }
-  },
-  GiamGia: {
-    type: DataTypes.DECIMAL(12, 2),
-    allowNull: false,
-    defaultValue: 0
+    defaultValue: 0,
+    comment: 'Tổng tiền sau khi trừ điểm: TongTien - (DiemSuDung * 1000)'
   },
   TrangThai: {
     type: DataTypes.STRING(30),
     allowNull: false,
     defaultValue: 'Chờ xác nhận',
     comment: 'Chờ xác nhận, Đã xác nhận, Đang chuẩn bị, Đang giao, Hoàn thành, Đã hủy'
-  },
-  LyDoHuy: {
-    type: DataTypes.TEXT,
-    allowNull: true
   },
   MaNVXuLy: {
     type: DataTypes.INTEGER,
