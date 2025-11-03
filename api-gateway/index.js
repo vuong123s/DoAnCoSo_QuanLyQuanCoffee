@@ -218,7 +218,11 @@ app.get('/api/billing-test', (req, res) => {
   });
 });
 
+// Customer-specific routes (public access for customers to view their own orders)
+app.use('/api/billing/customer/:customerId', createServiceProxy('Billing Service', 3004));
+app.use('/api/online-orders/customer/:customerId', createServiceProxy('Billing Service', 3004));
 
+// Staff-protected billing routes
 app.use('/api/billing', ...requireStaff, createServiceProxy('Billing Service', 3004, true));
 app.use('/api/reservation-orders', createServiceProxy('Billing Service', 3004)); // Convert reservation to order
 app.use('/api/revenue', ...requireStaff, createServiceProxy('Billing Service', 3004, true)); // Revenue analytics

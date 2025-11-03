@@ -107,26 +107,46 @@ const Profile = () => {
   const fetchOrders = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/billing?customerId=${user.id}`, {
+      const customerId = user.MaKH || user.id;
+      console.log('📦 Fetching orders for customer:', customerId);
+      
+      const response = await fetch(`http://localhost:3000/api/billing/customer/${customerId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
-      setOrders(data.bills || data.donhangs || []);
+      console.log('✅ Orders response:', data);
+      setOrders(data.bills || data.donhangs || data.orders || []);
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      console.error('❌ Error fetching orders:', error);
+      toast.error('Không thể tải đơn hàng');
     }
   };
 
   const fetchOnlineOrders = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/online-orders?customerId=${user.id}`, {
+      const customerId = user.MaKH || user.id;
+      console.log('🛒 Fetching online orders for customer:', customerId);
+      
+      const response = await fetch(`http://localhost:3000/api/online-orders/customer/${customerId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
-      setOnlineOrders(data.orders || []);
+      console.log('✅ Online orders response:', data);
+      setOnlineOrders(data.orders || data.onlineOrders || data.data || []);
     } catch (error) {
-      console.error('Error fetching online orders:', error);
+      console.error('❌ Error fetching online orders:', error);
+      toast.error('Không thể tải đơn hàng online');
     }
   };
 

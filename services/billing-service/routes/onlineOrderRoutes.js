@@ -4,6 +4,7 @@ const {
   createOnlineOrder,
   getOnlineOrders,
   getOnlineOrderById,
+  getOnlineOrdersByCustomer,
   updateOnlineOrderStatus,
   cancelOnlineOrder,
   deleteOnlineOrder,
@@ -16,6 +17,9 @@ router.post('/', createOnlineOrder);
 
 // Get all online orders with optional filters
 router.get('/', getOnlineOrders);
+
+// Get online orders by customer ID
+router.get('/customer/:customerId', getOnlineOrdersByCustomer);
 
 // Get online order statistics
 router.get('/stats', getOnlineOrderStats);

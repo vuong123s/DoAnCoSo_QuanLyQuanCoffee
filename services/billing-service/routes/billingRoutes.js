@@ -4,6 +4,7 @@ const {
   createBill,
   getBills,
   getBillById,
+  getOrdersByCustomer,
   updatePaymentStatus,
   cancelOrder,
   getBillingStats,
@@ -24,6 +25,9 @@ router.post('/with-items', createOrderWithItems);
 
 // Get all bills with optional filters (no auth for testing)
 router.get('/', getBills);
+
+// Get orders by customer ID
+router.get('/customer/:customerId', getOrdersByCustomer);
 
 // Test route (REMOVE IN PRODUCTION)
 router.get('/test', (req, res) => {

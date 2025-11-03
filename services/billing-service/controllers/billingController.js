@@ -135,6 +135,50 @@ const getBills = async (req, res) => {
   }
 };
 
+// Get orders by customer ID
+const getOrdersByCustomer = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { limit = 100 } = req.query;
+
+    if (!customerId) {
+      return res.status(400).json({
+        error: 'Customer ID is required',
+        message: 'Vui lòng cung cấp mã khách hàng'
+      });
+    }
+
+    console.log(`👥 Fetching orders for customer #${customerId}`);
+
+    const orders = await DonHang.findAll({
+      where: { MaKH: parseInt(customerId) },
+      include: [{
+        model: CTDonHang,
+        as: 'chitiet'
+      }],
+      order: [['NgayLap', 'DESC']],
+      limit: parseInt(limit)
+    });
+
+    console.log(`✅ Found ${orders.length} orders for customer #${customerId}`);
+
+    res.json({
+      success: true,
+      orders: orders,
+      bills: orders, // Alias for compatibility
+      donhangs: orders,
+      count: orders.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching orders by customer:', error);
+    res.status(500).json({
+      error: 'Failed to fetch orders',
+      message: error.message
+    });
+  }
+};
+
 // Cancel order
 const cancelOrder = async (req, res) => {
   try {
@@ -741,6 +785,7 @@ module.exports = {
   createOrder,
   getBills,
   getBillById,
+  getOrdersByCustomer,
   updateOrderStatus,
   cancelOrder,
   deleteOrder,

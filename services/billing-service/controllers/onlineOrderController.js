@@ -201,6 +201,50 @@ const getOnlineOrders = async (req, res) => {
   }
 };
 
+// Get online orders by customer ID
+const getOnlineOrdersByCustomer = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { limit = 100 } = req.query;
+
+    if (!customerId) {
+      return res.status(400).json({
+        error: 'Customer ID is required',
+        message: 'Vui lòng cung cấp mã khách hàng'
+      });
+    }
+
+    console.log(`👥 Fetching online orders for customer #${customerId}`);
+
+    const orders = await DonHangOnline.findAll({
+      where: { MaKH: parseInt(customerId) },
+      include: [{
+        model: CTDonHangOnline,
+        as: 'chitiet'
+      }],
+      order: [['NgayDat', 'DESC']],
+      limit: parseInt(limit)
+    });
+
+    console.log(`✅ Found ${orders.length} online orders for customer #${customerId}`);
+
+    res.json({
+      success: true,
+      orders: orders,
+      data: orders,
+      onlineOrders: orders,
+      count: orders.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching online orders by customer:', error);
+    res.status(500).json({
+      error: 'Failed to fetch online orders',
+      message: error.message
+    });
+  }
+};
+
 // Get online order by ID
 const getOnlineOrderById = async (req, res) => {
   try {
@@ -504,6 +548,7 @@ module.exports = {
   createOnlineOrder,
   getOnlineOrders,
   getOnlineOrderById,
+  getOnlineOrdersByCustomer,
   updateOnlineOrderStatus,
   cancelOnlineOrder,
   deleteOnlineOrder,
