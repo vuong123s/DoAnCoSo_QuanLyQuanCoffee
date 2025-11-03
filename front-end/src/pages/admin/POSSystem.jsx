@@ -514,7 +514,7 @@ const POSSystem = () => {
       </div>
 
       {/* Hidden print receipt component */}
-      <div style={{ display: 'none' }}>
+      <div className="print-only-container">
         {editingOrder && (
           <PrintReceipt
             order={editingOrder}
@@ -525,6 +525,65 @@ const POSSystem = () => {
           />
         )}
       </div>
+      
+      <style>{`
+        /* Hide on screen */
+        @media screen {
+          .print-only-container {
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+          }
+        }
+        
+        /* Show only receipt when printing */
+        @media print {
+          /* Hide everything */
+          body * {
+            visibility: hidden;
+          }
+          
+          /* Show only receipt container and its content */
+          .print-only-container,
+          .print-only-container * {
+            visibility: visible;
+          }
+          
+          /* Center receipt on page */
+          .print-only-container {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+          }
+          
+          /* Format for 80mm thermal printer */
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          
+          html, body {
+            width: 80mm;
+            margin: 0;
+            padding: 0;
+          }
+          
+          .print-receipt {
+            width: 80mm !important;
+            max-width: 80mm !important;
+            margin: 0 !important;
+            padding: 10mm !important;
+            background: white !important;
+          }
+          
+          /* Ensure colors print */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

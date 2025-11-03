@@ -5,28 +5,6 @@ const PrintReceipt = ({ order, items, table, customer, formatCurrency }) => {
   
   return (
     <div id="print-receipt" className="print-receipt p-8 max-w-[80mm] mx-auto bg-white text-black font-mono text-sm">
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .print-receipt, .print-receipt * {
-            visibility: visible;
-          }
-          .print-receipt {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 80mm;
-            margin: 0;
-            padding: 10mm;
-          }
-          @page {
-            size: 80mm auto;
-            margin: 0;
-          }
-        }
-      `}</style>
       {/* Header */}
       <div className="text-center mb-4">
         <h1 className="text-2xl font-bold">QUÁN COFFEE</h1>
