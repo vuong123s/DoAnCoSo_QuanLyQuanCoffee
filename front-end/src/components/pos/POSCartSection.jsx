@@ -127,45 +127,13 @@ const POSCartSection = ({
 
       {cart.length > 0 && (
         <>
-          <div className="border-t pt-4 mb-4">
+          <div className="pt-4 mb-4">
             <div className="flex justify-between items-center mb-2">
               <span className="text-gray-600">Tạm tính:</span>
               <span className="font-medium">{formatCurrency(cartSubtotal)}</span>
             </div>
             
-            {/* Loyalty Points Discount Section */}
-            {selectedCustomer && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-amber-800">🎖️ Điểm tích lũy:</span>
-                  <span className="font-bold text-amber-600">{selectedCustomer.DiemTichLuy || 0} điểm</span>
-                </div>
-                <div className="mb-2">
-                  <label className="block text-xs text-gray-600 mb-1">Sử dụng điểm giảm giá (1 điểm = 1,000 VNĐ):</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max={Math.min(selectedCustomer.DiemTichLuy || 0, Math.floor(cartSubtotal / 1000))}
-                    value={pointsUsed}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 0;
-                      const maxPoints = Math.min(selectedCustomer.DiemTichLuy || 0, Math.floor(cartSubtotal / 1000));
-                      onPointsChange(Math.min(value, maxPoints));
-                    }}
-                    className="w-full px-3 py-2 border border-amber-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    placeholder="Nhập số điểm"
-                  />
-                </div>
-                {pointsUsed > 0 && (
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-green-600 font-medium">Giảm giá:</span>
-                    <span className="text-green-600 font-bold">-{formatCurrency(pointsUsed * 1000)}</span>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <div className="flex justify-between items-center border-t pt-2">
+            <div className="flex justify-between items-center pt-2">
               <span className="text-lg font-semibold">Tổng tiền:</span>
               <span className="text-2xl font-bold text-blue-600">
                 {formatCurrency(cartTotal)}
@@ -173,11 +141,11 @@ const POSCartSection = ({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 flex">
             <button
               onClick={onCreateOrder}
               disabled={!selectedTable}
-              className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium flex items-center justify-center"
+              className="w-full py-3 px-4 !mr-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium flex items-center justify-center"
             >
               <FiCheck className="mr-2" />
               Tạo đơn hàng
@@ -185,7 +153,7 @@ const POSCartSection = ({
 
             <button
               onClick={onClear}
-              className="w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              className="w-full py-2 px-4 !ml-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
             >
               Hủy
             </button>

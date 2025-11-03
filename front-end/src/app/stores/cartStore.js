@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import toast from 'react-hot-toast';
+import { onlineOrderAPI } from '../../shared/services/api';
 
 const useCartStore = create(
   persist(
@@ -25,14 +26,7 @@ const useCartStore = create(
           
           // Try to load cart from server, but don't fail if server is down
           try {
-            // Try online order API first, then fallback to cart API
-            let response;
-            try {
-              response = await onlineOrderAPI.getCart(currentSessionId);
-            } catch (onlineError) {
-              console.warn('Online order API unavailable, trying cart API');
-              response = await cartAPI.getCart(currentSessionId);
-            }
+            const response = await onlineOrderAPI.getCart(currentSessionId);
             
             if (response.data && Array.isArray(response.data)) {
               set({ items: response.data });

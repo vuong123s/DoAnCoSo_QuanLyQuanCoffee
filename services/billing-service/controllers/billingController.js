@@ -292,21 +292,17 @@ const updateOrderStatus = async (req, res) => {
   try {
     console.log('🔄 updateOrderStatus called with:', { id: req.params.id, body: req.body });
     const { id } = req.params;
-    const { TrangThai, GhiChu } = req.body;
+    const { TrangThai, GhiChu, DiemSuDung, MaBan, MaKH } = req.body;
 
-    if (!TrangThai) {
-      return res.status(400).json({
-        error: 'Status is required',
-        message: 'Trạng thái là bắt buộc'
-      });
-    }
-
-    const validStatuses = ['Đang xử lý', 'Hoàn thành', 'Đã hủy'];
-    if (!validStatuses.includes(TrangThai)) {
-      return res.status(400).json({
-        error: 'Invalid status',
-        message: 'Trạng thái không hợp lệ. Chỉ chấp nhận: Đang xử lý, Hoàn thành, Đã hủy'
-      });
+    // Validate TrangThai if provided
+    if (TrangThai) {
+      const validStatuses = ['Đang xử lý', 'Hoàn thành', 'Đã hủy'];
+      if (!validStatuses.includes(TrangThai)) {
+        return res.status(400).json({
+          error: 'Invalid status',
+          message: 'Trạng thái không hợp lệ. Chỉ chấp nhận: Đang xử lý, Hoàn thành, Đã hủy'
+        });
+      }
     }
 
     const order = await DonHang.findByPk(id);
@@ -318,7 +314,17 @@ const updateOrderStatus = async (req, res) => {
     }
 
     const previousStatus = order.TrangThai;
-    await order.update({ TrangThai });
+    
+    // Build update object with only provided fields
+    const updateData = {};
+    if (TrangThai !== undefined) updateData.TrangThai = TrangThai;
+    if (GhiChu !== undefined) updateData.GhiChu = GhiChu;
+    if (DiemSuDung !== undefined) updateData.DiemSuDung = DiemSuDung;
+    if (MaBan !== undefined) updateData.MaBan = MaBan;
+    if (MaKH !== undefined) updateData.MaKH = MaKH;
+    
+    console.log('📦 Updating order with:', updateData);
+    await order.update(updateData);
 
     // Cộng điểm cho khách hàng khi đơn hàng hoàn thành
     if (TrangThai === 'Hoàn thành' && previousStatus !== 'Hoàn thành' && order.MaKH) {

@@ -249,7 +249,7 @@ export const billingAPI = {
   createOrder: (orderData) => billingApi.post('/api/billing', orderData),
   updateOrderStatus: (id, statusData) => billingApi.put(`/api/billing/${id}/payment`, statusData),
   cancelOrder: (id, reason) => billingApi.post(`/api/billing/${id}/cancel`, { LyDoHuy: reason }),
-  deleteOrder: (id) => billingApi.delete(`/api/billing/${id}`),
+  deleteOrder: (id, force = false) => billingApi.delete(`/api/billing/${id}${force ? '?force=true' : ''}`),
   
   // Order items management (bán hàng)
   addItemToOrder: (orderId, itemData) => billingApi.post(`/api/billing/${orderId}/items`, itemData),

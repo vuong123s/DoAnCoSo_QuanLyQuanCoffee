@@ -30,6 +30,10 @@ const POSSystem = () => {
   const [editingOrderItems, setEditingOrderItems] = useState([]);
   const [editingPointsUsed, setEditingPointsUsed] = useState(0);
   
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState('Đang xử lý');
+  const [tableFilter, setTableFilter] = useState('all');
+  
   const [stats, setStats] = useState({
     todayOrders: 0,
     todayRevenue: 0
@@ -38,8 +42,9 @@ const POSSystem = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      // Fetch all orders without status filter, we'll filter on frontend
       const [ordersRes, menuRes, categoriesRes, tablesRes, customersRes] = await Promise.all([
-        billingAPI.getBills({ TrangThai: 'Đang xử lý' }),
+        billingAPI.getBills({}), // Get all orders
         menuAPI.getMenuItems({ TrangThai: 'Còn hàng' }),
         menuAPI.getCategories(),
         tableAPI.getTables(),
@@ -55,9 +60,11 @@ const POSSystem = () => {
       
       const today = new Date().toDateString();
       const todayOrders = orders.filter(o => new Date(o.NgayLap).toDateString() === today);
+      const completedTodayOrders = todayOrders.filter(o => o.TrangThai === 'Hoàn thành');
+      
       setStats({
         todayOrders: todayOrders.length,
-        todayRevenue: todayOrders.reduce((sum, o) => sum + ((o.TongTien || 0) - (o.DiemSuDung || 0) * 1000), 0)
+        todayRevenue: completedTodayOrders.reduce((sum, o) => sum + ((o.TongTien || 0) - (o.DiemSuDung || 0) * 1000), 0)
       });
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -77,22 +84,12 @@ const POSSystem = () => {
     if (!selectedTable) { toast.error('Vui lòng chọn bàn'); return; }
     if (cart.length === 0) { toast.error('Vui lòng thêm món vào đơn hàng'); return; }
     
-    // Validate points if customer selected
-    if (pointsUsed > 0 && selectedCustomer) {
-      const availablePoints = selectedCustomer.DiemTichLuy || 0;
-      if (pointsUsed > availablePoints) {
-        toast.error(`Khách chỉ có ${availablePoints} điểm!`);
-        return;
-      }
-    }
-    
     try {
       const response = await billingAPI.createOrder({
         MaBan: selectedTable.MaBan || selectedTable.id,
         MaNV: user?.MaNV || user?.id || 1,
         MaKH: selectedCustomer?.MaKH || selectedCustomer?.id || null,
         TrangThai: 'Đang xử lý',
-        DiemSuDung: pointsUsed, // Save points used for discount
         items: cart.map(item => ({
           MaMon: item.MaMon,
           SoLuong: item.SoLuong,
@@ -100,17 +97,6 @@ const POSSystem = () => {
           GhiChu: item.GhiChu
         }))
       });
-      
-      // Deduct points if used
-      if (pointsUsed > 0 && selectedCustomer) {
-        try {
-          await userAPI.deductPoints(selectedCustomer.MaKH || selectedCustomer.id, pointsUsed);
-          toast.success(`Đã dùng ${pointsUsed} điểm (-${pointsUsed * 1000} VNĐ)`);
-        } catch (error) {
-          console.error('Error deducting points:', error);
-          toast.warning('Tạo đơn thành công nhưng không trừ được điểm');
-        }
-      }
       
       toast.success('Tạo đơn hàng thành công!');
       setCart([]);
@@ -129,6 +115,7 @@ const POSSystem = () => {
       const response = await billingAPI.getOrderItems(order.MaDH || order.id);
       const items = response.data.items || response.data.order?.chitiet || [];
       setEditingOrderItems(items);
+      setEditingPointsUsed(order.DiemSuDung || 0);
     } catch (error) {
       toast.error('Lỗi khi tải chi tiết đơn hàng');
     }
@@ -190,9 +177,50 @@ const POSSystem = () => {
       });
       toast.success('Đã cập nhật khách hàng');
       setEditingOrder({ ...editingOrder, MaKH: newCustomerId });
+      setEditingPointsUsed(0); // Reset points when customer changes
       fetchData();
     } catch (error) {
       toast.error('Lỗi khi cập nhật khách hàng: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleUpdateOrderPoints = async (points) => {
+    if (!editingOrder || !editingOrder.MaKH) return;
+    
+    const customer = customers.find(c => (c.MaKH || c.id) === editingOrder.MaKH);
+    if (!customer) {
+      toast.error('Không tìm thấy khách hàng');
+      return;
+    }
+
+    const currentTotal = editingOrderItems.reduce((sum, item) => sum + (item.DonGia * item.SoLuong), 0);
+    const maxPoints = Math.min(customer.DiemTichLuy || 0, Math.floor(currentTotal / 1000));
+    
+    if (points > maxPoints) {
+      toast.error(`Chỉ có thể dùng tối đa ${maxPoints} điểm!`);
+      return;
+    }
+
+    try {
+      await billingAPI.updatePaymentStatus(editingOrder.MaDH || editingOrder.id, {
+        DiemSuDung: points
+      });
+      
+      // Deduct points if increased
+      const pointsDiff = points - (editingOrder.DiemSuDung || 0);
+      if (pointsDiff > 0) {
+        await userAPI.deductPoints(editingOrder.MaKH, pointsDiff);
+      } else if (pointsDiff < 0) {
+        // Refund points if decreased
+        await userAPI.addPoints(editingOrder.MaKH, Math.abs(pointsDiff));
+      }
+      
+      setEditingPointsUsed(points);
+      setEditingOrder({ ...editingOrder, DiemSuDung: points });
+      toast.success(`Đã cập nhật sử dụng ${points} điểm`);
+      fetchData();
+    } catch (error) {
+      toast.error('Lỗi khi cập nhật điểm: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -226,12 +254,14 @@ const POSSystem = () => {
   };
 
   const handleDeleteOrder = async (orderId) => {
-    if (!window.confirm('Xóa vĩnh viễn đơn hàng này? Hành động này không thể hoàn tác!')) return;
+    if (!window.confirm('Xóa vĩnh viễn đơn hàng này?\n\n⚠️ Hành động này không thể hoàn tác!')) return;
     
     try {
-      await billingAPI.deleteOrder(orderId);
-      toast.success('Đã xóa đơn hàng');
+      // Call with force=true to permanently delete
+      await billingAPI.deleteOrder(orderId, true);
+      toast.success('Đã xóa vĩnh viễn đơn hàng');
       setEditingOrder(null);
+      setEditingOrderItems([]);
       fetchData();
     } catch (error) {
       toast.error('Lỗi khi xóa đơn: ' + (error.response?.data?.message || error.message));
@@ -396,9 +426,64 @@ const POSSystem = () => {
                     {editingOrder.TrangThai}
                   </span>
                 </div>
+
+                {/* Points Usage Section - Only for orders in 'Đang xử lý' status */}
+                {editingOrder.MaKH && editingOrder.TrangThai === 'Đang xử lý' && (() => {
+                  const customer = customers.find(c => (c.MaKH || c.id) === editingOrder.MaKH);
+                  if (!customer) return null;
+                  const currentTotal = editingOrderItems.reduce((sum, item) => sum + (item.DonGia * item.SoLuong), 0);
+                  const maxPoints = Math.min(customer.DiemTichLuy || 0, Math.floor(currentTotal / 1000));
+                  
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-amber-800">🎯️ Điểm tích lũy:</span>
+                        <span className="font-bold text-amber-600">{customer.DiemTichLuy || 0} điểm</span>
+                      </div>
+                      <div className="mb-2">
+                        <label className="block text-xs text-gray-600 mb-1">Sử dụng điểm giảm giá (1 điểm = 1,000 VNĐ):</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={maxPoints}
+                          value={editingPointsUsed}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value) || 0;
+                            setEditingPointsUsed(Math.min(value, maxPoints));
+                          }}
+                          onBlur={(e) => {
+                            const value = parseInt(e.target.value) || 0;
+                            if (value !== (editingOrder.DiemSuDung || 0)) {
+                              handleUpdateOrderPoints(value);
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-amber-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          placeholder="Nhập số điểm"
+                        />
+                      </div>
+                      {editingPointsUsed > 0 && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-green-600 font-medium">Giảm giá:</span>
+                          <span className="text-green-600 font-bold">-{formatCurrency(editingPointsUsed * 1000)}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Show points info for completed/cancelled orders (read-only) */}
+                {editingOrder.MaKH && editingOrder.TrangThai !== 'Đang xử lý' && editingOrder.DiemSuDung > 0 && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div className="flex justify-between items-center text-sm text-gray-600">
+                      <span>🎯️ Đã sử dụng điểm:</span>
+                      <span className="font-bold">{editingOrder.DiemSuDung} điểm (-{formatCurrency(editingOrder.DiemSuDung * 1000)})</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">⚠️ Không thể thay đổi điểm cho đơn đã hoàn thành/hủy</p>
+                  </div>
+                )}
               </div>
 
-              <div className="border-t pt-4 mb-4">
+              <div className="pt-4 mb-4">
                 <h3 className="font-medium text-gray-900 mb-3">Món trong đơn ({editingOrderItems.length})</h3>
               </div>
 
@@ -444,7 +529,7 @@ const POSSystem = () => {
                 ))}
               </div>
 
-              <div className="border-t pt-4 mb-4">
+              <div className="pt-4 mb-4">
                 {/* Show discount if points were used */}
                 {editingOrder.DiemSuDung > 0 && (
                   <>
@@ -465,32 +550,23 @@ const POSSystem = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <button 
-                  onClick={handlePrint}
-                  className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center"
-                >
-                  <FiPrinter className="mr-2" />In hóa đơn
-                </button>
-                <button 
-                  onClick={() => handleCompleteOrder(editingOrder.MaDH)} 
-                  className="w-full py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center justify-center"
-                >
-                  <FiCheck className="mr-2" />Hoàn thành
-                </button>
-                <button 
-                  onClick={() => handleCancelOrder(editingOrder.MaDH)} 
-                  className="w-full py-2 px-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              <div className="space-y-2 flex">
+                
+                  <FiPrinter onClick={handlePrint}
+                  className="w-full text-2xl my-2 mx-4 text-blue-600 rounded-lg hover:text-blue-700 font-medium"
+                />
+                
+                  <FiCheck   onClick={() => handleCompleteOrder(editingOrder.MaDH)} 
+                  className="w-full text-2xl my-2 mx-4 text-green-600 rounded-lg hover:text-green-700 font-medium "
+                 />
+               
+                  <FiXCircle  onClick={() => handleCancelOrder(editingOrder.MaDH)} 
+                  className="w-full text-2xl my-2 mx-4 text-yellow-600 rounded-lg hover:text-yellow-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={editingOrder.TrangThai === 'Hoàn thành' || editingOrder.TrangThai === 'Đã hủy'}
-                >
-                  <FiXCircle className="mr-2" />Hủy đơn
-                </button>
-                <button 
-                  onClick={() => handleDeleteOrder(editingOrder.MaDH)} 
-                  className="w-full py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium flex items-center justify-center"
-                >
-                  <FiTrash2 className="mr-2" />Xóa vĩnh viễn
-                </button>
+                 />
+                  <FiTrash2 onClick={() => handleDeleteOrder(editingOrder.MaDH)} 
+                  className="w-full text-2xl my-2 mx-4 text-red-600 rounded-lg hover:text-red-700 font-medium"
+                 />
               </div>
             </div>
           ) : (
@@ -525,16 +601,71 @@ const POSSystem = () => {
         {/* Active Orders Sidebar - 3 columns */}
         <div className="lg:col-span-3">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sticky top-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Đơn đang xử lý ({activeOrders.length})</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Đơn hàng ({(() => {
+              let filtered = activeOrders;
+              if (statusFilter) filtered = filtered.filter(o => o.TrangThai === statusFilter);
+              if (tableFilter !== 'all') filtered = filtered.filter(o => (o.MaBan || o.id) == tableFilter);
+              return filtered.length;
+            })()})</h2>
+            
+            {/* Filters */}
+            <div className="space-y-2 mb-4">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Trạng thái</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Đang xử lý">Đang xử lý</option>
+                  <option value="Hoàn thành">Hoàn thành</option>
+                  <option value="Đã hủy">Đã hủy</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Bàn</label>
+                <select
+                  value={tableFilter}
+                  onChange={(e) => setTableFilter(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Tất cả bàn</option>
+                  {tables.map(table => (
+                    <option key={table.MaBan || table.id} value={table.MaBan || table.id}>
+                      Bàn {table.TenBan || table.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
             <div className="space-y-2 max-h-[600px] overflow-y-auto scrollbar-hide">
-              {activeOrders.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <FiPackage className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  <p className="text-sm">Không có đơn</p>
-                </div>
-              ) : (
-                activeOrders.map(order => (
-                  <button key={order.MaDH || order.id} onClick={() => handleEditOrder(order)} className={`w-full text-left p-3 border-2 rounded-lg transition-all ${
+              {(() => {
+                // Filter by both status and table
+                let filteredOrders = activeOrders;
+                
+                // Filter by status
+                if (statusFilter) {
+                  filteredOrders = filteredOrders.filter(o => o.TrangThai === statusFilter);
+                }
+                
+                // Filter by table
+                if (tableFilter !== 'all') {
+                  filteredOrders = filteredOrders.filter(o => (o.MaBan || o.id) == tableFilter);
+                }
+                
+                if (filteredOrders.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-gray-500">
+                      <FiPackage className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">Không có đơn</p>
+                    </div>
+                  );
+                }
+                
+                return filteredOrders.map(order => (
+                  <button key={order.MaDH || order.id} onClick={() => handleEditOrder(order)} className={`w-full text-left p-3 !my-2 border-2 rounded-lg transition-all ${
                     editingOrder && (editingOrder.MaDH || editingOrder.id) === (order.MaDH || order.id)
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-blue-300'
@@ -552,8 +683,8 @@ const POSSystem = () => {
                       <span className="font-bold text-sm text-blue-600">{formatCurrency(order.TongTien - (order.DiemSuDung || 0) * 1000)}</span>
                     </div>
                   </button>
-                ))
-              )}
+                ));
+              })()}
             </div>
           </div>
         </div>
