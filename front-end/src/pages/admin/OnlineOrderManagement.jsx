@@ -77,7 +77,7 @@ const OnlineOrderManagement = () => {
           case 'preparing':
             return order.TrangThai === 'Đang chuẩn bị';
           case 'shipping':
-            return order.TrangThai === 'Đang giao hàng';
+            return order.TrangThai === 'Đang giao';
           case 'completed':
             return order.TrangThai === 'Hoàn thành';
           case 'cancelled':
@@ -130,6 +130,35 @@ const OnlineOrderManagement = () => {
     }
   };
 
+  const handleCancelOrder = async (orderId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này?')) {
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      await onlineOrderAPI.cancelOnlineOrder(orderId);
+      
+      // Update local state
+      setOrders(orders.map(order => 
+        order.MaDHOnline === orderId ? { ...order, TrangThai: 'Đã hủy' } : order
+      ));
+      
+      // Update selected order if viewing
+      if (selectedOrder?.MaDHOnline === orderId) {
+        setSelectedOrder({ ...selectedOrder, TrangThai: 'Đã hủy' });
+      }
+      
+      toast.success('Hủy đơn hàng thành công');
+      
+    } catch (error) {
+      console.error('Cancel order error:', error);
+      toast.error('Không thể hủy đơn hàng');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const handleDeleteOrder = async (orderId) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa đơn hàng này? Hành động này không thể hoàn tác.')) {
       return;
@@ -163,7 +192,7 @@ const OnlineOrderManagement = () => {
       'Chờ xác nhận': 'bg-yellow-100 text-yellow-800',
       'Đã xác nhận': 'bg-blue-100 text-blue-800',
       'Đang chuẩn bị': 'bg-orange-100 text-orange-800',
-      'Đang giao hàng': 'bg-purple-100 text-purple-800',
+      'Đang giao': 'bg-purple-100 text-purple-800',
       'Hoàn thành': 'bg-green-100 text-green-800',
       'Đã hủy': 'bg-red-100 text-red-800',
     };
@@ -175,7 +204,7 @@ const OnlineOrderManagement = () => {
       'Chờ xác nhận': <FiClock className="w-4 h-4" />,
       'Đã xác nhận': <FiCheckCircle className="w-4 h-4" />,
       'Đang chuẩn bị': <FiPackage className="w-4 h-4" />,
-      'Đang giao hàng': <FiTruck className="w-4 h-4" />,
+      'Đang giao': <FiTruck className="w-4 h-4" />,
       'Hoàn thành': <FiCheckCircle className="w-4 h-4" />,
       'Đã hủy': <FiXCircle className="w-4 h-4" />,
     };
@@ -186,8 +215,8 @@ const OnlineOrderManagement = () => {
     const statusFlow = {
       'Chờ xác nhận': 'Đã xác nhận',
       'Đã xác nhận': 'Đang chuẩn bị',
-      'Đang chuẩn bị': 'Đang giao hàng',
-      'Đang giao hàng': 'Hoàn thành',
+      'Đang chuẩn bị': 'Đang giao',
+      'Đang giao': 'Hoàn thành',
     };
     return statusFlow[currentStatus] || null;
   };
@@ -351,6 +380,16 @@ const OnlineOrderManagement = () => {
                             title={`Chuyển: ${getNextStatus(order.TrangThai)}`}
                           >
                             <FiEdit className="w-5 h-5" />
+                          </button>
+                        )}
+                        {!['Hoàn thành', 'Đã hủy'].includes(order.TrangThai) && (
+                          <button
+                            onClick={() => handleCancelOrder(order.MaDHOnline)}
+                            disabled={updating}
+                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50"
+                            title="Hủy đơn hàng"
+                          >
+                            <FiXCircle className="w-5 h-5" />
                           </button>
                         )}
                         <button
