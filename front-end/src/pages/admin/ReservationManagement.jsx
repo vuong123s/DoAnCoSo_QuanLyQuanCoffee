@@ -146,38 +146,38 @@ const ReservationManagement = () => {
 
   const handleConvertToOrder = async (reservation) => {
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const loadingToast = toast.loading('Đang tạo đơn hàng...');
+      const loadingToast = toast.loading('Đang tìm đơn hàng...');
 
-      // Chuyển đổi đặt bàn thành đơn hàng
-      const response = await billingAPI.convertReservationToOrder({
-        MaDat: reservation.MaDat,
-        MaNV: user.id || null,
-        items: [] // Có thể thêm món đã đặt trước nếu có
-      });
-
+      // Tìm đơn hàng có MaDat tương ứng với đặt bàn này
+      const ordersResponse = await billingAPI.getBills({ MaDat: reservation.MaDat });
+      
       toast.dismiss(loadingToast);
 
-      if (response.data.success) {
-        const orderId = response.data.order.MaDH;
-        toast.success('Đã tạo đơn hàng thành công!');
-        
-        // Chuyển đến trang Sales Management với order ID
+      const orders = ordersResponse.data.donhangs || ordersResponse.data.bills || [];
+      const order = orders.find(o => o.MaDat === reservation.MaDat);
+
+      if (order) {
+        // Đã có đơn hàng - chuyển sang trang bán hàng để xem/sửa
+        toast.success('Đã tìm thấy đơn hàng!');
         navigate('/admin/sales', { 
           state: { 
-            orderId: orderId,
+            orderId: order.MaDH,
             fromReservation: true,
             reservationInfo: {
               TenKhach: reservation.TenKhach,
               SoDienThoai: reservation.SoDienThoai,
-              MaBan: reservation.MaBan
+              MaBan: reservation.MaBan,
+              MaDat: reservation.MaDat
             }
           } 
         });
+      } else {
+        // Chưa có đơn hàng - thông báo cho user
+        toast.error('Chưa có đơn hàng cho đặt bàn này. Vui lòng tạo đơn hàng từ trang đặt bàn.');
       }
     } catch (error) {
-      console.error('Error converting reservation to order:', error);
-      toast.error(error.response?.data?.message || 'Có lỗi khi tạo đơn hàng');
+      console.error('Error finding order for reservation:', error);
+      toast.error(error.response?.data?.message || 'Có lỗi khi tìm đơn hàng');
     }
   };
 

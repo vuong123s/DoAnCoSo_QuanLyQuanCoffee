@@ -9,7 +9,6 @@ import toast from 'react-hot-toast';
 
 const BookTable = () => {
   const { user, isAuthenticated } = useAuthStore();
-  const [bookingType, setBookingType] = useState('single'); // 'single' or 'group'
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedTables, setSelectedTables] = useState([]);
   const [tableOrders, setTableOrders] = useState({}); // {tableId: [order items]}
@@ -88,18 +87,12 @@ const BookTable = () => {
       if (isAlreadySelected) {
         return prev.filter(t => (t.MaBan || t.id) !== tableId);
       } else {
-        // For single booking, only allow one table
-        if (bookingType === 'single') {
-          return [table];
+        // Cho phép chọn tối đa 10 bàn
+        if (prev.length >= 10) {
+          toast.error('Chỉ có thể chọn tối đa 10 bàn');
+          return prev;
         }
-        // For group booking, allow up to 10 tables
-        else {
-          if (prev.length >= 10) {
-            toast.error('Chỉ có thể chọn tối đa 10 bàn');
-            return prev;
-          }
-          return [...prev, table];
-        }
+        return [...prev, table];
       }
     });
   };
@@ -159,73 +152,54 @@ const BookTable = () => {
     setLoading(true);
 
     try {
-      // For single table reservation
-      if (bookingType === 'single') {
-        const reservationData = {
-          ...data,
-          MaKH: user?.MaKH || null,
-          MaBan: selectedTables[0].MaBan
-        };
+      // Đặt bàn (cho phép 1 hoặc nhiều bàn)
+      const reservationData = {
+        ...data,
+        MaKH: user?.MaKH || null,
+        tables: selectedTables.map(table => table.MaBan)
+      };
 
-        const response = await reservationAPI.createReservation(reservationData);
+      const response = await reservationAPI.createMultiTableReservation(reservationData);
 
-        if (response.data.success) {
-          // Nếu có món ăn được chọn, tạo đơn hàng cho bàn đó
-          const tableId = selectedTables[0].MaBan || selectedTables[0].id;
+      if (response.data.success) {
+        // Lấy danh sách reservations với MaDat cho từng bàn
+        const reservations = response.data.data || [];
+        
+        // Tạo đơn hàng riêng cho TỪNG bàn với món ăn riêng biệt và MaDat tương ứng
+        const orderPromises = selectedTables.map(table => {
+          const tableId = table.MaBan || table.id;
           const tableOrder = tableOrders[tableId] || [];
+          const reservation = reservations.find(r => r.MaBan === tableId);
+          const maDat = reservation?.MaDat;
           
-          if (tableOrder.length > 0) {
-            await createOrderWithItems(tableId, tableOrder);
+          // Chỉ tạo đơn hàng nếu bàn có món ăn và có MaDat
+          if (tableOrder.length > 0 && maDat) {
+            return createOrderWithItems(tableId, tableOrder, maDat);
           }
-          
-          toast.success('Đặt bàn thành công!');
-          setCurrentStep(4);
-        } else {
-          toast.error(response.data.message || 'Có lỗi xảy ra khi đặt bàn');
-        }
-      } 
-      // For multiple table reservations (group booking)
-      else {
-        const reservationData = {
-          ...data,
-          MaKH: user?.MaKH || null,
-          tables: selectedTables.map(table => table.MaBan)
-        };
-
-        const response = await reservationAPI.createMultiTableReservation(reservationData);
-
-        if (response.data.success) {
-          // Tạo đơn hàng riêng cho TỪNG bàn với món ăn riêng biệt
-          const orderPromises = selectedTables.map(table => {
+          return Promise.resolve(); // Bàn không có món ăn hoặc không có MaDat
+        });
+        
+        try {
+          await Promise.all(orderPromises);
+          const tablesWithOrders = selectedTables.filter(table => {
             const tableId = table.MaBan || table.id;
-            const tableOrder = tableOrders[tableId] || [];
-            
-            // Chỉ tạo đơn hàng nếu bàn có món ăn
-            if (tableOrder.length > 0) {
-              return createOrderWithItems(tableId, tableOrder);
-            }
-            return Promise.resolve(); // Bàn không có món ăn
+            return (tableOrders[tableId] || []).length > 0;
           });
           
-          try {
-            await Promise.all(orderPromises);
-            const tablesWithOrders = selectedTables.filter(table => {
-              const tableId = table.MaBan || table.id;
-              return (tableOrders[tableId] || []).length > 0;
-            });
-            
-            if (tablesWithOrders.length > 0) {
-              console.log(`Đã tạo ${tablesWithOrders.length} đơn hàng cho ${tablesWithOrders.length} bàn có món ăn`);
-            }
-          } catch (error) {
-            console.error('Một số đơn hàng không tạo được:', error);
+          if (tablesWithOrders.length > 0) {
+            console.log(`Đã tạo ${tablesWithOrders.length} đơn hàng cho ${tablesWithOrders.length} bàn có món ăn`);
           }
-          
-          toast.success(`Đặt bàn thành công! Đã đặt ${response.data.data.length}/${selectedTables.length} bàn`);
-          setCurrentStep(4);
-        } else {
-          toast.error(response.data.message || 'Có lỗi xảy ra khi đặt bàn');
+        } catch (error) {
+          console.error('Một số đơn hàng không tạo được:', error);
         }
+        
+        const message = selectedTables.length === 1 
+          ? 'Đặt bàn thành công!' 
+          : `Đặt bàn thành công! Đã đặt ${response.data.data.length}/${selectedTables.length} bàn`;
+        toast.success(message);
+        setCurrentStep(4);
+      } else {
+        toast.error(response.data.message || 'Có lỗi xảy ra khi đặt bàn');
       }
     } catch (error) {
       console.error('Booking error:', error);
@@ -247,11 +221,12 @@ const BookTable = () => {
     setTableOrders(orders);
   };
 
-  const createOrderWithItems = async (tableId, orderItems) => {
+  const createOrderWithItems = async (tableId, orderItems, maDat = null) => {
     try {
       // Tạo đơn hàng kèm món ăn trong một lần gọi API
       const orderData = {
         MaBan: tableId,
+        MaDat: maDat, // Thêm mã đặt bàn để liên kết với đơn đặt bàn
         MaNV: null, // Chưa có nhân viên phục vụ
         TrangThai: 'Đang xử lý',
         items: orderItems.map(item => ({
@@ -265,7 +240,7 @@ const BookTable = () => {
       const response = await billingAPI.createOrderWithItems(orderData);
       
       if (response.data.success) {
-        console.log('Đã tạo đơn hàng với món ăn thành công:', response.data.order);
+        console.log('Đã tạo đơn hàng với món ăn thành công (MaDat:', maDat, '):', response.data.order);
       }
     } catch (error) {
       console.error('Error creating order with items:', error);
@@ -435,16 +410,10 @@ const BookTable = () => {
     <div className="space-y-6">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          {bookingType === 'single' 
-            ? `Chọn bàn (${selectedTables.length}/1)` 
-            : `Chọn bàn (${selectedTables.length}/10)`
-          }
+          Chọn bàn ({selectedTables.length}/10)
         </h2>
         <p className="text-gray-600">
-          {bookingType === 'single' 
-            ? 'Chọn một bàn bạn muốn đặt' 
-            : 'Chọn các bàn bạn muốn đặt cho nhóm (tối đa 10 bàn)'
-          }
+          Chọn các bàn bạn muốn đặt (từ 1 đến 10 bàn)
         </p>
       </div>
 
@@ -509,12 +478,13 @@ const BookTable = () => {
         <p className="text-gray-600">
           Bạn có thể chọn món ăn trước (tùy chọn) hoặc bỏ qua để đặt món sau
         </p>
-        {selectedTables.length > 1 && (
+        {selectedTables.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
             <p className="text-amber-800 text-sm">
-              <strong>Lưu ý:</strong> Bạn đã chọn {selectedTables.length} bàn. 
-              Mỗi bàn có thể đặt món khác nhau hoặc không đặt món nào. 
-              Hệ thống sẽ tạo đơn hàng riêng cho từng bàn có món ăn.
+              <strong>Lưu ý:</strong> {selectedTables.length === 1 
+                ? 'Bạn có thể đặt món trước (tùy chọn) hoặc bỏ qua để đặt món sau.'
+                : `Bạn đã chọn ${selectedTables.length} bàn. Mỗi bàn có thể đặt món khác nhau hoặc không đặt món nào. Hệ thống sẽ tạo đơn hàng riêng cho từng bàn có món ăn.`
+              }
             </p>
           </div>
         )}
@@ -611,46 +581,6 @@ const BookTable = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Booking Type Selection */}
-        <div className="mb-8">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4 text-center">
-              Chọn loại đặt bàn
-            </h2>
-            <div className="flex justify-center space-x-4">
-              <button
-                onClick={() => {
-                  setBookingType('single');
-                  setSelectedTables([]);
-                  setCurrentStep(1);
-                }}
-                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                  bookingType === 'single'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <FiUsers className="w-5 h-5 inline mr-2" />
-                Đặt bàn đơn lẻ
-              </button>
-              <button
-                onClick={() => {
-                  setBookingType('group');
-                  setSelectedTables([]);
-                  setCurrentStep(1);
-                }}
-                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                  bookingType === 'group'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <FiUsers className="w-5 h-5 inline mr-2" />
-                Đặt bàn nhóm (nhiều bàn)
-              </button>
-            </div>
-          </div>
-        </div>
 
         {/* Progress Steps */}
         <div className="mb-8">

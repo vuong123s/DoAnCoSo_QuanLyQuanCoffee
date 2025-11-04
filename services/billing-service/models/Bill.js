@@ -25,6 +25,15 @@ const DonHang = sequelize.define('DonHang', {
       key: 'MaBan'
     }
   },
+  MaDat: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'DatBan',
+      key: 'MaDat'
+    },
+    comment: 'Mã đặt bàn - Liên kết với đơn đặt bàn'
+  },
   MaNV: {
     type: DataTypes.INTEGER,
     allowNull: true,

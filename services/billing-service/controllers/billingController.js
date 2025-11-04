@@ -7,6 +7,7 @@ const createOrder = async (req, res) => {
   try {
     const { 
       MaBan, 
+      MaDat, // Mã đặt bàn - Liên kết với đơn đặt bàn
       MaNV,
       MaKH, // Customer ID for loyalty points
       DiemSuDung = 0, // Points used for discount (1 point = 1,000 VND)
@@ -33,6 +34,7 @@ const createOrder = async (req, res) => {
     // Create DonHang record
     const donHang = await DonHang.create({
       MaBan: parseInt(MaBan),
+      MaDat: MaDat ? parseInt(MaDat) : null,
       MaNV: MaNV ? parseInt(MaNV) : null,
       MaKH: MaKH ? parseInt(MaKH) : null,
       TongTien: totalAmount,
@@ -98,6 +100,7 @@ const getBills = async (req, res) => {
       page = 1, 
       limit = 10, 
       MaBan,
+      MaDat,
       MaNV,
       TrangThai,
       start_date,
@@ -109,6 +112,7 @@ const getBills = async (req, res) => {
 
     // Apply filters
     if (MaBan) whereClause.MaBan = parseInt(MaBan);
+    if (MaDat) whereClause.MaDat = parseInt(MaDat);
     if (MaNV) whereClause.MaNV = parseInt(MaNV);
     if (TrangThai) whereClause.TrangThai = TrangThai;
     
@@ -755,6 +759,7 @@ const createOrderWithItems = async (req, res) => {
   try {
     const { 
       MaBan, 
+      MaDat, // Mã đặt bàn - Liên kết với đơn đặt bàn
       MaNV,
       MaKH, // Customer ID for loyalty points
       DiemSuDung = 0, // Points used for discount
@@ -779,6 +784,7 @@ const createOrderWithItems = async (req, res) => {
     // Create DonHang record
     const donHang = await DonHang.create({
       MaBan: parseInt(MaBan),
+      MaDat: MaDat ? parseInt(MaDat) : null,
       MaNV: MaNV ? parseInt(MaNV) : null,
       MaKH: MaKH ? parseInt(MaKH) : null,
       TongTien: totalAmount,

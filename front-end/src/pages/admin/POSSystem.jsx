@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { FiRefreshCw, FiShoppingCart, FiTrash2, FiEdit3, FiDollarSign, FiPackage, FiPlus, FiX, FiCheck, FiClock, FiPrinter, FiXCircle } from 'react-icons/fi';
 import { billingAPI, menuAPI, tableAPI, userAPI } from '../../shared/services/api';
@@ -12,6 +13,7 @@ import PrintReceipt from '../../components/pos/PrintReceipt';
 
 const POSSystem = () => {
   const { user } = useAuthStore();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -75,6 +77,33 @@ const POSSystem = () => {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Tự động chọn đơn hàng khi chuyển từ trang đặt bàn
+  useEffect(() => {
+    if (location.state?.orderId && activeOrders.length > 0) {
+      const order = activeOrders.find(o => o.MaDH === location.state.orderId);
+      if (order) {
+        // Tự động chọn và hiển thị đơn hàng
+        setEditingOrder(order);
+        
+        // Fetch order items
+        billingAPI.getOrderItems(order.MaDH)
+          .then(res => {
+            const items = res.data.items || res.data.order?.chitiet || [];
+            setEditingOrderItems(items);
+            setEditingPointsUsed(order.DiemSuDung || 0);
+            
+            if (location.state.fromReservation) {
+              toast.success(`Đã mở đơn hàng của ${location.state.reservationInfo?.TenKhach || 'khách'}`);
+            }
+          })
+          .catch(err => {
+            console.error('Error fetching order items:', err);
+            toast.error('Lỗi khi tải chi tiết đơn hàng');
+          });
+      }
+    }
+  }, [location.state, activeOrders]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + (item.DonGia * item.SoLuong), 0);
   const pointsDiscount = pointsUsed * 1000; // 1 điểm = 1,000 VNĐ
