@@ -95,7 +95,7 @@ function App() {
 
           {/* Profile Route - For all authenticated users */}
           <Route path="/profile" element={
-            <ProtectedRoute allowedRoles={['customer', 'staff', 'manager', 'admin', 'Nhân viên', 'Quản lý', 'Admin']}>
+            <ProtectedRoute requireAuth={true}>
               <MainLayout />
             </ProtectedRoute>
           }>
@@ -104,7 +104,7 @@ function App() {
 
           {/* Customer Routes */}
           <Route path="/customer" element={
-            <ProtectedRoute allowedRoles={['customer', 'staff', 'manager', 'admin']}>
+            <ProtectedRoute requireAuth={true}>
               <MainLayout />
             </ProtectedRoute>
           }>
@@ -113,18 +113,64 @@ function App() {
             <Route path="cart" element={<Cart />} />
           </Route>
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLayout />}>
+          {/* Admin Routes - Staff and above */}
+          <Route path="/admin" element={
+            <ProtectedRoute 
+              requireAuth={true} 
+              allowedRoles={['Admin', 'Quản lý', 'Nhân viên', 'admin', 'manager', 'staff']}
+            >
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
+            {/* Dashboard - All staff */}
             <Route index element={<Dashboard />} />
-            <Route path="menu" element={<MenuManagement />} />
-            <Route path="tables" element={<TableManagement />} />
+            
+            {/* Menu Management - Manager and Admin only */}
+            <Route path="menu" element={
+              <ProtectedRoute allowedRoles={['Admin', 'Quản lý', 'admin', 'manager']} requireAuth={false}>
+                <MenuManagement />
+              </ProtectedRoute>
+            } />
+            
+            {/* Table Management - Manager and Admin only */}
+            <Route path="tables" element={
+              <ProtectedRoute allowedRoles={['Admin', 'Quản lý', 'admin', 'manager']} requireAuth={false}>
+                <TableManagement />
+              </ProtectedRoute>
+            } />
+            
+            {/* Reservations - All staff */}
             <Route path="reservations" element={<ReservationManagement />} />
+            
+            {/* Orders - All staff */}
             <Route path="orders" element={<OrderManagement />} />
+            
+            {/* Online Orders - All staff */}
             <Route path="online-orders" element={<OnlineOrderManagement />} />
+            
+            {/* POS/Sales - All staff */}
             <Route path="sales" element={<POSSystem />} />
-            <Route path="schedules" element={<ScheduleManagement />} />
-            <Route path="users" element={<UserManagement />} />
-            <Route path="inventory" element={<InventoryManagement />} />
+            
+            {/* Schedule Management - Manager and Admin only */}
+            <Route path="schedules" element={
+              <ProtectedRoute allowedRoles={['Admin', 'Quản lý', 'admin', 'manager']} requireAuth={false}>
+                <ScheduleManagement />
+              </ProtectedRoute>
+            } />
+            
+            {/* User Management - Admin only */}
+            <Route path="users" element={
+              <ProtectedRoute allowedRoles={['Admin', 'admin']} requireAuth={false}>
+                <UserManagement />
+              </ProtectedRoute>
+            } />
+            
+            {/* Inventory Management - Manager and Admin only */}
+            <Route path="inventory" element={
+              <ProtectedRoute allowedRoles={['Admin', 'Quản lý', 'admin', 'manager']} requireAuth={false}>
+                <InventoryManagement />
+              </ProtectedRoute>
+            } />
           </Route>
 
           {/* Redirects */}

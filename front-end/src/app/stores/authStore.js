@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authAPI } from '../../shared/services/api';
+import { 
+  normalizeRole, 
+  hasRole, 
+  hasPermission, 
+  isAdmin, 
+  isManager, 
+  isStaff,
+  getRoleDisplayName 
+} from '../../shared/utils/roles';
 import toast from 'react-hot-toast';
 
 export const useAuthStore = create(
@@ -108,29 +117,60 @@ export const useAuthStore = create(
         }
       },
 
-      // Check if user has required role
+      // Get user role (normalized)
+      getRole: () => {
+        const { user } = get();
+        if (!user) return null;
+        const role = user.ChucVu || user.role || user.chucVu;
+        return normalizeRole(role);
+      },
+
+      // Get role display name
+      getRoleDisplay: () => {
+        const { user } = get();
+        if (!user) return 'Chưa đăng nhập';
+        const role = user.ChucVu || user.role || user.chucVu;
+        return getRoleDisplayName(role);
+      },
+
+      // Check if user has required role (supports both Vietnamese and English)
       hasRole: (requiredRoles) => {
         const { user } = get();
         if (!user) return false;
-        return requiredRoles.includes(user.role);
+        const userRole = user.ChucVu || user.role || user.chucVu;
+        return hasRole(userRole, requiredRoles);
+      },
+
+      // Check if user has permission
+      hasPermission: (permission) => {
+        const { user } = get();
+        if (!user) return false;
+        const userRole = user.ChucVu || user.role || user.chucVu;
+        return hasPermission(userRole, permission);
       },
 
       // Check if user is staff or higher
       isStaff: () => {
         const { user } = get();
-        return user && ['staff', 'manager', 'admin'].includes(user.role);
+        if (!user) return false;
+        const userRole = user.ChucVu || user.role || user.chucVu;
+        return isStaff(userRole);
       },
 
       // Check if user is manager or higher
       isManager: () => {
         const { user } = get();
-        return user && ['manager', 'admin'].includes(user.role);
+        if (!user) return false;
+        const userRole = user.ChucVu || user.role || user.chucVu;
+        return isManager(userRole);
       },
 
       // Check if user is admin
       isAdmin: () => {
         const { user } = get();
-        return user && user.role === 'admin';
+        if (!user) return false;
+        const userRole = user.ChucVu || user.role || user.chucVu;
+        return isAdmin(userRole);
       },
 
       // Check token validity and refresh user data

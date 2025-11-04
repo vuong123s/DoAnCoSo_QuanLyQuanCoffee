@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/stores/authStore';
+import { hasPermission, getRoleDisplayName, getRoleBadgeColor } from '../shared/utils/roles';
 import toast from 'react-hot-toast';
 import {
   FiHome, FiMenu, FiUsers, FiCalendar, FiShoppingCart,
@@ -39,7 +40,7 @@ const AdminLayout = () => {
     }
   };
 
-  // Enhanced menu items with categories and descriptions
+  // Enhanced menu items with categories, descriptions, and permissions
   const menuCategories = [
     {
       title: 'Tổng quan',
@@ -50,7 +51,8 @@ const AdminLayout = () => {
           label: 'Dashboard', 
           exact: true,
           description: 'Tổng quan & phân tích',
-          color: 'from-blue-500 to-blue-600'
+          color: 'from-blue-500 to-blue-600',
+          permission: 'VIEW_DASHBOARD' // All staff can view
         }
       ]
     },
@@ -62,54 +64,53 @@ const AdminLayout = () => {
           icon: FiCoffee, 
           label: 'Menu', 
           description: 'Thức uống, món ăn & danh mục',
-          color: 'from-amber-500 to-amber-600'
+          color: 'from-amber-500 to-amber-600',
+          permission: 'MANAGE_MENU' // Manager and Admin only
         },
         { 
           path: '/admin/tables', 
           icon: FiTable, 
           label: 'Bàn ăn', 
           description: 'Quản lý bàn',
-          color: 'from-indigo-500 to-indigo-600'
+          color: 'from-indigo-500 to-indigo-600',
+          permission: 'MANAGE_TABLES' // Manager and Admin only
         },
         { 
           path: '/admin/reservations', 
           icon: FiCalendar, 
           label: 'Đặt bàn', 
           description: 'Quản lý đặt chỗ',
-          color: 'from-pink-500 to-pink-600'
+          color: 'from-pink-500 to-pink-600',
+          permission: 'MANAGE_RESERVATIONS' // All staff
         },
         { 
           path: '/admin/inventory', 
           icon: FiPackage, 
           label: 'Kho', 
           description: 'Quản lý nguyên liệu',
-          color: 'from-emerald-500 to-emerald-600'
+          color: 'from-emerald-500 to-emerald-600',
+          permission: 'MANAGE_INVENTORY' // Manager and Admin only
         },
       ]
     },
     {
       title: 'Kinh doanh',
       items: [
-        // { 
-        //   path: '/admin/orders', 
-        //   icon: FiShoppingCart, 
-        //   label: 'Đơn hàng', 
-        //   description: 'Theo dõi đơn hàng',
-        //   color: 'from-orange-500 to-orange-600'
-        // },
         { 
           path: '/admin/online-orders', 
           icon: FiPackage, 
           label: 'Đơn hàng online', 
           description: 'Quản lý đặt hàng online',
-          color: 'from-blue-500 to-blue-600'
+          color: 'from-blue-500 to-blue-600',
+          permission: 'MANAGE_ONLINE_ORDERS' // All staff
         },
         { 
           path: '/admin/sales', 
           icon: FiCreditCard, 
           label: 'Bán hàng tại chỗ', 
           description: 'Quản lý đơn hàng Orders tại chỗ',
-          color: 'from-green-500 to-green-600'
+          color: 'from-green-500 to-green-600',
+          permission: 'USE_POS' // All staff
         }
       ]
     },
@@ -121,19 +122,39 @@ const AdminLayout = () => {
           icon: FiUsers, 
           label: 'Nhân viên', 
           description: 'Quản lý tài khoản',
-          color: 'from-cyan-500 to-cyan-600'
+          color: 'from-cyan-500 to-cyan-600',
+          permission: 'MANAGE_USERS' // Admin only
         },
         { 
           path: '/admin/schedules', 
           icon: FiClock, 
           label: 'Lịch làm việc', 
           description: 'Xếp ca & chấm công',
-          color: 'from-teal-500 to-teal-600'
+          color: 'from-teal-500 to-teal-600',
+          permission: 'MANAGE_SCHEDULES' // Manager and Admin only
         }
       ]
     },
    
   ];
+
+  // Get user role for permission checking
+  const userRole = user?.ChucVu || user?.role || user?.chucVu;
+
+  // Filter menu items based on user permissions
+  const getFilteredMenuCategories = () => {
+    return menuCategories.map(category => ({
+      ...category,
+      items: category.items.filter(item => {
+        // If no permission specified, show to everyone
+        if (!item.permission) return true;
+        // Check if user has permission
+        return hasPermission(userRole, item.permission);
+      })
+    })).filter(category => category.items.length > 0); // Remove empty categories
+  };
+
+  const filteredMenuCategories = getFilteredMenuCategories();
 
   const allMenuItems = menuCategories.flatMap(category => category.items);
 
@@ -230,7 +251,7 @@ const AdminLayout = () => {
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 scrollbar-hide">
-          {menuCategories.map((category, categoryIndex) => (
+          {filteredMenuCategories.map((category, categoryIndex) => (
             <div key={categoryIndex}>
               {!sidebarCollapsed && (
                 <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">
@@ -370,7 +391,7 @@ const AdminLayout = () => {
                   </div>
                   <div className="hidden sm:block text-left">
                     <p className="text-sm font-semibold text-gray-900">{user?.HoTen || user?.name || 'Admin'}</p>
-                    <p className="text-xs text-gray-500">{user?.ChucVu || user?.role || 'Quản trị viên'}</p>
+                    <p className="text-xs text-gray-500">{getRoleDisplayName(userRole)}</p>
                   </div>
                   <FiChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
                     userMenuOpen ? 'rotate-180' : ''
@@ -383,6 +404,16 @@ const AdminLayout = () => {
                     <div className="px-4 py-3 border-b border-gray-100">
                       <p className="font-semibold text-gray-900">{user?.HoTen || user?.name || 'Admin'}</p>
                       <p className="text-sm text-gray-500">{user?.email || 'admin@coffeeshop.com'}</p>
+                      <div className="mt-2">
+                        {(() => {
+                          const roleColors = getRoleBadgeColor(userRole);
+                          return (
+                            <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${roleColors.bg} ${roleColors.text}`}>
+                              {getRoleDisplayName(userRole)}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </div>
                     
                     <div className="py-2">
