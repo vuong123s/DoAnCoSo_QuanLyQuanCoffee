@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { billingAPI, healthAPI, tableAPI, reservationAPI, menuAPI, analyticsAPI, onlineOrderAPI, userAPI } from '../../shared/services/api';
+import { billingAPI, healthAPI, tableAPI, reservationAPI, menuAPI, analyticsAPI, onlineOrderAPI, userAPI, inventoryAPI } from '../../shared/services/api';
 import { useAuthStore } from '../../app/stores/authStore';
 import { FiTrendingUp, FiUsers, FiShoppingCart, FiDollarSign, FiCoffee, FiCalendar, FiActivity, FiAlertCircle, FiGrid, FiClock, FiStar, FiShoppingBag, FiPieChart, FiBarChart2 } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const Dashboard = () => {
   const { isAuthenticated, user, isLoading } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [dataFetched, setDataFetched] = useState(false);
   
-  // Analytics state - default to 'all' to get all time data
-  const [dateRange, setDateRange] = useState('all');
+  // Analytics state - default to 'week' to show 7 days chart
+  const [dateRange, setDateRange] = useState('week');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [analytics, setAnalytics] = useState({
@@ -21,6 +22,7 @@ const Dashboard = () => {
     products: { topSelling: [], categories: [] },
     hourlyStats: []
   });
+  const [revenueChartData, setRevenueChartData] = useState([]);
   
   // Default to 'all' to get all time data
   const [defaultDateRange] = useState('all');
@@ -53,6 +55,11 @@ const Dashboard = () => {
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [systemHealth, setSystemHealth] = useState({});
+  const [inventoryAlerts, setInventoryAlerts] = useState({
+    lowStock: [],
+    expiringSoon: [],
+    expired: []
+  });
 
   // Helper functions
   const formatCurrency = (amount) => {
@@ -97,10 +104,11 @@ const Dashboard = () => {
         endDateStr = fmt(endDateObj);
       }
       
-      const [billingRes, topRes, catRes] = await Promise.all([
+      const [billingRes, topRes, catRes, chartDataRes] = await Promise.all([
         billingAPI.getBillingStats({ start_date: startDateStr, end_date: endDateStr }).catch(() => null),
         analyticsAPI.getTopSelling({ startDate: startDateStr, endDate: endDateStr, limit: 5 }).catch(() => null),
         analyticsAPI.getCategoryRevenue({ startDate: startDateStr, endDate: endDateStr }).catch(() => null),
+        analyticsAPI.getRevenueChartData({ start_date: startDateStr, end_date: endDateStr }).catch(() => null),
       ]);
 
       const billStats = billingRes?.data?.stats || billingRes?.data || {};
@@ -133,6 +141,28 @@ const Dashboard = () => {
         });
       }
 
+      // Xử lý dữ liệu biểu đồ từ stored procedure
+      const chartData = chartDataRes?.data?.data || [];
+      const formattedChartData = chartData.map(item => ({
+        date: new Date(item.date).toLocaleDateString('vi-VN'),
+        inStoreRevenue: parseFloat(item.inStoreRevenue || 0),
+        onlineRevenue: parseFloat(item.onlineRevenue || 0),
+        totalRevenue: parseFloat(item.totalRevenue || 0),
+        inStoreOrders: parseInt(item.inStoreOrders || 0),
+        onlineOrders: parseInt(item.onlineOrders || 0),
+        totalOrders: parseInt(item.totalOrders || 0)
+      }));
+      
+      console.log('📊 Chart Data from Stored Procedure:', {
+        dateRange,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        chartDataPoints: formattedChartData.length,
+        sample: formattedChartData.slice(0, 3)
+      });
+      
+      setRevenueChartData(formattedChartData);
+
       setAnalytics({
         revenue: { total: revenueTotal, growth: 0, chart: [] },
         orders: { total: ordersTotal, growth: 0, chart: [] },
@@ -148,11 +178,19 @@ const Dashboard = () => {
     }
   };
 
+  // Fetch analytics khi dateRange thay đổi
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user?.id) {
+      fetchAnalytics();
+    }
+  }, [dateRange, customStartDate, customEndDate]);
+  
+  // Initial fetch
   useEffect(() => {
     if (!isLoading && isAuthenticated && user?.id && !dataFetched) {
       fetchAnalytics();
     }
-  }, [dateRange, isLoading, isAuthenticated, user?.id, dataFetched]);
+  }, [isLoading, isAuthenticated, user?.id, dataFetched]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -286,6 +324,20 @@ const Dashboard = () => {
 
         // setSystemHealth(healthResponse.data || {});
         
+        // Fetch inventory alerts
+        try {
+          const alertsResponse = await inventoryAPI.getAlerts();
+          if (alertsResponse.data) {
+            setInventoryAlerts({
+              lowStock: alertsResponse.data.lowStock || [],
+              expiringSoon: alertsResponse.data.expiringSoon || [],
+              expired: alertsResponse.data.expired || []
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to fetch inventory alerts:', err);
+        }
+        
         // Mock recent orders
         setRecentOrders([
           { id: 1, customer: 'Nguyễn Văn A', total: 125000, status: 'completed', time: '10:30' },
@@ -397,23 +449,12 @@ const Dashboard = () => {
       icon: FiCoffee,
       color: 'bg-purple-500'
     },
-    {
-      title: 'Món có sẵn',
-      value: (menuStats?.availableItems || 0).toString(),
-      icon: FiCoffee,
-      color: 'bg-green-500'
-    },
+    
     {
       title: 'Danh mục',
       value: (menuStats?.totalCategories || 0).toString(),
       icon: FiGrid,
       color: 'bg-blue-500'
-    },
-    {
-      title: 'Giá trung bình',
-      value: (menuStats?.avgPrice ? menuStats.avgPrice.toLocaleString('vi-VN') + 'đ' : '0đ'),
-      icon: FiDollarSign,
-      color: 'bg-amber-500'
     }
   ];
 
@@ -459,183 +500,128 @@ const Dashboard = () => {
         <p className="opacity-90">Đây là tổng quan hoạt động của Coffee Shop hôm nay</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((card, index) => (
-          <div key={index} className="bg-white p-6 rounded-lg shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">{card.title}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
-                <p className="text-sm text-green-600 mt-1">{card.change}</p>
-              </div>
-              <div className={`p-3 rounded-full ${card.color}`}>
-                <card.icon className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      
 
-      {/* Table Stats Section */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Tình trạng bàn</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {tableStatCards.map((card, index) => (
-            <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg">
-              <div className={`p-2 rounded-lg ${card.color} mr-3`}>
-                <card.icon className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">{card.title}</p>
-                <p className="text-xl font-bold text-gray-900">{card.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Reservation Stats Section */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Thống kê đặt bàn</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {reservationStatCards.map((card, index) => (
-            <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg">
-              <div className={`p-2 rounded-lg ${card.color} mr-3`}>
-                <card.icon className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">{card.title}</p>
-                <p className="text-xl font-bold text-gray-900">{card.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Menu Stats Section */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Thống kê thực đơn</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {menuStatCards.map((card, index) => (
-            <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg">
-              <div className={`p-2 rounded-lg ${card.color} mr-3`}>
-                <card.icon className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">{card.title}</p>
-                <p className="text-xl font-bold text-gray-900">{card.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
+      {/* Table & Reservation Stats - 2 columns layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Orders */}
-        <div className="bg-white rounded-lg shadow-sm">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Đơn hàng gần đây</h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {recentOrders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">{order.customer}</p>
-                    <p className="text-sm text-gray-600">{order.time}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-900">
-                      {order.total.toLocaleString('vi-VN')}đ
-                    </p>
-                    <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
-                      {getStatusText(order.status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+        {/* Table Stats Section */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center mb-4">
+            <div className="p-2 bg-indigo-100 rounded-lg mr-3">
+              <FiGrid className="w-5 h-5 text-indigo-600" />
             </div>
+            <h2 className="text-lg font-semibold text-gray-900">Tình trạng bàn</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {tableStatCards.map((card, index) => (
+              <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className={`p-2 rounded-lg ${card.color} mr-3`}>
+                  <card.icon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">{card.title}</p>
+                  <p className="text-xl font-bold text-gray-900">{card.value}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* System Health */}
-        <div className="bg-white rounded-lg shadow-sm">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Trạng thái hệ thống</h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {Object.entries(systemHealth.services || {}).map(([serviceName, service]) => (
-                <div key={serviceName} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      service.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'
-                    }`}></div>
-                    <span className="text-gray-900 capitalize">{service.name}</span>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    service.status === 'healthy' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {service.status === 'healthy' ? 'Hoạt động' : 'Lỗi'}
-                  </span>
-                </div>
-              ))}
-              
-              {Object.keys(systemHealth.services || {}).length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  <FiActivity className="w-8 h-8 mx-auto mb-2" />
-                  <p>Không thể kiểm tra trạng thái hệ thống</p>
-                </div>
-              )}
+        {/* Reservation Stats Section */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center mb-4">
+            <div className="p-2 bg-blue-100 rounded-lg mr-3">
+              <FiCalendar className="w-5 h-5 text-blue-600" />
             </div>
+            <h2 className="text-lg font-semibold text-gray-900">Thống kê đặt bàn</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {reservationStatCards.map((card, index) => (
+              <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className={`p-2 rounded-lg ${card.color} mr-3`}>
+                  <card.icon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">{card.title}</p>
+                  <p className="text-xl font-bold text-gray-900">{card.value}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Thao tác nhanh</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link to="/admin/menu" className="flex flex-col items-center p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
-            <FiCoffee className="w-6 h-6 text-amber-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Quản lý menu</span>
-          </Link>
-          <Link to="/admin/reservations" className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-            <FiCalendar className="w-6 h-6 text-blue-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Quản lý đặt bàn</span>
-          </Link>
-          <Link to="/admin/tables" className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
-            <FiGrid className="w-6 h-6 text-green-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Quản lý bàn</span>
-          </Link>
-          <Link to="/admin/users" className="flex flex-col items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
-            <FiUsers className="w-6 h-6 text-purple-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Quản lý user</span>
-          </Link>
-        </div>
-      </div>
+      
+      
 
-      {/* Alerts */}
+        
+
+      
+
+      {/* Inventory Alerts - Cảnh báo kho */}
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Thông báo</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Cảnh báo kho</h2>
+          {(inventoryAlerts.lowStock.length + inventoryAlerts.expired.length + inventoryAlerts.expiringSoon.length) > 0 && (
+            <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+              {inventoryAlerts.lowStock.length + inventoryAlerts.expired.length + inventoryAlerts.expiringSoon.length} cảnh báo
+            </span>
+          )}
+        </div>
         <div className="space-y-3">
-          <div className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
-            <FiAlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-yellow-800">Sắp hết nguyên liệu</p>
-              <p className="text-sm text-yellow-700">Cà phê Arabica chỉ còn 5kg trong kho</p>
+          {/* Nguyên liệu hết hạn */}
+          {inventoryAlerts.expired.map((item, index) => (
+            <div key={`expired-${index}`} className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg border border-red-200">
+              <FiAlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">Đã hết hạn: {item.TenNL}</p>
+                <p className="text-sm text-red-700">
+                  Hết hạn: {new Date(item.NgayHetHan).toLocaleDateString('vi-VN')} | Còn {item.SoLuong} {item.DonVi}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-            <FiCalendar className="w-5 h-5 text-blue-600 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-blue-800">Đặt bàn cao điểm</p>
-              <p className="text-sm text-blue-700">15 đặt bàn cho khung giờ 19:00-21:00 hôm nay</p>
+          ))}
+          
+          {/* Nguyên liệu gần hết hạn */}
+          {inventoryAlerts.expiringSoon.map((item, index) => (
+            <div key={`expiring-${index}`} className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+              <FiClock className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-orange-800">Gần hết hạn: {item.TenNL}</p>
+                <p className="text-sm text-orange-700">
+                  Hết hạn: {new Date(item.NgayHetHan).toLocaleDateString('vi-VN')} | Còn {item.SoLuong} {item.DonVi}
+                </p>
+              </div>
             </div>
-          </div>
+          ))}
+          
+          {/* Nguyên liệu sắp hết/hết hàng */}
+          {inventoryAlerts.lowStock.map((item, index) => (
+            <div key={`low-${index}`} className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <FiAlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-800">
+                  {item.TrangThai === 'Hết hàng' ? 'Hết hàng' : 'Sắp hết'}: {item.TenNL}
+                </p>
+                <p className="text-sm text-yellow-700">
+                  Còn {item.SoLuong} {item.DonVi} | Mức cảnh báo: {item.MucCanhBao} {item.DonVi}
+                </p>
+              </div>
+            </div>
+          ))}
+          
+          {/* Không có cảnh báo */}
+          {inventoryAlerts.lowStock.length === 0 && 
+           inventoryAlerts.expiringSoon.length === 0 && 
+           inventoryAlerts.expired.length === 0 && (
+            <div className="flex items-center justify-center py-8 text-gray-500">
+              <div className="text-center">
+                <FiShoppingBag className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Không có cảnh báo kho</p>
+                <p className="text-xs mt-1">Tất cả nguyên liệu đều ở trạng thái tốt</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -684,6 +670,95 @@ const Dashboard = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Revenue Chart - Full Width */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <FiTrendingUp className="w-5 h-5 mr-2 text-green-600" />
+              Biểu đồ doanh thu theo thời gian
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {dateRange === 'all' && 'Tất cả thời gian'}
+              {dateRange === 'week' && '7 ngày qua'}
+              {dateRange === 'month' && '30 ngày qua'}
+              {dateRange === 'custom' && customStartDate && customEndDate && 
+                `Từ ${new Date(customStartDate).toLocaleDateString('vi-VN')} - ${new Date(customEndDate).toLocaleDateString('vi-VN')}`
+              }
+            </p>
+          </div>
+          {revenueChartData.length > 0 && (
+            <div className="text-right">
+              <p className="text-2xl font-bold text-gray-900">
+                {new Intl.NumberFormat('vi-VN').format(
+                  revenueChartData.reduce((sum, item) => sum + item.totalRevenue, 0)
+                )}đ
+              </p>
+              <p className="text-xs text-gray-500">Tổng doanh thu</p>
+            </div>
+          )}
+        </div>
+        {revenueChartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={revenueChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 12 }} 
+                stroke="#6b7280"
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }} 
+                stroke="#6b7280"
+                tickFormatter={(value) => new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(value)}
+              />
+              <Tooltip 
+                formatter={(value) => new Intl.NumberFormat('vi-VN').format(value) + 'đ'}
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              />
+              <Legend 
+                wrapperStyle={{ paddingTop: '20px' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="inStoreRevenue" 
+                stroke="#3b82f6" 
+                name="Doanh thu tại chỗ" 
+                strokeWidth={2}
+                dot={{ fill: '#3b82f6', r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="onlineRevenue" 
+                stroke="#f59e0b" 
+                name="Doanh thu online" 
+                strokeWidth={2}
+                dot={{ fill: '#f59e0b', r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="totalRevenue" 
+                stroke="#10b981" 
+                name="Tổng doanh thu" 
+                strokeWidth={3}
+                dot={{ fill: '#10b981', r: 5 }}
+                activeDot={{ r: 7 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-[350px] text-gray-500">
+            <div className="text-center">
+              <FiBarChart2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>Chưa có dữ liệu</p>
+              <p className="text-xs mt-1">Chọn khoảng thời gian để xem biểu đồ</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Product Analytics */}

@@ -328,3 +328,53 @@ exports.getDoanhThuTheoHinhThuc = async (req, res) => {
     });
   }
 };
+
+// 9. Dữ liệu biểu đồ doanh thu (cho Dashboard)
+exports.getRevenueChartData = async (req, res) => {
+  try {
+    let { start_date, end_date, period } = req.query;
+
+    if (period) {
+      const range = getDateRange(period);
+      start_date = range.startDate;
+      end_date = range.endDate;
+    }
+
+    // Mặc định là 7 ngày qua
+    if (!start_date || !end_date) {
+      const range = getDateRange('7days');
+      start_date = range.startDate;
+      end_date = range.endDate;
+    }
+
+    const [results] = await db.query(
+      'CALL SP_DoanhThuTheoNgay(?, ?)',
+      [start_date, end_date]
+    );
+
+    const chartData = (results[0] || []).map(row => ({
+      date: formatDate(row.Ngay),
+      inStoreRevenue: parseFloat(row.DoanhThuTaiCho || 0),
+      onlineRevenue: parseFloat(row.DoanhThuOnline || 0),
+      totalRevenue: parseFloat(row.TongDoanhThu || 0),
+      inStoreOrders: parseInt(row.SoDonTaiCho || 0),
+      onlineOrders: parseInt(row.SoDonOnline || 0),
+      totalOrders: parseInt(row.TongSoDon || 0)
+    }));
+
+    res.json({
+      success: true,
+      period: period || 'custom',
+      startDate: start_date,
+      endDate: end_date,
+      data: chartData
+    });
+  } catch (error) {
+    console.error('Error in getRevenueChartData:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Lỗi khi lấy dữ liệu biểu đồ doanh thu',
+      message: error.message
+    });
+  }
+};

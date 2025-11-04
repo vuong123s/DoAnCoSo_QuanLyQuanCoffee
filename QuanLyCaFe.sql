@@ -1946,3 +1946,82 @@ GROUP BY nv.MaNV, nv.HoTen, nv.ChucVu, MONTH(l.NgayLam), YEAR(l.NgayLam);
 
 -- 5. Cập nhật trạng thái lịch làm việc:
 -- UPDATE LichLamViec SET TrangThai = 'Hoàn thành' WHERE MaLich = 1;
+-- ============================================
+-- STORED PROCEDURE: Lấy dữ liệu biểu đồ doanh thu theo ngày
+-- ============================================
+USE QuanLyCafe;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS SP_DoanhThuTheoNgay //
+
+CREATE PROCEDURE SP_DoanhThuTheoNgay(
+    IN p_NgayBatDau DATE,
+    IN p_NgayKetThuc DATE
+)
+BEGIN
+    -- Tạo bảng tạm với tất cả các ngày trong khoảng thời gian
+    WITH RECURSIVE DateRange AS (
+        SELECT p_NgayBatDau AS Ngay
+        UNION ALL
+        SELECT DATE_ADD(Ngay, INTERVAL 1 DAY)
+        FROM DateRange
+        WHERE Ngay < p_NgayKetThuc
+    ),
+    -- Doanh thu đơn hàng tại chỗ theo ngày
+    DoanhThuTaiCho AS (
+        SELECT 
+            DATE(NgayLap) AS Ngay,
+            COALESCE(SUM(TongTien), 0) AS DoanhThu,
+            COUNT(*) AS SoDon
+        FROM DonHang
+        WHERE DATE(NgayLap) BETWEEN p_NgayBatDau AND p_NgayKetThuc
+            AND TrangThai != 'Đã hủy'
+        GROUP BY DATE(NgayLap)
+    ),
+    -- Doanh thu đơn hàng online theo ngày
+    DoanhThuOnline AS (
+        SELECT 
+            DATE(NgayDat) AS Ngay,
+            COALESCE(SUM(TongTien), 0) AS DoanhThu,
+            COUNT(*) AS SoDon
+        FROM DonHangOnline
+        WHERE DATE(NgayDat) BETWEEN p_NgayBatDau AND p_NgayKetThuc
+            AND TrangThai NOT IN ('Đã hủy', 'Chờ xác nhận')
+        GROUP BY DATE(NgayDat)
+    )
+    -- Kết hợp tất cả
+    SELECT 
+        dr.Ngay,
+        COALESCE(tc.DoanhThu, 0) AS DoanhThuTaiCho,
+        COALESCE(ol.DoanhThu, 0) AS DoanhThuOnline,
+        COALESCE(tc.DoanhThu, 0) + COALESCE(ol.DoanhThu, 0) AS TongDoanhThu,
+        COALESCE(tc.SoDon, 0) AS SoDonTaiCho,
+        COALESCE(ol.SoDon, 0) AS SoDonOnline,
+        COALESCE(tc.SoDon, 0) + COALESCE(ol.SoDon, 0) AS TongSoDon
+    FROM DateRange dr
+    LEFT JOIN DoanhThuTaiCho tc ON dr.Ngay = tc.Ngay
+    LEFT JOIN DoanhThuOnline ol ON dr.Ngay = ol.Ngay
+    ORDER BY dr.Ngay;
+END //
+
+DELIMITER ;
+
+-- ============================================
+-- TEST PROCEDURE
+-- ============================================
+
+-- Test với 7 ngày qua
+CALL SP_DoanhThuTheoNgay(
+    DATE_SUB(CURDATE(), INTERVAL 7 DAY),
+    CURDATE()
+);
+
+-- Test với 30 ngày qua
+-- CALL SP_DoanhThuTheoNgay(
+--     DATE_SUB(CURDATE(), INTERVAL 30 DAY),
+--     CURDATE()
+-- );
+
+-- Test với khoảng thời gian tùy chỉnh
+-- CALL SP_DoanhThuTheoNgay('2024-01-01', '2024-01-31');

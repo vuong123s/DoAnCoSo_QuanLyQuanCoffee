@@ -317,6 +317,23 @@ export const analyticsAPI = {
     api.get('/api/analytics/doanh-thu-theo-danh-muc', {
       params: { ...params },
     }),
+  getRevenueChartData: (params) =>
+    api.get('/api/analytics/bieu-do-doanh-thu', {
+      params: { ...params },
+    }),
+};
+
+// Inventory API - Quản lý kho
+export const inventoryAPI = {
+  getInventory: (params) => api.get('/api/inventory', { params }),
+  getInventoryItem: (id) => api.get(`/api/inventory/${id}`),
+  createInventoryItem: (itemData) => api.post('/api/inventory', itemData),
+  updateInventoryItem: (id, itemData) => api.put(`/api/inventory/${id}`, itemData),
+  deleteInventoryItem: (id) => api.delete(`/api/inventory/${id}`),
+  importInventory: (id, importData) => api.post(`/api/inventory/${id}/import`, importData),
+  exportInventory: (id, exportData) => api.post(`/api/inventory/${id}/export`, exportData),
+  getAlerts: () => api.get('/api/inventory/alerts'), // Lấy cảnh báo nguyên liệu gần hết/hết hạn
+  getStatistics: () => api.get('/api/inventory/stats'),
 };
 
 export default api;

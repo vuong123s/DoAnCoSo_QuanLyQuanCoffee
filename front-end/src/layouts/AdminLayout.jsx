@@ -329,16 +329,7 @@ const AdminLayout = () => {
 
             <div className="flex items-center space-x-4">
               {/* Enhanced Search */}
-              <div className="relative hidden md:block">
-                <FiSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm trong hệ thống..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-12 pr-6 py-3 w-80 text-sm border border-gray-300 rounded-2xl focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all duration-200"
-                />
-              </div>
+              
 
               {/* Quick Actions */}
               <div className="flex items-center space-x-2">
@@ -360,15 +351,7 @@ const AdminLayout = () => {
                   {fullscreen ? <FiMinimize2 className="w-5 h-5" /> : <FiMaximize2 className="w-5 h-5" />}
                 </button>
 
-                {/* Notifications */}
-                <button className="relative p-3 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200 group">
-                  <FiBell className="w-5 h-5 group-hover:animate-pulse" />
-                  {notifications > 0 && (
-                    <span className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-pulse">
-                      {notifications}
-                    </span>
-                  )}
-                </button>
+              
               </div>
 
               {/* Enhanced User Menu */}
@@ -405,7 +388,7 @@ const AdminLayout = () => {
                     <div className="py-2">
                       <button
                         onClick={() => {
-                          navigate('/admin/profile');
+                          navigate('/profile');
                           setUserMenuOpen(false);
                         }}
                         className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -413,23 +396,14 @@ const AdminLayout = () => {
                         <FiUser className="w-4 h-4 mr-3" />
                         Hồ sơ cá nhân
                       </button>
-                      <button
-                        onClick={() => {
-                          navigate('/admin/settings');
-                          setUserMenuOpen(false);
-                        }}
-                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <FiSettings className="w-4 h-4 mr-3" />
-                        Cài đặt
-                      </button>
+                      
                       <button
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                       >
                         <FiHelpCircle className="w-4 h-4 mr-3" />
                         Trợ giúp
-                      </button>
+                      </button> 
                     </div>
                     
                     <div className="border-t border-gray-100 pt-2">

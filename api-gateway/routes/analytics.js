@@ -26,4 +26,7 @@ router.get('/doanh-thu-theo-nhan-vien', analyticsController.getDoanhThuTheoNhanV
 // Doanh thu theo hình thức thanh toán
 router.get('/doanh-thu-theo-hinh-thuc', analyticsController.getDoanhThuTheoHinhThuc);
 
+// Dữ liệu biểu đồ doanh thu (cho Dashboard)
+router.get('/bieu-do-doanh-thu', analyticsController.getRevenueChartData);
+
 module.exports = router;

@@ -245,12 +245,14 @@ const Cart = () => {
       
       toast.success('Đặt hàng thành công!');
       
-      // Navigate to order tracking - backend returns MaDHOnline
-      const orderId = response.data.order?.MaDHOnline || response.data.MaDHOnline;
-      if (orderId) {
-        navigate(`/customer/orders/${orderId}`);
+      // Nếu có tài khoản thì vào profile, không thì chỉ hiển thị thông báo
+      if (user) {
+        navigate('/profile');
       } else {
-        navigate('/customer/orders');
+        toast.success('Đơn hàng của bạn đã được tiếp nhận. Chúng tôi sẽ liên hệ với bạn sớm!', {
+          duration: 5000,
+          icon: '🎉'
+        });
       }
     } catch (error) {
       console.error('Submit order error:', error);
