@@ -45,18 +45,18 @@ const Contact = () => {
       icon: FiClock,
       title: 'Giờ mở cửa',
       details: ['T2-CN: 6:00 - 22:00'],
-      color: 'text-amber-600 bg-amber-100'
+      color: 'text-green-700 bg-green-100'
     }
   ];
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-amber-50 to-orange-100 py-20">
+      <section className="relative bg-gradient-to-br from-emerald-50 to-green-100 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-              Liên hệ với <span className="text-amber-600">chúng tôi</span>
+              Liên hệ với <span className="text-green-700">chúng tôi</span>
             </h1>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Chúng tôi luôn sẵn sàng lắng nghe và hỗ trợ bạn. Hãy liên hệ với chúng tôi!
@@ -102,7 +102,7 @@ const Contact = () => {
                     <input
                       {...register('name', { required: 'Họ và tên là bắt buộc' })}
                       type="text"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent"
                       placeholder="Nhập họ và tên"
                     />
                     {errors.name && (
@@ -123,7 +123,7 @@ const Contact = () => {
                         }
                       })}
                       type="email"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent"
                       placeholder="Nhập email"
                     />
                     {errors.email && (
@@ -182,7 +182,7 @@ const Contact = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-amber-600 text-white py-3 px-6 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  className="w-full bg-green-700 text-white py-3 px-6 rounded-lg hover:bg-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   {isSubmitting ? 'Đang gửi...' : 'Gửi tin nhắn'}
                 </button>

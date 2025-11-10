@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiShoppingCart, FiX, FiPlus, FiMinus, FiSearch } from 'react-icons/fi';
 import { menuAPI } from '../shared/services/api';
 import toast from 'react-hot-toast';
+import Product from '../components/common/product/Product';
 
 const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} }) => {
   const [activeTableId, setActiveTableId] = useState(null);
@@ -181,51 +182,66 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+      <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3">
         <div className="flex justify-between items-center">
           <div>
-            <p className="text-amber-800 font-medium">
+            <p className="text-green-800 font-semibold text-sm">
               Tổng cộng: {getTotalOrdersCount()} món - {getGrandTotal().toLocaleString('vi-VN')}đ
             </p>
-            <p className="text-amber-600 text-sm">
+            <p className="text-green-700 text-xs">
               Chọn món riêng cho từng bàn hoặc bỏ qua nếu không muốn đặt món
             </p>
           </div>
         </div>
       </div>
 
-      {/* Table Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto">
+      {/* Table Tabs - Enhanced */}
+      <div className="bg-white rounded-xl shadow-sm p-2 mb-6">
+        <nav className="flex space-x-2 overflow-x-auto pb-1">
           {tables.map((table) => {
             const tableId = table?.MaBan || table?.id;
             if (!tableId) return null;
             
             const orderCount = getTableOrder(tableId).length;
             const total = getTableTotal(tableId);
+            const isActive = activeTableId === tableId;
             
             return (
               <button
                 key={tableId}
                 onClick={() => setActiveTableId(tableId)}
-                className={`py-2 px-4 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeTableId === tableId
-                    ? 'border-amber-500 text-amber-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                className={`relative py-2.5 px-4 rounded-lg font-semibold text-xs whitespace-nowrap transition-all duration-300 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-green-700 to-emerald-600 text-white shadow-md shadow-emerald-200 transform scale-105'
+                    : 'bg-gray-50 text-gray-600 hover:bg-emerald-50 hover:text-green-700'
                 }`}
               >
-                <div className="text-center">
-                  <div>{getTableName(tableId)}</div>
-                  <div className="text-xs">
-                    {orderCount > 0 ? (
-                      <span className="text-amber-600">
-                        {orderCount} món - {total.toLocaleString('vi-VN')}đ
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">Chưa đặt món</span>
-                    )}
+                <div className="flex flex-col items-center space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <FiShoppingCart className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+                    <span>{getTableName(tableId)}</span>
                   </div>
+                  
+                  {orderCount > 0 ? (
+                    <div className={`flex items-center space-x-2 text-xs ${isActive ? 'text-emerald-100' : 'text-green-700'}`}>
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                        isActive ? 'bg-white/20' : 'bg-emerald-100'
+                      }`}>
+                        {orderCount} món
+                      </span>
+                      <span className="font-semibold text-[10px]">{total.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  ) : (
+                    <span className={`text-[10px] ${isActive ? 'text-emerald-100' : 'text-gray-400'}`}>
+                      Chưa có món
+                    </span>
+                  )}
                 </div>
+                
+                {/* Active Indicator */}
+                {isActive && (
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-white rounded-full"></div>
+                )}
               </button>
             );
           })}
@@ -233,30 +249,29 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
       </div>
 
       {activeTableId && (
-        <div className="space-y-6">
-          {/* Menu Selection */}
-          <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column: Menu Selection (2/3 width on large screens) */}
+          <div className="lg:col-span-2 space-y-6">
             {/* Search and Filter Bar */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-              {/* Search Bar */}
-              <div className="relative flex-1 max-w-md">
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
                 <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
                   type="text"
                   placeholder="Tìm kiếm món ăn, đồ uống..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all shadow-sm hover:shadow-md"
                 />
               </div>
               
               {/* Category Filter Dropdown */}
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Loại món:</span>
+                <span className="text-sm font-semibold text-gray-700">Loại món:</span>
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none bg-white"
+                  className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white font-medium text-gray-700 transition-all shadow-sm hover:shadow-md cursor-pointer"
                 >
                   <option value="">Tất cả danh mục</option>
                   {categories && categories.map((category) => {
@@ -273,26 +288,16 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
 
             {/* Category Pills (Optional - for quick access) */}
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setSelectedCategory('')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  selectedCategory === ''
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Tất cả
-              </button>
               {categories && categories.slice(0, 6).map((category) => {
                 if (!category?.MaDanhMuc) return null;
                 return (
                   <button
                     key={category.MaDanhMuc}
                     onClick={() => setSelectedCategory(String(category.MaDanhMuc))}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                       selectedCategory === String(category.MaDanhMuc)
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-gradient-to-r from-green-700 to-emerald-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 hover:text-green-700'
                     }`}
                   >
                     {category.TenDanhMuc}
@@ -302,7 +307,7 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
             </div>
 
             {/* Menu Items Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
               {getFilteredMenuItems().map((item) => {
                 if (!item?.MaMon) return null;
                 
@@ -311,67 +316,73 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                 const quantity = orderItem ? orderItem.SoLuong : 0;
                 
                 return (
-                  <div key={item.MaMon} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                  <div key={item.MaMon} className="group bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-gray-100 hover:border-emerald-300 transform hover:-translate-y-2">
                     {/* Product Image */}
-                    <div className="relative h-48 bg-gray-100">
+                    <div className="relative h-44 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
                       {item.HinhAnh ? (
-                        <img
-                          src={item.HinhAnh}
-                          alt={item.TenMon}
-                          className="w-full h-full object-cover"
-                        />
+                        <>
+                          <img
+                            src={item.HinhAnh}
+                            alt={item.TenMon}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        </>
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-100 to-amber-200">
-                          <span className="text-amber-600 text-4xl">☕</span>
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-100 via-green-100 to-lime-100">
+                          <span className="text-green-700 text-4xl filter drop-shadow-lg">☕</span>
                         </div>
                       )}
                       
                       {/* Quantity Badge */}
                       {quantity > 0 && (
-                        <div className="absolute top-2 right-2 bg-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
-                          {quantity}
+                        <div className="absolute top-2 right-2 bg-gradient-to-r from-green-700 to-emerald-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold shadow-lg">
+                          <span className="text-sm">{quantity}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Product Info */}
                     <div className="p-4">
-                      <h3 className="font-semibold text-gray-900 mb-2 truncate">{item.TenMon}</h3>
+                      {/* Title & Price Row */}
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-base text-gray-900 line-clamp-1 flex-1 pr-2">
+                          {item.TenMon}
+                        </h3>
+                        <div className="text-green-700 font-bold text-lg whitespace-nowrap">
+                          {parseFloat(item.Gia || item.DonGia || 0).toLocaleString('vi-VN')}đ
+                        </div>
+                      </div>
                       
+                      {/* Description */}
                       {item.MoTa && (
-                        <p className="text-sm text-gray-600 mb-3 h-10 overflow-hidden">{item.MoTa}</p>
+                        <p className="text-xs text-gray-500 mb-4 h-8 line-clamp-2">
+                          {item.MoTa}
+                        </p>
                       )}
                       
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-xl font-bold text-amber-600">
-                          {parseFloat(item.Gia || item.DonGia || 0).toLocaleString('vi-VN')}đ
-                        </span>
-                      </div>
 
                       {/* Add to Cart Button */}
                       {quantity === 0 ? (
                         <button
                           onClick={() => addItemToTable(activeTableId, item)}
-                          className="w-full bg-amber-600 text-white py-2 px-4 rounded-lg hover:bg-amber-700 transition-colors duration-200 flex items-center justify-center font-medium"
-                        >
-                          <FiPlus className="w-4 h-4 mr-2" />
+                          className="group w-full bg-gradient-to-r from-green-700 to-emerald-600 hover:from-green-800 hover:to-emerald-700 text-white py-3 px-4 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-105">
+                          <FiShoppingCart className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
                           Thêm vào bàn
                         </button>
                       ) : (
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-2.5 border border-emerald-200">
                           <button
                             onClick={() => updateItemQuantity(activeTableId, item.MaMon, quantity - 1)}
-                            className="w-10 h-10 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 transition-colors flex items-center justify-center"
-                          >
+                            className="w-9 h-9 bg-white text-gray-600 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center justify-center shadow-sm border border-gray-200">
                             <FiMinus className="w-4 h-4" />
                           </button>
                           
-                          <span className="text-lg font-semibold text-gray-900 mx-4">{quantity}</span>
+                          <span className="text-xl font-bold text-green-700 mx-4 min-w-[2rem] text-center">{quantity}</span>
                           
                           <button
                             onClick={() => updateItemQuantity(activeTableId, item.MaMon, quantity + 1)}
-                            className="w-10 h-10 bg-amber-600 text-white rounded-full hover:bg-amber-700 transition-colors flex items-center justify-center"
-                          >
+                            className="w-9 h-9 bg-gradient-to-r from-green-700 to-emerald-600 text-white rounded-lg hover:from-green-800 hover:to-emerald-700 hover:scale-110 transition-all flex items-center justify-center shadow-md">
                             <FiPlus className="w-4 h-4" />
                           </button>
                         </div>
@@ -382,100 +393,121 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
               })}
             </div>
           </div>
+          {/* End of Left Column */}
 
-          {/* Current Table Order */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-medium text-gray-900">
-                Món đã chọn - {getTableName(activeTableId)}
-              </h3>
-              {getTableOrder(activeTableId).length > 0 && (
-                <button
-                  onClick={() => clearTableOrder(activeTableId)}
-                  className="text-red-600 hover:text-red-700 text-sm"
-                >
-                  Xóa tất cả
-                </button>
-              )}
-            </div>
-
-            {getTableOrder(activeTableId).length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
-                Chưa có món nào được chọn cho bàn này
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {getTableOrder(activeTableId).map((item) => {
-                  if (!item?.MaMon) return null;
-                  return (
-                    <div key={item.MaMon} className="bg-white rounded-lg p-3 border border-gray-200">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{item.TenMon}</h4>
-                          <p className="text-sm text-gray-600">
-                            {parseFloat(item.DonGia || 0).toLocaleString('vi-VN')}đ
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => removeItemFromTable(activeTableId, item.MaMon)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <FiX className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => updateItemQuantity(activeTableId, item.MaMon, item.SoLuong - 1)}
-                            className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
-                          >
-                            <FiMinus className="w-3 h-3" />
-                          </button>
-                          <span className="w-8 text-center font-medium">{item.SoLuong}</span>
-                          <button
-                            onClick={() => updateItemQuantity(activeTableId, item.MaMon, item.SoLuong + 1)}
-                            className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
-                          >
-                            <FiPlus className="w-3 h-3" />
-                          </button>
-                        </div>
-                        <span className="font-medium text-amber-600">
-                          {((item.SoLuong || 0) * parseFloat(item.DonGia || 0)).toLocaleString('vi-VN')}đ
-                        </span>
-                      </div>
-
-                      <input
-                        type="text"
-                        placeholder="Ghi chú (ít đá, thêm đường...)"
-                        value={item.GhiChu || ''}
-                        onChange={(e) => {
-                          setTableOrders(prev => ({
-                            ...prev,
-                            [activeTableId]: (prev[activeTableId] || []).map(orderItem =>
-                              orderItem?.MaMon === item.MaMon 
-                                ? { ...orderItem, GhiChu: e.target.value } 
-                                : orderItem
-                            )
-                          }));
-                        }}
-                        className="w-full mt-2 px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
-                    </div>
-                  );
-                })}
-
-                <div className="border-t border-gray-300 pt-3 mt-4">
-                  <div className="flex justify-between items-center font-semibold">
-                    <span>Tổng cộng:</span>
-                    <span className="text-amber-600">
-                      {getTableTotal(activeTableId).toLocaleString('vi-VN')}đ
-                    </span>
+          {/* Right Column: Shopping Cart (Sticky) */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-20 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              {/* Cart Header */}
+              <div className="bg-gradient-to-r from-green-700 to-emerald-600 px-4 py-2.5">
+                <div className="flex items-center justify-between text-white">
+                  <div className="flex items-center space-x-2">
+                    <FiShoppingCart className="w-4 h-4" />
+                    <h3 className="font-semibold text-sm">Giỏ hàng</h3>
+                  </div>
+                  <div className="bg-white bg-opacity-20 px-2 py-0.5 rounded text-xs font-medium">
+                    {getTableOrder(activeTableId).length} món
                   </div>
                 </div>
+                <p className="text-emerald-100 text-xs mt-0.5">{getTableName(activeTableId)}</p>
               </div>
-            )}
+
+              {/* Cart Content */}
+              <div className="p-3 max-h-[600px] overflow-y-auto">
+                {getTableOrder(activeTableId).length > 0 && (
+                  <div className="flex justify-end mb-2">
+                    <button
+                      onClick={() => clearTableOrder(activeTableId)}
+                      className="text-red-500 hover:text-red-600 text-xs font-medium flex items-center space-x-1"
+                    >
+                      <FiX className="w-3 h-3" />
+                      <span>Xóa tất cả</span>
+                    </button>
+                  </div>
+                )}
+
+                {getTableOrder(activeTableId).length === 0 ? (
+                  <p className="text-gray-400 text-center py-6 text-sm">
+                    Chưa có món nào
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {getTableOrder(activeTableId).map((item) => {
+                      if (!item?.MaMon) return null;
+                      return (
+                        <div key={item.MaMon} className="bg-white rounded-lg p-2 border border-gray-100 hover:border-emerald-400 transition-all">
+                          <div className="flex justify-between items-start mb-1.5">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-sm text-gray-900">{item.TenMon}</h4>
+                              <p className="text-xs text-gray-500">
+                                {parseFloat(item.DonGia || 0).toLocaleString('vi-VN')}đ
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => removeItemFromTable(activeTableId, item.MaMon)}
+                              className="text-gray-400 hover:text-red-500"
+                            >
+                              <FiX className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-1.5">
+                              <button
+                                onClick={() => updateItemQuantity(activeTableId, item.MaMon, item.SoLuong - 1)}
+                                className="w-6 h-6 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                              >
+                                <FiMinus className="w-3 h-3 text-gray-600" />
+                              </button>
+                              <span className="w-8 text-center text-sm font-semibold text-gray-900">{item.SoLuong}</span>
+                              <button
+                                onClick={() => updateItemQuantity(activeTableId, item.MaMon, item.SoLuong + 1)}
+                                className="w-6 h-6 rounded-md bg-green-700 hover:bg-green-800 flex items-center justify-center"
+                              >
+                                <FiPlus className="w-3 h-3 text-white" />
+                              </button>
+                            </div>
+                            <span className="font-bold text-green-700 text-sm">
+                              {((item.SoLuong || 0) * parseFloat(item.DonGia || 0)).toLocaleString('vi-VN')}đ
+                            </span>
+                          </div>
+
+                          <input
+                            type="text"
+                            placeholder="Ghi chú..."
+                            value={item.GhiChu || ''}
+                            onChange={(e) => {
+                              setTableOrders(prev => ({
+                                ...prev,
+                                [activeTableId]: (prev[activeTableId] || []).map(orderItem =>
+                                  orderItem?.MaMon === item.MaMon 
+                                    ? { ...orderItem, GhiChu: e.target.value } 
+                                    : orderItem
+                                )
+                              }));
+                            }}
+                            className="w-full mt-1.5 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                          />
+                        </div>
+                      );
+                    })}
+
+                    <div className="border-t border-gray-200 pt-2.5 mt-2.5 bg-emerald-50 -mx-3 px-3 py-2 rounded-b-xl">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700 font-semibold text-sm">Tổng cộng:</span>
+                        <span className="text-green-800 font-bold text-lg">
+                          {getTableTotal(activeTableId).toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* End Cart Content (p-4) */}
+            </div>
+            {/* End Sticky Container */}
           </div>
+          {/* End Right Column */}
         </div>
       )}
     </div>

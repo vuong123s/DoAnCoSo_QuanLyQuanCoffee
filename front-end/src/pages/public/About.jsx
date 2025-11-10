@@ -49,11 +49,11 @@ const About = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-amber-50 to-orange-100 py-20">
+      <section className="relative bg-gradient-to-br from-emerald-50 to-green-100 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-              Về <span className="text-amber-600">Coffee Shop</span>
+              Về <span className="text-green-700">Coffee Shop</span>
             </h1>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Câu chuyện về tình yêu cà phê và hành trình mang đến những trải nghiệm tuyệt vời nhất
@@ -114,8 +114,8 @@ const About = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {values.map((value, index) => (
               <div key={index} className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-6">
-                  <value.icon className="w-8 h-8 text-amber-600" />
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-6">
+                  <value.icon className="w-8 h-8 text-green-700" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">{value.title}</h3>
                 <p className="text-gray-600">{value.description}</p>
@@ -144,7 +144,7 @@ const About = () => {
                   className="w-32 h-32 rounded-full mx-auto mb-4 object-cover shadow-lg"
                 />
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">{member.name}</h3>
-                <p className="text-amber-600 font-medium mb-2">{member.role}</p>
+                <p className="text-green-700 font-medium mb-2">{member.role}</p>
                 <p className="text-gray-600 text-sm">{member.description}</p>
               </div>
             ))}
@@ -161,7 +161,7 @@ const About = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Vị trí</h2>
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex items-start space-x-4 mb-4">
-                  <FiMapPin className="w-6 h-6 text-amber-600 mt-1" />
+                  <FiMapPin className="w-6 h-6 text-green-700 mt-1" />
                   <div>
                     <h3 className="font-semibold text-gray-900">Coffee Shop - Cơ sở chính</h3>
                     <p className="text-gray-600">123 Đường ABC, Quận 1, TP.HCM</p>
@@ -178,7 +178,7 @@ const About = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Giờ mở cửa</h2>
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex items-center space-x-3 mb-6">
-                  <FiClock className="w-6 h-6 text-amber-600" />
+                  <FiClock className="w-6 h-6 text-green-700" />
                   <span className="text-lg font-semibold text-gray-900">Lịch hoạt động</span>
                 </div>
                 
@@ -193,8 +193,8 @@ const About = () => {
                   ))}
                 </div>
 
-                <div className="mt-6 p-4 bg-amber-50 rounded-lg">
-                  <p className="text-sm text-amber-800">
+                <div className="mt-6 p-4 bg-green-50 rounded-lg">
+                  <p className="text-sm text-green-800">
                     <strong>Lưu ý:</strong> Giờ mở cửa có thể thay đổi vào các ngày lễ. 
                     Vui lòng liên hệ trước khi đến.
                   </p>

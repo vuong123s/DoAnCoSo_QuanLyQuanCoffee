@@ -1,0 +1,201 @@
+erDiagram
+    %% ==================== CORE ENTITIES ====================
+    
+    NhanVien {
+        int MaNV PK
+        varchar HoTen
+        varchar GioiTinh
+        date NgaySinh
+        varchar SDT UK
+        varchar Email UK
+        varchar ChucVu
+        varchar MatKhau
+        decimal Luong
+        date NgayVaoLam
+    }
+    
+    KhachHang {
+        int MaKH PK
+        varchar HoTen
+        varchar GioiTinh
+        date NgaySinh
+        varchar SDT UK
+        varchar Email UK
+        varchar MatKhau
+        text DiaChi
+        int DiemTichLuy
+        datetime NgayDangKy
+        varchar TrangThai
+    }
+    
+    KhuVuc {
+        int MaKhuVuc PK
+        varchar TenKhuVuc
+        varchar MoTa
+        varchar HinhAnh
+        varchar Video
+        varchar TrangThai
+    }
+    
+    Ban {
+        int MaBan PK
+        varchar TenBan
+        int SoCho
+        int MaKhuVuc FK
+        varchar ViTri
+        varchar TrangThai
+    }
+    
+    LoaiMon {
+        int MaLoai PK
+        varchar TenLoai
+        varchar HinhAnh
+        text MoTa
+    }
+    
+    Mon {
+        int MaMon PK
+        varchar TenMon
+        decimal DonGia
+        varchar HinhAnh
+        varchar MoTa
+        int MaLoai FK
+        varchar TrangThai
+    }
+    
+    %% ==================== RESERVATION & ORDERS ====================
+    
+    DatBan {
+        int MaDat PK
+        int MaKH FK
+        int MaBan FK
+        date NgayDat
+        time GioDat
+        time GioKetThuc
+        int SoNguoi
+        varchar TrangThai
+        varchar TenKhach
+        varchar SoDienThoai
+        varchar EmailKhach
+        text GhiChu
+        datetime NgayTaoDat
+        int MaNVXuLy FK
+    }
+    
+    DonHang {
+        int MaDH PK
+        int MaDat FK
+        int MaKH FK
+        int MaBan FK
+        int MaNV FK
+        datetime NgayLap
+        decimal TongTien
+        varchar TrangThai
+        int DiemSuDung
+    }
+    
+    CTDonHang {
+        int MaDH FK
+        int MaMon FK
+        int SoLuong
+        decimal DonGia
+        decimal ThanhTien
+        varchar GhiChu
+    }
+    
+    %% ==================== ONLINE ORDERING ====================
+    
+    DonHangOnline {
+        int MaDHOnline PK
+        int MaKH FK
+        varchar TenKhach
+        varchar SDTKhach
+        text DiaChiGiaoHang
+        varchar LoaiDonHang
+        datetime NgayDat
+        datetime NgayGiaoMong
+        decimal TongTien
+        decimal PhiGiaoHang
+        int DiemSuDung
+        decimal TongThanhToan
+        varchar TrangThai
+        int MaNVXuLy FK
+        text GhiChu
+    }
+    
+    CTDonHangOnline {
+        int MaDHOnline FK
+        int MaMon FK
+        int SoLuong
+        decimal DonGia
+        decimal ThanhTien
+        varchar GhiChu
+    }
+    
+    %% ==================== PAYMENT & PROMOTIONS ====================
+    
+    ThanhToan {
+        int MaTT PK
+        int MaDH FK
+        int MaDHOnline FK
+        varchar HinhThuc
+        decimal SoTien
+        decimal SoTienNhan
+        decimal SoTienThua
+        varchar MaGiaoDich
+        varchar TrangThai
+        datetime NgayTT
+        int MaNVXuLy FK
+        text GhiChu
+    }
+    
+    %% ==================== INVENTORY ====================
+    
+    Kho {
+        int MaNL PK
+        varchar TenNL
+        varchar DonVi
+        decimal SoLuong
+        decimal MucCanhBao
+        decimal DonGiaNhap
+        date NgayNhap
+        date NgayHetHan
+        varchar TrangThai
+    }
+    
+    %% ==================== RELATIONSHIPS ====================
+    
+    %% Khu vực - Bàn
+    KhuVuc ||--o{ Ban : "có nhiều"
+    
+    %% Loại món - Món
+    LoaiMon ||--o{ Mon : "phân loại"
+    
+    %% Nhân viên relationships
+    NhanVien ||--o{ DonHang : "xử lý"
+    NhanVien ||--o{ DatBan : "xử lý đặt bàn"
+    NhanVien ||--o{ DonHangOnline : "xử lý đơn online"
+NhanVien ||--o{ ThanhToan : "xử lý thanh toán"
+    
+    %% Khách hàng relationships
+    KhachHang ||--o{ DatBan : "đặt bàn"
+    KhachHang ||--o{ DonHang : "có"
+KhachHang ||--o{ DonHangOnline : "đặt hàng"
+    %% Bàn relationships
+    Ban ||--o{ DatBan : "được đặt"
+    Ban ||--o{ DonHang : "phục vụ"
+    
+    %% Đặt bàn - Đơn hàng
+    DatBan ||--o| DonHang : "chuyển thành"
+    
+    %% Đơn hàng - Chi tiết
+    DonHang ||--|{ CTDonHang : "chứa"
+    Mon ||--o{ CTDonHang : "thuộc về"
+    
+    %% Đơn hàng online - Chi tiết
+    DonHangOnline ||--|{ CTDonHangOnline : "chứa"
+    Mon ||--o{ CTDonHangOnline : "thuộc về"
+    
+    %% Thanh toán
+    DonHang ||--o{ ThanhToan : "được thanh toán"
+    DonHangOnline ||--o{ ThanhToan : "được thanh toán"

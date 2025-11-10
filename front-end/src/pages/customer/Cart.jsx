@@ -334,7 +334,7 @@ const Cart = () => {
             {/* Cart Items */}
             <div className="xl:col-span-2">
               <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6">
+                <div className="bg-orange-500 p-6">
                   <h2 className="text-xl font-bold text-white flex items-center space-x-2">
                     <FiShoppingCart className="w-6 h-6" />
                     <span>Món đã chọn ({cartItems.length})</span>
@@ -343,21 +343,21 @@ const Cart = () => {
                 
                 <div className="p-6 space-y-6">
                   {cartItems.map((item, index) => (
-                    <div key={item.MaMon} className={`bg-gray-50 rounded-xl p-6 hover:shadow-md transition-shadow ${index !== cartItems.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                    <div key={item.MaMon} className={`bg-white rounded-xl p-4 border border-gray-100 hover:shadow-sm transition-shadow ${index !== cartItems.length - 1 ? 'mb-4' : ''}`}>
                       <div className="flex items-start space-x-4">
                         {/* Item Image Placeholder */}
-                        <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <FiCoffee className="w-8 h-8 text-amber-600" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-orange-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FiCoffee className="w-6 h-6 text-orange-600" />
                         </div>
                         
                         {/* Item Details */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-lg text-gray-900 mb-1">{item.TenMon}</h3>
-                          <p className="text-gray-600 text-sm mb-2 line-clamp-2">{item.MoTa}</p>
-                          <div className="flex items-center space-x-4 mb-3">
-                            <span className="text-amber-600 font-bold text-lg">{formatCurrency(item.DonGia)}</span>
-                            <span className="text-gray-400">×</span>
-                            <span className="text-gray-600">{item.SoLuong}</span>
+                          <h3 className="font-semibold text-base text-gray-900 mb-1">{item.TenMon}</h3>
+                          <p className="text-gray-500 text-xs mb-2 line-clamp-1">{item.MoTa}</p>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span className="text-orange-600 font-bold">{formatCurrency(item.DonGia)}</span>
+                            <span className="text-gray-400 text-sm">×</span>
+                            <span className="text-gray-600 text-sm">{item.SoLuong}</span>
                           </div>
                           
                           {/* Item Note */}
@@ -373,38 +373,34 @@ const Cart = () => {
                           </div>
                         </div>
 
-                        {/* Quantity Controls */}
-                        <div className="flex flex-col items-center space-y-3">
-                          <div className="flex items-center bg-white rounded-lg border border-gray-200 shadow-sm">
+                        {/* Quantity Controls & Actions */}
+                        <div className="flex flex-col items-end space-y-2">
+                          <div className="font-bold text-lg text-gray-900">
+                            {formatCurrency(item.DonGia * item.SoLuong)}
+                          </div>
+                          <div className="flex items-center bg-gray-50 rounded-lg border border-gray-200">
                             <button
                               onClick={() => handleQuantityChange(item.MaMon, item.SoLuong - 1)}
-                              className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-l-lg transition-colors"
+                              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-l-lg transition-colors"
                               disabled={item.SoLuong <= 1}
                             >
-                              <FiMinus className="w-4 h-4" />
+                              <FiMinus className="w-3 h-3" />
                             </button>
-                            <span className="w-12 text-center font-bold text-gray-900 bg-gray-50 py-2">{item.SoLuong}</span>
+                            <span className="w-10 text-center font-semibold text-gray-900 text-sm">{item.SoLuong}</span>
                             <button
                               onClick={() => handleQuantityChange(item.MaMon, item.SoLuong + 1)}
-                              className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-r-lg transition-colors"
+                              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-r-lg transition-colors"
                             >
-                              <FiPlus className="w-4 h-4" />
+                              <FiPlus className="w-3 h-3" />
                             </button>
                           </div>
-                          
-                          {/* Item Total & Remove */}
-                          <div className="text-center">
-                            <div className="font-bold text-lg text-gray-900 mb-2">
-                              {formatCurrency(item.DonGia * item.SoLuong)}
-                            </div>
-                            <button
-                              onClick={() => handleRemoveItem(item.MaMon)}
-                              className="flex items-center space-x-1 text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1 rounded-lg transition-colors text-sm"
-                            >
-                              <FiTrash2 className="w-4 h-4" />
-                              <span>Xóa</span>
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleRemoveItem(item.MaMon)}
+                            className="text-red-500 hover:text-red-700 text-sm flex items-center space-x-1"
+                          >
+                            <FiTrash2 className="w-3 h-3" />
+                            <span>Xóa</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -416,7 +412,7 @@ const Cart = () => {
             {/* Order Summary */}
             <div className="xl:col-span-1">
               <div className="bg-white rounded-2xl shadow-lg sticky top-8 overflow-hidden">
-                <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-6">
+                <div className="bg-green-500 p-6">
                   <h2 className="text-xl font-bold text-white flex items-center space-x-2">
                     <FiDollarSign className="w-6 h-6" />
                     <span>Thông tin đơn hàng</span>
@@ -430,36 +426,30 @@ const Cart = () => {
                       Loại đơn hàng
                     </label>
                     <div className="grid grid-cols-2 gap-3">
-                      <label className={`flex items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        orderType === 'delivery' 
-                          ? 'border-amber-500 bg-amber-50 text-amber-700' 
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}>
-                        <input
-                          type="radio"
-                          value="delivery"
-                          checked={orderType === 'delivery'}
-                          onChange={(e) => setOrderType(e.target.value)}
-                          className="sr-only"
-                        />
+                      <button
+                        type="button"
+                        onClick={() => setOrderType('delivery')}
+                        className={`flex items-center justify-center p-4 rounded-xl border-2 transition-all font-medium ${
+                          orderType === 'delivery' 
+                            ? 'border-orange-500 bg-orange-500 text-white shadow-md' 
+                            : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        }`}
+                      >
                         <FiTruck className="w-5 h-5 mr-2" />
-                        <span className="font-medium">Giao hàng</span>
-                      </label>
-                      <label className={`flex items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        orderType === 'pickup' 
-                          ? 'border-amber-500 bg-amber-50 text-amber-700' 
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}>
-                        <input
-                          type="radio"
-                          value="pickup"
-                          checked={orderType === 'pickup'}
-                          onChange={(e) => setOrderType(e.target.value)}
-                          className="sr-only"
-                        />
+                        <span>Giao hàng</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrderType('pickup')}
+                        className={`flex items-center justify-center p-4 rounded-xl border-2 transition-all font-medium ${
+                          orderType === 'pickup' 
+                            ? 'border-orange-500 bg-orange-500 text-white shadow-md' 
+                            : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        }`}
+                      >
                         <FiPackage className="w-5 h-5 mr-2" />
-                        <span className="font-medium">Tự lấy</span>
-                      </label>
+                        <span>Tự lấy</span>
+                      </button>
                     </div>
                   </div>
 
@@ -629,7 +619,7 @@ const Cart = () => {
                         </div>
                       )}
                       
-                      <div className="border-t-2 border-gray-200 pt-3">
+                      <div className="border-t-2 border-gray-200 py-3">
                         <div className="flex justify-between items-center">
                           <span className="text-xl font-bold text-gray-900">Tổng cộng:</span>
                           <span className="text-2xl font-bold text-amber-600">{formatCurrency(calculateTotal())}</span>
