@@ -206,6 +206,19 @@ const TableManagement = () => {
     setStats(stats);
   };
 
+  const getAreaName = (table) => {
+    if (table?.KhuVuc?.TenKhuVuc) return table.KhuVuc.TenKhuVuc;
+
+    const areaId = table.MaKhuVuc;
+    if (areaId && areas.length) {
+      const matchedArea = areas.find(area => area.MaKhuVuc === areaId || area.id === areaId || area.name === areaId);
+      if (matchedArea?.TenKhuVuc) return matchedArea.TenKhuVuc;
+    }
+
+    if (areaId) return `Khu vực ${areaId}`;
+    return 'Chưa xác định';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -580,7 +593,7 @@ const TableManagement = () => {
         <div className="flex space-x-2">
           <button
             onClick={() => setShowAreaModal(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+            className="!mr-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
           >
             <FiGrid className="w-4 h-4 mr-2" />
             Thêm khu vực
@@ -722,7 +735,7 @@ const TableManagement = () => {
             <tr key={table.MaBan}>
               <td className="px-6 py-4 whitespace-nowrap font-medium">{table.TenBan}</td>
               <td className="px-6 py-4 whitespace-nowrap text-gray-600">
-                {table.KhuVuc?.TenKhuVuc || 'N/A'}
+                {getAreaName(table)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap">{table.SoCho} chỗ</td>
               <td className="px-6 py-4 whitespace-nowrap text-gray-600">{table.ViTri || 'N/A'}</td>
@@ -742,7 +755,7 @@ const TableManagement = () => {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => handleEdit(table)}
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-blue-600 hover:text-blue-800 !mx-2"
                   >
                     <FiEdit className="w-4 h-4" />
                   </button>
@@ -866,7 +879,7 @@ const TableManagement = () => {
                     setEditingTable(null);
                     resetForm();
                   }}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="!mr-3 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Hủy
                 </button>
@@ -1003,14 +1016,14 @@ const TableManagement = () => {
                     setEditingArea(null);
                     resetAreaForm();
                   }}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 !mx-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={loading || uploading}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center"
+                  className="px-4 py-2 !mx-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center"
                 >
                   {uploading ? (
                     <>

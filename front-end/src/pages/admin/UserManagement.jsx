@@ -14,7 +14,6 @@ const UserManagement = () => {
     activeUsers: 0
   });
   const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -37,7 +36,7 @@ const UserManagement = () => {
 
   useEffect(() => {
     filterUsers();
-  }, [users, roleFilter, statusFilter, searchQuery]);
+  }, [users, roleFilter, searchQuery]);
 
   const fetchUsers = async () => {
     try {
@@ -115,11 +114,6 @@ const UserManagement = () => {
       }
     }
 
-    // Filter by status
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(user => user.status === statusFilter);
-    }
-
     // Search filter
     if (searchQuery) {
       filtered = filtered.filter(user =>
@@ -139,7 +133,6 @@ const UserManagement = () => {
     setValue('email', user.email);
     setValue('phone', user.phone);
     setValue('role', user.role);
-    setValue('status', user.status);
     setValue('salary', user.salary);
     setShowModal(true);
   };
@@ -250,7 +243,6 @@ const UserManagement = () => {
         Email: data.email,
         SDT: data.phone,
         MatKhau: data.password,
-        TrangThai: data.status || 'Hoạt động',
         ...(data.role !== 'Khách hàng' && {
           ChucVu: data.role,
           Luong: data.salary || 8000000,
@@ -308,19 +300,6 @@ const UserManagement = () => {
     return role || 'Chưa xác định';
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Hoạt động':
-        return 'bg-green-100 text-green-800';
-      case 'Tạm khóa':
-        return 'bg-red-100 text-red-800';
-      case 'Chờ duyệt':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   const exportToCSV = () => {
     const csvData = filteredUsers.map(user => ({
       'ID': user.id,
@@ -329,7 +308,6 @@ const UserManagement = () => {
       'SĐT': user.phone || '',
       'Vai trò': user.role,
       'Loại': user.type === 'employee' ? 'Nhân viên' : 'Khách hàng',
-      'Trạng thái': user.status,
       'Ngày tạo': new Date(user.createdAt).toLocaleDateString('vi-VN'),
       'Lương': user.salary ? user.salary.toLocaleString('vi-VN') + ' VNĐ' : '',
       'Điểm tích lũy': user.points || ''
@@ -370,13 +348,13 @@ const UserManagement = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Quản lý Người dùng</h1>
         <div className="flex space-x-3">
-          <button
+          {/* <button
             onClick={exportToCSV}
             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
           >
             <FiDownload className="w-4 h-4" />
             <span>Xuất CSV</span>
-          </button>
+          </button> */}
           <button
             onClick={() => {
               setEditingUser(null);
@@ -481,18 +459,6 @@ const UserManagement = () => {
                 <option key="filter-role-staff" value="Nhân viên">Nhân viên</option>
               </select>
             </div>
-            <div className="flex items-center space-x-2">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              >
-                <option key="filter-status-all" value="all">Tất cả trạng thái</option>
-                <option key="filter-status-active" value="Hoạt động">Hoạt động</option>
-                <option key="filter-status-locked" value="Tạm khóa">Tạm khóa</option>
-                <option key="filter-status-pending" value="Chờ duyệt">Chờ duyệt</option>
-              </select>
-            </div>
           </div>
         </div>
       </div>
@@ -511,9 +477,6 @@ const UserManagement = () => {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Vai trò
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trạng thái
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ngày tạo
@@ -563,11 +526,6 @@ const UserManagement = () => {
                       {getRoleText(user.role)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
-                      {user.status}
-                    </span>
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(user.createdAt).toLocaleDateString('vi-VN')}
                   </td>
@@ -576,7 +534,7 @@ const UserManagement = () => {
                       <button
                         key={`update-${user.type}-${user.id}`}
                         onClick={() => handleUpdateUser(user)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="!mx-2 text-blue-600 hover:text-blue-900"
                         title="Cập nhật thông tin"
                       >
                         <FiEdit className="w-4 h-4" />
@@ -714,21 +672,6 @@ const UserManagement = () => {
                   />
                 </div>
               )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Trạng thái
-                </label>
-                <select
-                  {...register('status')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  defaultValue="Hoạt động"
-                >
-                  <option key="status-active" value="Hoạt động">Hoạt động</option>
-                  <option key="status-locked" value="Tạm khóa">Tạm khóa</option>
-                  <option key="status-pending" value="Chờ duyệt">Chờ duyệt</option>
-                </select>
-              </div>
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button

@@ -664,14 +664,163 @@ BEGIN
 END //
 
 -- ==============================================
--- 5. EVENT: Tự động chạy hủy đơn đặt bàn mỗi 30 phút
+-- 5. EVENT: Tự động chạy hủy đơn đặt bàn và đơn hàng liên quan mỗi 30 phút
 -- ==============================================
 CREATE EVENT IF NOT EXISTS AutoCancelExpiredReservations
 ON SCHEDULE EVERY 30 MINUTE
 STARTS CURRENT_TIMESTAMP
 DO
 BEGIN
-    SELECT TuDongHuyDonDatBanQuaHan();
+    DECLARE v_SoDonDatBanHuy INT DEFAULT 0;
+    DECLARE v_SoDonHangHuy INT DEFAULT 0;
+    
+    -- Bước 1: Hủy các đơn đặt bàn quá hạn
+    -- (Trigger TG_HuyDonHangKhiDatBanBiHuy sẽ tự động hủy đơn hàng)
+    SELECT TuDongHuyDonDatBanQuaHan() INTO v_SoDonDatBanHuy;
+    
+    -- Bước 2: Kiểm tra và hủy các đơn hàng mồ côi (không có đặt bàn hoặc đặt bàn đã hủy)
+    UPDATE DonHang dh
+    LEFT JOIN DatBan db ON dh.MaDat = db.MaDat
+    SET dh.TrangThai = 'Đã hủy',
+        dh.TongTien = 0
+    WHERE dh.TrangThai NOT IN ('Hoàn thành', 'Đã hủy')
+      AND dh.MaDat IS NOT NULL
+      AND (db.MaDat IS NULL OR db.TrangThai = 'Đã hủy');
+    
+    SET v_SoDonHangHuy = ROW_COUNT();
+
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- 6. TRIGGER: Tự động xử lý đơn hàng khi đặt bàn bị hủy
+-- ==============================================
+DELIMITER //
+
+CREATE TRIGGER TG_HuyDonHangKhiDatBanBiHuy
+AFTER UPDATE ON DatBan
+FOR EACH ROW
+BEGIN
+    -- Chỉ thực hiện khi trạng thái thay đổi thành 'Đã hủy'
+    IF NEW.TrangThai = 'Đã hủy' AND OLD.TrangThai != 'Đã hủy' THEN
+        
+        -- Cập nhật tất cả đơn hàng liên quan thành 'Đã hủy'
+        UPDATE DonHang 
+        SET TrangThai = 'Đã hủy',
+            TongTien = 0
+        WHERE MaDat = NEW.MaDat 
+          AND TrangThai NOT IN ('Hoàn thành', 'Đã hủy');
+        
+        -- Ghi log
+        INSERT INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong)
+        VALUES (
+            NOW(),
+            'AUTO_CANCEL_ORDERS',
+            CONCAT('Tự động hủy đơn hàng liên quan đến đặt bàn #', NEW.MaDat, ' - Lý do: Đặt bàn bị hủy'),
+            (SELECT COUNT(*) FROM DonHang WHERE MaDat = NEW.MaDat AND TrangThai = 'Đã hủy')
+        );
+        
+    END IF;
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- 7. TRIGGER: Tự động xóa đơn hàng khi xóa đặt bàn
+-- ==============================================
+DELIMITER //
+
+CREATE TRIGGER TG_XoaDonHangKhiXoaDatBan
+BEFORE DELETE ON DatBan
+FOR EACH ROW
+BEGIN
+    -- Xóa chi tiết đơn hàng trước (foreign key constraint)
+    DELETE FROM CTDonHang
+    WHERE MaDH IN (
+        SELECT MaDH FROM DonHang WHERE MaDat = OLD.MaDat
+    );
+    
+    -- Xóa thanh toán liên quan (nếu có)
+    DELETE FROM ThanhToan
+    WHERE MaDH IN (
+        SELECT MaDH FROM DonHang WHERE MaDat = OLD.MaDat
+    );
+    
+    -- Xóa đơn hàng
+    DELETE FROM DonHang
+    WHERE MaDat = OLD.MaDat;
+    
+    -- Ghi log
+    INSERT INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong)
+    VALUES (
+        NOW(),
+        'AUTO_DELETE_ORDERS_WITH_RESERVATION',
+        CONCAT('Tự động xóa đơn hàng khi xóa đặt bàn #', OLD.MaDat, ' - Khách: ', OLD.TenKhach),
+        (SELECT COUNT(*) FROM DonHang WHERE MaDat = OLD.MaDat)
+    );
+END //
+
+DELIMITER ;
+
+-- ==============================================
+-- 8. PROCEDURE: Xóa hoàn toàn đơn hàng khi đặt bàn bị hủy (Tùy chọn)
+-- ==============================================
+DELIMITER //
+
+CREATE PROCEDURE XoaDonHangTheoMaDat(
+    IN p_MaDat INT
+)
+BEGIN
+    DECLARE v_SoDonXoa INT DEFAULT 0;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        -- Rollback nếu có lỗi
+        ROLLBACK;
+        SELECT 'Lỗi khi xóa đơn hàng' AS KetQua;
+    END;
+    
+    START TRANSACTION;
+    
+    -- Đếm số đơn hàng sẽ xóa
+    SELECT COUNT(*) INTO v_SoDonXoa
+    FROM DonHang
+    WHERE MaDat = p_MaDat
+      AND TrangThai NOT IN ('Hoàn thành'); -- Không xóa đơn đã hoàn thành
+    
+    -- Xóa chi tiết đơn hàng trước (foreign key constraint)
+    DELETE FROM CTDonHang
+    WHERE MaDH IN (
+        SELECT MaDH FROM DonHang 
+        WHERE MaDat = p_MaDat 
+          AND TrangThai NOT IN ('Hoàn thành')
+    );
+    
+    -- Xóa thanh toán liên quan (nếu có)
+    DELETE FROM ThanhToan
+    WHERE MaDH IN (
+        SELECT MaDH FROM DonHang 
+        WHERE MaDat = p_MaDat 
+          AND TrangThai NOT IN ('Hoàn thành')
+    );
+    
+    -- Xóa đơn hàng
+    DELETE FROM DonHang
+    WHERE MaDat = p_MaDat
+      AND TrangThai NOT IN ('Hoàn thành');
+    
+    -- Ghi log
+    INSERT INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong)
+    VALUES (
+        NOW(),
+        'DELETE_ORDERS_BY_RESERVATION',
+        CONCAT('Xóa hoàn toàn đơn hàng liên quan đến đặt bàn #', p_MaDat),
+        v_SoDonXoa
+    );
+    
+    COMMIT;
+    
+    SELECT CONCAT('Đã xóa ', v_SoDonXoa, ' đơn hàng thành công') AS KetQua;
 END //
 
 DELIMITER ;
@@ -689,20 +838,111 @@ CREATE TABLE IF NOT EXISTS LogHeThong (
 );
 
 -- ==============================================
--- EXAMPLES SỬ DỤNG
+-- EXAMPLES SỬ DỤNG - HỆ THỐNG TỰ ĐỘNG HỦY ĐẶT BÀN & ĐƠN HÀNG
 -- ==============================================
 
--- Ví dụ 1: Chạy thủ công hủy đơn quá hạn
--- SELECT TuDongHuyDonDatBanQuaHan() as SoDonDaHuy;
+-- ==============================================
+-- PHẦN 1: FUNCTION & PROCEDURE THỦ CÔNG
+-- ==============================================
 
--- Ví dụ 2: Kiểm tra đơn sắp hết hạn trong 15 phút
+-- Ví dụ 1: Chạy thủ công hủy đơn đặt bàn quá hạn
+-- SELECT TuDongHuyDonDatBanQuaHan() as SoDonDatBanDaHuy;
+
+-- Ví dụ 2: Kiệm tra đơn sắp hết hạn trong 15 phút
 -- SELECT KiemTraDonSapHetHan(15) as SoDonSapHetHan;
 
 -- Ví dụ 3: Báo cáo đơn bị hủy trong tháng
 -- SELECT BaoCaoDonDatBanBiHuy('2024-01-01', '2024-01-31') as TongSoDonHuy;
 
--- Ví dụ 4: Tính thời gian còn lại
+-- Ví dụ 4: Tính thời gian còn lại đến giờ đặt bàn
 -- SELECT TinhThoiGianConLai('2024-01-15', '19:00:00') as ThoiGianConLai;
+
+-- ==============================================
+-- PHẦN 2: TRIGGER TỰ ĐỘNG
+-- ==============================================
+
+-- Ví dụ 5: Hủy đặt bàn thủ công (Trigger tự động hủy đơn hàng liên quan)
+-- UPDATE DatBan SET TrangThai = 'Đã hủy' WHERE MaDat = 1;
+-- -- Kết quả: Đơn hàng có MaDat = 1 sẽ tự động chuyển sang 'Đã hủy'
+
+-- Ví dụ 6: Xóa đặt bàn (Trigger tự động xóa đơn hàng liên quan)
+-- DELETE FROM DatBan WHERE MaDat = 1;
+-- -- Kết quả: Tự động xóa CTDonHang, ThanhToan, DonHang có MaDat = 1
+
+-- Ví dụ 7: Xóa hoàn toàn đơn hàng theo mã đặt bàn (tùy chọn - không cần trigger)
+-- CALL XoaDonHangTheoMaDat(1);
+-- -- Kết quả: Xóa CTDonHang, ThanhToan, DonHang có MaDat = 1
+
+-- ==============================================
+-- PHẦN 3: XEM LOG & THỐNG KÊ
+-- ==============================================
+
+-- Ví dụ 8: Xem log tự động hủy đơn hàng (từ trigger hủy)
+-- SELECT * FROM LogHeThong 
+-- WHERE HanhDong = 'AUTO_CANCEL_ORDERS' 
+-- ORDER BY ThoiGian DESC LIMIT 10;
+
+-- Ví dụ 9: Xem log tự động xóa đơn hàng (từ trigger xóa đặt bàn)
+-- SELECT * FROM LogHeThong 
+-- WHERE HanhDong = 'AUTO_DELETE_ORDERS_WITH_RESERVATION' 
+-- ORDER BY ThoiGian DESC LIMIT 10;
+
+-- Ví dụ 10: Xem tất cả log tự động trong 24h qua
+-- SELECT * FROM LogHeThong 
+-- WHERE HanhDong IN ('AUTO_CANCEL_RESERVATIONS', 'AUTO_CANCEL_ORDERS', 'AUTO_DELETE_ORDERS_WITH_RESERVATION', 'DELETE_ORDERS_BY_RESERVATION')
+--   AND ThoiGian >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+-- ORDER BY ThoiGian DESC;
+
+-- ==============================================
+-- PHẦN 4: KIỂM TRA DỮ LIỆU
+-- ==============================================
+
+-- Ví dụ 10: Kiểm tra đơn hàng bị hủy cùng với đặt bàn
+-- SELECT 
+--     dh.MaDH,
+--     dh.MaDat,
+--     dh.TongTien,
+--     dh.TrangThai as TrangThaiDonHang,
+--     db.TenKhach,
+--     db.NgayDat,
+--     db.GioDat,
+--     db.TrangThai as TrangThaiDatBan
+-- FROM DonHang dh
+-- INNER JOIN DatBan db ON dh.MaDat = db.MaDat
+-- WHERE dh.TrangThai = 'Đã hủy' AND db.TrangThai = 'Đã hủy'
+-- ORDER BY dh.NgayLap DESC;
+
+-- Ví dụ 11: Kiểm tra đơn hàng mồ côi (không có đặt bàn hoặc đặt bàn đã bị xóa)
+-- SELECT dh.*
+-- FROM DonHang dh
+-- LEFT JOIN DatBan db ON dh.MaDat = db.MaDat
+-- WHERE dh.MaDat IS NOT NULL
+--   AND db.MaDat IS NULL
+-- ORDER BY dh.NgayLap DESC;
+
+-- Ví dụ 12: Thống kê số lượng hủy theo ngày
+-- SELECT 
+--     DATE(NgayLap) as Ngay,
+--     COUNT(*) as SoDonHangBiHuy,
+--     SUM(TongTien) as TongTienBiHuy
+-- FROM DonHang
+-- WHERE TrangThai = 'Đã hủy'
+--   AND NgayLap >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+-- GROUP BY DATE(NgayLap)
+-- ORDER BY Ngay DESC;
+
+-- ==============================================
+-- PHẦN 5: KIỂM TRA EVENT ĐANG HOẠT ĐỘNG
+-- ==============================================
+
+-- Ví dụ 13: Kiểm tra trạng thái EVENT
+-- SHOW EVENTS WHERE Name = 'AutoCancelExpiredReservations';
+
+-- Ví dụ 14: Tắt EVENT (nếu cần bảo trì)
+-- ALTER EVENT AutoCancelExpiredReservations DISABLE;
+
+-- Ví dụ 15: Bật lại EVENT
+-- ALTER EVENT AutoCancelExpiredReservations ENABLE;
 
 -- ==============================================
 -- STORED PROCEDURES PHÂN TÍCH DOANH THU

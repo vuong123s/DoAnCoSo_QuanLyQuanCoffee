@@ -233,6 +233,28 @@ const Profile = () => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   };
 
+  const getFinalTotal = (order) => {
+    if (!order) return 0;
+    const rawTotal = order.TongTien;
+    const parsed = Number(rawTotal);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const getDiscountAmount = (order) => {
+    if (!order) return 0;
+    const original = Number(order.TongTien);
+    const finalTotal = getFinalTotal(order);
+    if (Number.isFinite(original) && original > finalTotal) {
+      return original - finalTotal;
+    }
+    if (order.DiemSuDung) {
+      const fromPoints = Number(order.DiemSuDung) * 1000;
+      if (Number.isFinite(fromPoints) && fromPoints > 0) return fromPoints;
+    }
+    
+    return 0;
+  };
+
   if (!profile) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -563,7 +585,7 @@ const Profile = () => {
                           <tr key={order.MaDH || order.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap font-medium">#{order.MaDH || order.id}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{formatDate(order.NgayLap || order.createdAt)}</td>
-                            <td className="px-6 py-4 whitespace-nowrap font-semibold text-indigo-600">{formatCurrency(order.TongTien || order.total)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap font-semibold text-indigo-600">{formatCurrency(order.TongTien)}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 text-xs rounded-full ${
                                 (order.TrangThai || order.status) === 'Hoàn thành' ? 'bg-green-100 text-green-800' :
@@ -618,7 +640,7 @@ const Profile = () => {
                             <td className="px-6 py-4 whitespace-nowrap font-medium">#{order.MaDHOnline || order.id}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{formatDate(order.NgayDat || order.createdAt)}</td>
                             <td className="px-6 py-4">{order.DiaChiGiaoHang || order.address}</td>
-                            <td className="px-6 py-4 whitespace-nowrap font-semibold text-indigo-600">{formatCurrency(order.TongTien || order.total)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap font-semibold text-indigo-600">{formatCurrency(order.TongTien)}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 text-xs rounded-full ${
                                 (order.TrangThai || order.status) === 'Đã giao' ? 'bg-green-100 text-green-800' :
@@ -715,7 +737,7 @@ const Profile = () => {
                 <div className="space-y-3">
                   {orderDetails.length > 0 ? (
                     orderDetails.map((item, index) => (
-                      <div key={index} className="flex justify-between items-center border-b pb-3">
+                      <div key={index} className="flex justify-between items-center pb-3">
                         <div className="flex-1">
                           <p className="font-medium">{item.Mon?.TenMon || item.TenMon || 'Món ăn'}</p>
                           {item.GhiChu && (
@@ -737,12 +759,17 @@ const Profile = () => {
               </div>
 
               {/* Tổng tiền */}
-              <div className="border-t pt-4">
+              <div className="border-t border-gray-400 pt-4">
                 <div className="flex justify-between items-center text-lg font-bold">
                   <span>Tổng cộng</span>
-                  <span className="text-indigo-600">
-                    {formatCurrency(selectedOrder.TongTien || selectedOrder.total)}
-                  </span>
+                  <div className="text-right text-indigo-600">
+                    <p>{formatCurrency(getFinalTotal(selectedOrder))}</p>
+                    {getDiscountAmount(selectedOrder) > 0 && (
+                      <p className="text-xs text-gray-500 font-normal">
+                        Đã giảm: {formatCurrency(getDiscountAmount(selectedOrder))}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

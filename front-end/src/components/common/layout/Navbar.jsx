@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../app/stores/authStore';
 import CartIcon from '../../cart/CartIcon';
 import { FiMenu, FiX, FiUser, FiShoppingCart, FiLogOut, FiSettings } from 'react-icons/fi';
+import Logo from '../../../assets/logo1.jpg'
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,9 +21,31 @@ const Navbar = () => {
     { to: '/', label: 'Trang chủ' },
     { to: '/menu', label: 'Thực đơn' },
     { to: '/book-table', label: 'Đặt bàn' },
-    { to: '/about', label: 'Giới thiệu' },
-    { to: '/contact', label: 'Liên hệ' },
+    { to: '/#about', label: 'Giới thiệu', hash: 'about' },
+    { to: '/#contact', label: 'Liên hệ', hash: 'contact' },
   ];
+
+  const handleSectionNavigation = (event, hash) => {
+    if (!hash) return;
+    event.preventDefault();
+    const sectionId = hash.replace('#', '');
+
+    const scrollToSection = () => {
+      const section = document.getElementById(sectionId);
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+
+    if (window.location.pathname !== '/') {
+      navigate(`/#${sectionId}`);
+      setTimeout(scrollToSection, 100);
+    } else {
+      scrollToSection();
+    }
+
+    setIsOpen(false);
+  };
 
   return (
     <nav className="bg-white shadow-lg sticky top-0 z-50">
@@ -30,11 +53,12 @@ const Navbar = () => {
         <div className="flex justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-amber-600 rounded-full flex items-center justify-center">
+            <Link to="/" className="flex justify-center items-center space-x-2">
+              {/* <div className="w-8 h-8 bg-amber-600 rounded-full flex items-center justify-center">
                 <span className="text-white font-bold text-sm">C</span>
               </div>
-              <span className="text-xl font-bold text-gray-800">Coffee Shop</span>
+              <span className="text-xl font-bold text-gray-800">Coffee Shop</span> */}
+              <img className='w-24' src={Logo} alt="" />
             </Link>
           </div>
 
@@ -45,6 +69,7 @@ const Navbar = () => {
                 key={link.to}
                 to={link.to}
                 className="text-gray-700 hover:text-amber-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                onClick={(event) => link.hash ? handleSectionNavigation(event, link.hash) : null}
               >
                 {link.label}
               </Link>
@@ -80,16 +105,7 @@ const Navbar = () => {
                       <FiUser className="mr-3 w-4 h-4" />
                       Thông tin cá nhân
                     </Link>
-                    {user && (user.role === 'customer') && (
-                      <Link
-                        to="/customer/orders"
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <FiShoppingCart className="mr-3 w-4 h-4" />
-                        Lịch sử đơn hàng
-                      </Link>
-                    )}
+                    
                     {user && (user.role !== 'customer') && (
                       <Link
                         to="/admin"
@@ -100,7 +116,7 @@ const Navbar = () => {
                         Quản trị
                       </Link>
                     )}
-                    <hr className="my-1" />
+                    <hr className="my-1 border-gray-200" />
                     <button
                       onClick={handleLogout}
                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -149,7 +165,7 @@ const Navbar = () => {
                   key={link.to}
                   to={link.to}
                   className="text-gray-700 hover:text-amber-600 block px-3 py-2 rounded-md text-base font-medium"
-                  onClick={() => setIsOpen(false)}
+                  onClick={(event) => link.hash ? handleSectionNavigation(event, link.hash) : setIsOpen(false)}
                 >
                   {link.label}
                 </Link>

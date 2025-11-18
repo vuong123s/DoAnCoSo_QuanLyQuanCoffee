@@ -450,7 +450,7 @@ const MenuManagement = () => {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleEdit(item)}
-                        className="text-amber-600 hover:text-amber-900"
+                        className="!mx-2 text-amber-600 hover:text-amber-900"
                       >
                         <FiEdit className="w-4 h-4" />
                       </button>
@@ -708,7 +708,7 @@ const MenuManagement = () => {
                       <div className="flex space-x-2">
                         <button
                           onClick={() => handleEditCategory(category)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="!mx-2 text-blue-600 hover:text-blue-900"
                         >
                           <FiEdit className="w-4 h-4" />
                         </button>

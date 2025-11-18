@@ -117,16 +117,34 @@ const ReservationManagement = () => {
   };
 
   const handleDelete = async (reservation) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa đặt bàn của ${reservation.TenKhach}?`)) return;
+    // Cảnh báo chi tiết về việc xóa đặt bàn và đơn hàng liên quan
+    const confirmMessage = `⚠️ CẢNH BÁO: Xóa đặt bàn của ${reservation.TenKhach}\n\n` +
+      `Hành động này sẽ:\n` +
+      `• Xóa vĩnh viễn thông tin đặt bàn\n` +
+      `• Xóa TẤT CẢ đơn hàng liên quan (nếu có)\n` +
+      `• Xóa chi tiết đơn hàng và thanh toán\n\n` +
+      `⚠️ KHÔNG THỂ HOÀN TÁC!\n\n` +
+      `Bạn có chắc chắn muốn tiếp tục?`;
+    
+    if (!window.confirm(confirmMessage)) return;
 
     try {
+      const loadingToast = toast.loading('Đang xóa đặt bàn và đơn hàng liên quan...');
+      
       const response = await reservationAPI.deleteReservation(reservation.MaDat);
+      
+      toast.dismiss(loadingToast);
+      
       if (response.data.success) {
-        toast.success('Xóa đặt bàn thành công');
+        toast.success('Đã xóa đặt bàn và đơn hàng liên quan thành công');
         fetchData();
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+      console.error('Error deleting reservation:', error);
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          'Có lỗi xảy ra khi xóa đặt bàn';
+      toast.error(errorMessage);
     }
   };
 
@@ -349,13 +367,13 @@ const ReservationManagement = () => {
           Xóa bộ lọc
         </button>
         
-        <button
+        {/* <button
           onClick={exportReservations}
           className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
         >
           <FiDownload className="w-4 h-4 mr-2" />
           Xuất CSV
-        </button>
+        </button> */}
       </div>
     </div>
   );
@@ -450,13 +468,13 @@ const ReservationManagement = () => {
                   </select>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex space-x-2">
+                  <div className="flex items-center">
                     <button
                       onClick={() => {
                         setSelectedReservation(reservation);
                         setShowDetailModal(true);
                       }}
-                      className="text-blue-600 hover:text-blue-800"
+                      className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
                       title="Xem chi tiết"
                     >
                       <FiEye className="w-4 h-4" />
@@ -464,7 +482,7 @@ const ReservationManagement = () => {
                     {(reservation.TrangThai === 'Đã đặt' || reservation.TrangThai === 'Đã xác nhận') && (
                       <button
                         onClick={() => handleConvertToOrder(reservation)}
-                        className="text-green-600 hover:text-green-800"
+                        className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors"
                         title="Chuyển sang bán hàng"
                       >
                         <FiShoppingCart className="w-4 h-4" />
@@ -473,7 +491,7 @@ const ReservationManagement = () => {
                     {reservation.TrangThai !== 'Đã hủy' && reservation.TrangThai !== 'Hoàn thành' && (
                       <button
                         onClick={() => handleCancel(reservation)}
-                        className="text-yellow-600 hover:text-yellow-800"
+                        className="p-1.5 text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 rounded transition-colors"
                         title="Hủy đặt bàn"
                       >
                         <FiX className="w-4 h-4" />
@@ -481,7 +499,7 @@ const ReservationManagement = () => {
                     )}
                     <button
                       onClick={() => handleDelete(reservation)}
-                      className="text-red-600 hover:text-red-800"
+                      className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
                       title="Xóa"
                     >
                       <FiTrash2 className="w-4 h-4" />
@@ -503,8 +521,8 @@ const ReservationManagement = () => {
 
       {/* Detail Modal */}
       {showDetailModal && selectedReservation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-96 overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Chi tiết đặt bàn</h2>
               <button

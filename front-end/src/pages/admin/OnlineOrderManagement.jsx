@@ -233,6 +233,33 @@ const OnlineOrderManagement = () => {
     return new Date(dateString).toLocaleString('vi-VN');
   };
 
+  const getOrderTotals = (order) => {
+    if (!order) {
+      return { baseTotal: 0, finalTotal: 0, discount: 0 };
+    }
+
+    const baseTotal = Number(order.TongTien ?? order.total ?? 0) || 0;
+    const finalTotal = Number(order.TongThanhToan ?? order.ThanhTien ?? baseTotal) || baseTotal;
+    const pointsDiscount = Number(order.DiemSuDung || 0) * 1000;
+    const voucherDiscount = Number(order.GiamGia || order.discount || 0);
+
+    let discount = 0;
+    if (pointsDiscount > 0) discount += pointsDiscount;
+    if (voucherDiscount > 0) discount += voucherDiscount;
+
+    if (discount === 0 && baseTotal > finalTotal) {
+      discount = baseTotal - finalTotal;
+    }
+
+    return {
+      baseTotal: baseTotal || finalTotal,
+      finalTotal,
+      discount
+    };
+  };
+
+  const selectedOrderTotals = showDetails ? getOrderTotals(selectedOrder) : { baseTotal: 0, finalTotal: 0, discount: 0 };
+
   const exportOrders = () => {
     const csvContent = [
       ['Mã ĐH', 'Khách hàng', 'SĐT', 'Loại', 'Trạng thái', 'Tổng tiền', 'Ngày đặt'],
@@ -268,14 +295,14 @@ const OnlineOrderManagement = () => {
               <h1 className="text-2xl font-bold text-gray-900">Quản lý đơn hàng online</h1>
               <p className="text-sm text-gray-500 mt-1">Tổng: {filteredOrders.length} đơn hàng</p>
             </div>
-            <button
+            {/* <button
               onClick={exportOrders}
               disabled={filteredOrders.length === 0}
               className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
             >
               <FiDownload className="w-4 h-4" />
               <span>Xuất CSV</span>
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -358,47 +385,47 @@ const OnlineOrderManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                      {formatCurrency(order.ThanhTien || order.TongTien)}
+                      {formatCurrency(order.TongTien)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDateTime(order.NgayDat)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] font-medium">
                       <div className="flex items-center space-x-3">
                         <button
                           onClick={() => handleViewDetails(order.MaDHOnline)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="!mr-1 text-blue-600 hover:text-blue-900"
                           title="Xem chi tiết"
                         >
-                          <FiEye className="w-5 h-5" />
+                          <FiEye />
                         </button>
                         {getNextStatus(order.TrangThai) && (
                           <button
                             onClick={() => handleUpdateStatus(order.MaDHOnline, getNextStatus(order.TrangThai))}
                             disabled={updating}
-                            className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                            className="!mr-1 text-green-600 hover:text-green-900 disabled:opacity-50"
                             title={`Chuyển: ${getNextStatus(order.TrangThai)}`}
                           >
-                            <FiEdit className="w-5 h-5" />
+                            <FiEdit />
                           </button>
                         )}
                         {!['Hoàn thành', 'Đã hủy'].includes(order.TrangThai) && (
                           <button
                             onClick={() => handleCancelOrder(order.MaDHOnline)}
                             disabled={updating}
-                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50"
+                            className="!mr-1 text-orange-600 hover:text-orange-900 disabled:opacity-50"
                             title="Hủy đơn hàng"
                           >
-                            <FiXCircle className="w-5 h-5" />
+                            <FiXCircle />
                           </button>
                         )}
                         <button
                           onClick={() => handleDeleteOrder(order.MaDHOnline)}
                           disabled={updating}
-                          className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          className="!mr-1 text-red-600 hover:text-red-900 disabled:opacity-50"
                           title="Xóa đơn hàng"
                         >
-                          <FiTrash2 className="w-5 h-5" />
+                          <FiTrash2 />
                         </button>
                       </div>
                     </td>
@@ -478,7 +505,7 @@ const OnlineOrderManagement = () => {
               {/* Order Items */}
               <div className="mb-6">
                 <h3 className="text-lg font-semibold mb-3">Chi tiết món ăn</h3>
-                <div className="border rounded-lg overflow-hidden">
+                <div className="  rounded-lg overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
@@ -514,18 +541,23 @@ const OnlineOrderManagement = () => {
               </div>
 
               {/* Order Summary */}
-              <div className="border-t pt-4">
+              <div className="border-t border-gray-300 pt-4">
                 <div className="flex justify-between items-center text-lg font-bold">
                   <span>Tổng cộng:</span>
                   <span className="text-green-600">
-                    {formatCurrency(selectedOrder.ThanhTien || selectedOrder.TongTien)}
+                    {formatCurrency( selectedOrder.TongTien)}
                   </span>
                 </div>
+                {selectedOrderTotals.discount > 0 && (
+                  <p className="text-xs text-gray-500 text-right mt-1">
+                    Đã giảm: {formatCurrency(selectedOrderTotals.discount)}
+                  </p>
+                )}
               </div>
 
               {/* Status Update */}
               {getNextStatus(selectedOrder.TrangThai) && (
-                <div className="mt-6 pt-6 border-t">
+                <div className="mt-6 pt-6 border-t border-gray-300">
                   <button
                     onClick={() => handleUpdateStatus(selectedOrder.MaDHOnline, getNextStatus(selectedOrder.TrangThai))}
                     disabled={updating}

@@ -101,7 +101,7 @@ const createServiceProxy = (serviceName, port, requireAuth = false) => {
       // Add user context for authenticated routes
       if (requireAuth && req.user) {
         headers['X-User-Id'] = req.user.id;
-        headers['X-User-Role'] = req.user.role;
+        headers['X-User-Role'] = encodeURIComponent(req.user.role || '');
       }
       
       const response = await axios({

@@ -14,8 +14,8 @@ import Home from "../pages/public/Home";
 // Use the unified Menu page that fetches from API and supports Vietnamese schema
 import Menu from "../pages/public/Menu";
 import ProductDetail from "../pages/public/ProductDetail";
-import About from "../pages/public/About";
-import Contact from "../pages/public/Contact";
+// import About from "../pages/public/About";
+// import Contact from "../pages/public/Contact";
 
 // Debug Pages
 import MenuDebug from "../pages/debug/MenuDebug";
@@ -82,8 +82,8 @@ function App() {
             <Route path="profile-guide" element={<ProfileGuide />} />
             <Route path="cart-demo" element={<CartDemo />} />
             <Route path="product/:id" element={<ProductDetail />} />
-            <Route path="about" element={<About />} />
-            <Route path="contact" element={<Contact />} />
+            {/* <Route path="about" element={<About />} />
+            <Route path="contact" element={<Contact />} /> */}
             <Route path="book-table" element={<BookTable />} />
           </Route>
 

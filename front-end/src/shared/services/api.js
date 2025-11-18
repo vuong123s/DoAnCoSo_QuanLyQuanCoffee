@@ -204,6 +204,7 @@ export const userAPI = {
   // Employee management
   getEmployees: (params) => api.get('/api/users/employees', { params }),
   getEmployee: (id) => api.get(`/api/users/employees/${id}`),
+  createEmployee: (employeeData) => api.post('/api/users/employees', employeeData),
   updateEmployee: (id, employeeData) => api.put(`/api/users/employees/${id}`, employeeData),
   deleteEmployee: (id) => api.delete(`/api/users/employees/${id}`),
   

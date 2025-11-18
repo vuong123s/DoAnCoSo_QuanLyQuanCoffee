@@ -43,7 +43,7 @@ const POSCartSection = ({
             <option value="">-- Chọn bàn --</option>
             {tables.filter(t => t.TrangThai === 'Trống').map(table => (
               <option key={table.MaBan || table.id} value={table.MaBan || table.id}>
-                Bàn {table.TenBan || table.name} ({table.SoChoNgoi || table.capacity} chỗ)
+                {table.TenBan || table.name} ({table.SoChoNgoi || table.capacity} chỗ)
               </option>
             ))}
           </select>

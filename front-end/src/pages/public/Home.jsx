@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { menuAPI } from '../../shared/services/api';
 import { FiCoffee, FiClock, FiStar, FiArrowRight, FiUsers, FiAward, FiCalendar, FiMapPin, FiPhone, FiMail, FiCheck } from 'react-icons/fi';
 import Product from '../../components/common/product/Product';
+import Slider from '../../components/Slider'
 
 const Home = () => {
   const [featuredItems, setFeaturedItems] = useState([]);
@@ -46,111 +47,12 @@ const Home = () => {
     { icon: FiStar, label: 'Đánh giá trung bình', value: '4.8/5' },
   ];
 
+
   return (
     <div className="min-h-screen">
       {/* Hero Section - Enhanced */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50 py-24 lg:py-32">
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-green-200 rounded-full opacity-20 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-96 h-96 bg-emerald-200 rounded-full opacity-20 blur-3xl"></div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div className="animate-fade-in-up">
-              <div className="inline-flex items-center bg-white/80 backdrop-blur-sm rounded-full px-4 py-2 mb-6 shadow-sm">
-                <FiStar className="w-4 h-4 text-yellow-500 fill-yellow-500 mr-2" />
-                <span className="text-sm font-medium text-gray-700">Đánh giá 4.8/5 từ hơn 5000+ khách hàng</span>
-              </div>
-              
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-                Hương vị{' '}
-                <span className="bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent">
-                  Cà Phê
-                </span>
-                <br />
-                Đích Thực
-              </h1>
-              
-              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-                Khám phá thế giới cà phê đặc biệt với những hạt cà phê rang xay thủ công 
-                và không gian hiện đại, ấm cúng. Mỗi ly cà phê là một câu chuyện.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                <Link
-                  to="/menu"
-                  className="group bg-gradient-to-r from-green-700 to-emerald-600 text-white px-8 py-4 rounded-xl hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold text-center flex items-center justify-center"
-                >
-                  Xem thực đơn
-                  <FiArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <Link
-                  to="/book-table"
-                  className="group border-2 border-green-700 text-green-700 px-8 py-4 rounded-xl hover:bg-green-700 hover:text-white transition-all duration-300 font-semibold text-center flex items-center justify-center"
-                >
-                  <FiCalendar className="mr-2 w-5 h-5" />
-                  Đặt bàn ngay
-                </Link>
-              </div>
-              
-              <div className="flex items-center gap-8 text-sm text-gray-600">
-                <div className="flex items-center">
-                  <FiClock className="w-5 h-5 text-green-700 mr-2" />
-                  <span>Mở cửa 6:00 - 22:00</span>
-                </div>
-                <div className="flex items-center">
-                  <FiCoffee className="w-5 h-5 text-green-700 mr-2" />
-                  <span>Giao hàng tận nơi</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="relative animate-fade-in-right">
-              {/* Main image card */}
-              <div className="relative bg-white rounded-3xl shadow-2xl p-4 transform hover:scale-105 transition-all duration-500">
-                <div className="relative overflow-hidden rounded-2xl">
-                  <img
-                    src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
-                    alt="Coffee Shop Interior"
-                    className="w-full h-96 object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                  <div className="absolute bottom-6 left-6 right-6">
-                    <h3 className="text-2xl font-bold text-white mb-2">Không gian sang trọng</h3>
-                    <p className="text-white/90">Thiết kế hiện đại, thoải mái cho mọi dịp</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Floating cards */}
-              <div className="absolute -top-6 -left-6 bg-white rounded-2xl shadow-xl p-4 animate-float">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                    <FiCoffee className="w-6 h-6 text-green-700" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">10K+</p>
-                    <p className="text-sm text-gray-600">Ly phục vụ</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="absolute -bottom-6 -right-6 bg-white rounded-2xl shadow-xl p-4 animate-float" style={{animationDelay: '1s'}}>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                    <FiUsers className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">5K+</p>
-                    <p className="text-sm text-gray-600">Khách hàng</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
+      
+      <Slider />
       {/* Stats Section - Enhanced */}
       <section className="py-20 bg-white relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-gray-50 to-white"></div>
@@ -285,7 +187,7 @@ const Home = () => {
       </section>
 
       {/* About Section - Enhanced */}
-      <section className="py-24 bg-white relative">
+      <section id="about" className="py-24 bg-white relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div className="relative">
@@ -374,7 +276,7 @@ const Home = () => {
       </section>
 
       {/* CTA Section - Enhanced */}
-      <section className="relative py-24 bg-gradient-to-br from-green-700 via-emerald-600 to-green-800 overflow-hidden">
+      <section id="contact" className="relative py-24 bg-gradient-to-br from-green-700 via-emerald-600 to-green-800 overflow-hidden">
         {/* Decorative elements */}
         <div className="absolute top-0 left-0 w-full h-full">
           <div className="absolute top-10 right-10 w-72 h-72 bg-white/10 rounded-full blur-3xl"></div>

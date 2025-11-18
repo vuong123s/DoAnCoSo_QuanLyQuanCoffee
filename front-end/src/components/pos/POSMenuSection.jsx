@@ -64,10 +64,10 @@ const POSMenuSection = ({ menuItems, categories, onAddToCart }) => {
                 <span className="text-4xl">🍽️</span>
               )}
             </div>
-            <h3 className="font-medium text-gray-900 mb-1 line-clamp-2">
+            <h3 className="font-medium text-[12px] text-gray-900 mb-1 line-clamp-2">
               {item.TenMon || item.name}
             </h3>
-            <p className="text-lg font-bold text-blue-600">
+            <p className="text-[12px] font-bold text-blue-600">
               {formatCurrency(item.DonGia || item.Gia || item.price)}
             </p>
           </button>

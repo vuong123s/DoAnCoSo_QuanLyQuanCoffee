@@ -334,7 +334,7 @@ const Cart = () => {
             {/* Cart Items */}
             <div className="xl:col-span-2">
               <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                <div className="bg-orange-500 p-6">
+                <div className="bg-amber-600  p-6">
                   <h2 className="text-xl font-bold text-white flex items-center space-x-2">
                     <FiShoppingCart className="w-6 h-6" />
                     <span>Món đã chọn ({cartItems.length})</span>
@@ -412,7 +412,7 @@ const Cart = () => {
             {/* Order Summary */}
             <div className="xl:col-span-1">
               <div className="bg-white rounded-2xl shadow-lg sticky top-8 overflow-hidden">
-                <div className="bg-green-500 p-6">
+                <div className="bg-amber-600 p-6">
                   <h2 className="text-xl font-bold text-white flex items-center space-x-2">
                     <FiDollarSign className="w-6 h-6" />
                     <span>Thông tin đơn hàng</span>
@@ -431,7 +431,7 @@ const Cart = () => {
                         onClick={() => setOrderType('delivery')}
                         className={`flex items-center justify-center p-4 rounded-xl border-2 transition-all font-medium ${
                           orderType === 'delivery' 
-                            ? 'border-orange-500 bg-orange-500 text-white shadow-md' 
+                            ? 'bg-amber-600 text-white shadow-md' 
                             : 'border-gray-200 hover:border-gray-300 text-gray-600'
                         }`}
                       >
@@ -443,7 +443,7 @@ const Cart = () => {
                         onClick={() => setOrderType('pickup')}
                         className={`flex items-center justify-center p-4 rounded-xl border-2 transition-all font-medium ${
                           orderType === 'pickup' 
-                            ? 'border-orange-500 bg-orange-500 text-white shadow-md' 
+                            ? 'bg-amber-600 text-white shadow-md' 
                             : 'border-gray-200 hover:border-gray-300 text-gray-600'
                         }`}
                       >

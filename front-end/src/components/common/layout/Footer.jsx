@@ -1,21 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiFacebook, FiInstagram, FiTwitter, FiPhone, FiMail, FiMapPin } from 'react-icons/fi';
+import Logo from '../../../assets/logo1.jpg'
 
 const Footer = () => {
   return (
-    <footer className="bg-gray-900 text-white">
+    <footer className="bg-[#232323] text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Company Info */}
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
-              <div className="w-8 h-8 bg-amber-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">C</span>
-              </div>
-              <span className="text-xl font-bold">Coffee Shop</span>
+              <img src={Logo} className='w-[150px]' alt="" srcset="" />
             </div>
-            <p className="text-gray-400 mb-4">
+            <p className="text-gray-400 my-6">
               Chào mừng đến với Coffee Shop - nơi mang đến những trải nghiệm cà phê tuyệt vời nhất. 
               Chúng tôi phục vụ những ly cà phê chất lượng cao với không gian ấm cúng và dịch vụ tận tâm.
             </p>

@@ -152,10 +152,17 @@ const POSSystem = () => {
 
   const handleAddItemToOrder = async (item) => {
     if (!editingOrder) return;
+    const orderId = editingOrder.MaDH || editingOrder.id;
+    const menuItemId = item.MaMon || item.id;
+    if (!orderId || !menuItemId) {
+      console.warn('Cannot add item to order without valid IDs', { orderId, menuItemId, item });
+      toast.error('Không thể thêm món vì thiếu thông tin mã món.');
+      return;
+    }
     
     try {
-      await billingAPI.addItemToOrder(editingOrder.MaDH || editingOrder.id, {
-        MaMon: item.MaMon || item.id,
+      await billingAPI.addItemToOrder(orderId, {
+        MaMon: menuItemId,
         SoLuong: 1,
         DonGia: item.DonGia || item.Gia || item.price,
         GhiChu: ''
@@ -170,7 +177,10 @@ const POSSystem = () => {
   };
 
   const handleUpdateOrderItem = async (itemId, updates) => {
-    if (!editingOrder) return;
+    if (!editingOrder || !itemId) {
+      console.warn('Cannot update order item without itemId', { itemId, updates });
+      return;
+    }
     
     try {
       await billingAPI.updateOrderItem(editingOrder.MaDH || editingOrder.id, itemId, updates);
@@ -254,7 +264,10 @@ const POSSystem = () => {
   };
 
   const handleRemoveOrderItem = async (itemId) => {
-    if (!editingOrder) return;
+    if (!editingOrder || !itemId) {
+      console.warn('Cannot remove order item without itemId', { itemId });
+      return;
+    }
     
     if (!window.confirm('Xóa món này khỏi đơn hàng?')) return;
     
@@ -404,8 +417,8 @@ const POSSystem = () => {
               </div>
 
               {/* Order Info */}
-              <div className="space-y-3 mb-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="space-y-3 md:space-y-0 mb-4 flex flex-wrap gap-3">
+                <div className="bg-gray-50 p-3 rounded-lg flex-1 min-w-[110px]">
                   <label className="text-sm text-gray-600 block mb-2">Bàn *</label>
                   <select
                     value={editingOrder.MaBan}
@@ -414,42 +427,42 @@ const POSSystem = () => {
                   >
                     {tables.map(table => (
                       <option key={table.MaBan || table.id} value={table.MaBan || table.id}>
-                        Bàn {table.TenBan || table.name} ({table.TrangThai})
+                        {table.TenBan || table.name} ({table.TrangThai})
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="bg-gray-50 p-3 rounded-lg flex-1 min-w-[110px]">
                   <label className="text-sm text-gray-600 block mb-2">Khách hàng</label>
                   <select
                     value={editingOrder.MaKH || ''}
                     onChange={(e) => handleUpdateOrderCustomer(e.target.value ? parseInt(e.target.value) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">-- Khách vãng lai --</option>
+                    <option value="">-- Khách --</option>
                     {customers.map(customer => (
                       <option key={customer.MaKH || customer.id} value={customer.MaKH || customer.id}>
                         {customer.HoTen || customer.TenKH || customer.name} - {customer.SDT || customer.phone || 'N/A'}
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
+                  {/* <p className="text-xs text-gray-500 mt-1">
                     {editingOrder.MaKH ? getCustomerName(editingOrder.MaKH) : 'Không tích điểm'}
-                  </p>
+                  </p> */}
                 </div>
 
-                <div className="bg-gray-50 p-3 rounded-lg">
+                {/* <div className="bg-gray-50 p-3 rounded-lg flex-1 min-w-[220px]">
                   <p className="text-sm text-gray-600">Nhân viên</p>
                   <p className="font-medium">NV #{editingOrder.MaNV}</p>
-                </div>
+                </div> */}
 
-                <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="bg-gray-50 p-3 rounded-lg flex-1 min-w-[110px]">
                   <p className="text-sm text-gray-600">Thời gian tạo</p>
                   <p className="font-medium">{new Date(editingOrder.NgayLap).toLocaleString('vi-VN')}</p>
                 </div>
 
-                <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="bg-gray-50 p-3 rounded-lg flex-1 min-w-[110px]">
                   <p className="text-sm text-gray-600">Trạng thái</p>
                   <span className="inline-block px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium mt-1">
                     {editingOrder.TrangThai}
@@ -464,38 +477,40 @@ const POSSystem = () => {
                   const maxPoints = Math.min(customer.DiemTichLuy || 0, Math.floor(currentTotal / 1000));
                   
                   return (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-amber-800">🎯️ Điểm tích lũy:</span>
-                        <span className="font-bold text-amber-600">{customer.DiemTichLuy || 0} điểm</span>
-                      </div>
-                      <div className="mb-2">
-                        <label className="block text-xs text-gray-600 mb-1">Sử dụng điểm giảm giá (1 điểm = 1,000 VNĐ):</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max={maxPoints}
-                          value={editingPointsUsed}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value) || 0;
-                            setEditingPointsUsed(Math.min(value, maxPoints));
-                          }}
-                          onBlur={(e) => {
-                            const value = parseInt(e.target.value) || 0;
-                            if (value !== (editingOrder.DiemSuDung || 0)) {
-                              handleUpdateOrderPoints(value);
-                            }
-                          }}
-                          className="w-full px-3 py-2 border border-amber-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                          placeholder="Nhập số điểm"
-                        />
-                      </div>
-                      {editingPointsUsed > 0 && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-green-600 font-medium">Giảm giá:</span>
-                          <span className="text-green-600 font-bold">-{formatCurrency(editingPointsUsed * 1000)}</span>
+                    <div className="w-full flex justify-center">
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 w-full max-w-md">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium text-amber-800">🎯️ Điểm tích lũy:</span>
+                          <span className="font-bold text-amber-600">{customer.DiemTichLuy || 0} điểm</span>
                         </div>
-                      )}
+                        <div className="mb-2">
+                          <label className="block text-xs text-gray-600 mb-1">Sử dụng điểm giảm giá (1 điểm = 1,000 VNĐ):</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={maxPoints}
+                            value={editingPointsUsed}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value) || 0;
+                              setEditingPointsUsed(Math.min(value, maxPoints));
+                            }}
+                            onBlur={(e) => {
+                              const value = parseInt(e.target.value) || 0;
+                              if (value !== (editingOrder.DiemSuDung || 0)) {
+                                handleUpdateOrderPoints(value);
+                              }
+                            }}
+                            className="w-full px-3 py-2 border border-amber-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                            placeholder="Nhập số điểm"
+                          />
+                        </div>
+                        {editingPointsUsed > 0 && (
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-green-600 font-medium">Giảm giá:</span>
+                            <span className="text-green-600 font-bold">-{formatCurrency(editingPointsUsed * 1000)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
@@ -521,16 +536,16 @@ const POSSystem = () => {
                   <div key={index} className="border border-gray-200 rounded-lg p-3">
                     <div className="flex items-start justify-between mb-2">
                       <h4 className="font-medium text-gray-900 flex-1">{item.Mon?.TenMon || item.TenMon || `Món #${item.MaMon}`}</h4>
-                      <button onClick={() => handleRemoveOrderItem(item.MaCTDH || item.id)} className="text-red-500 hover:text-red-700 ml-2">
+                      <button onClick={() => handleRemoveOrderItem(item.MaCTDH || item.MaMon || item.id)} className="text-red-500 hover:text-red-700 ml-2">
                         <FiTrash2 className="w-4 h-4" />
                       </button>
                     </div>
                     
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
-                        <button onClick={() => handleUpdateOrderItem(item.MaCTDH || item.id, { SoLuong: item.SoLuong - 1 })} className="w-8 h-8 bg-red-100 text-red-600 rounded-full hover:bg-red-200 font-semibold">-</button>
+                        <button onClick={() => handleUpdateOrderItem(item.MaCTDH || item.MaMon || item.id, { SoLuong: item.SoLuong - 1 })} className="w-8 h-8 bg-red-100 text-red-600 rounded-full hover:bg-red-200 font-semibold">-</button>
                         <span className="font-medium w-8 text-center">{item.SoLuong}</span>
-                        <button onClick={() => handleUpdateOrderItem(item.MaCTDH || item.id, { SoLuong: item.SoLuong + 1 })} className="w-8 h-8 bg-green-100 text-green-600 rounded-full hover:bg-green-200 font-semibold">+</button>
+                        <button onClick={() => handleUpdateOrderItem(item.MaCTDH || item.MaMon || item.id, { SoLuong: item.SoLuong + 1 })} className="w-8 h-8 bg-green-100 text-green-600 rounded-full hover:bg-green-200 font-semibold">+</button>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-blue-600">{formatCurrency(item.DonGia * item.SoLuong)}</div>
@@ -549,7 +564,7 @@ const POSSystem = () => {
                       }}
                       onBlur={(e) => {
                         if (e.target.value !== item.GhiChu) {
-                          handleUpdateOrderItem(item.MaCTDH || item.id, { GhiChu: e.target.value });
+                          handleUpdateOrderItem(item.MaCTDH || item.MaMon || item.id, { GhiChu: e.target.value });
                         }
                       }}
                       className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -661,8 +676,8 @@ const POSSystem = () => {
                 >
                   <option value="all">Tất cả bàn</option>
                   {tables.map(table => (
-                    <option key={table.MaBan || table.id} value={table.MaBan || table.id}>
-                      Bàn {table.TenBan || table.name}
+                    <option key={table.MaBan} value={table.MaBan}>
+                      {table.TenBan}
                     </option>
                   ))}
                 </select>

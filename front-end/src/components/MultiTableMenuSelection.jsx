@@ -182,13 +182,13 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3">
+      <div className="bg-amber-50 border border-amber-300 rounded-lg p-3">
         <div className="flex justify-between items-center">
           <div>
-            <p className="text-green-800 font-semibold text-sm">
+            <p className="text-amber-800 font-semibold text-sm">
               Tổng cộng: {getTotalOrdersCount()} món - {getGrandTotal().toLocaleString('vi-VN')}đ
             </p>
-            <p className="text-green-700 text-xs">
+            <p className="text-amber-700 text-xs">
               Chọn món riêng cho từng bàn hoặc bỏ qua nếu không muốn đặt món
             </p>
           </div>
@@ -197,7 +197,7 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
 
       {/* Table Tabs - Enhanced */}
       <div className="bg-white rounded-xl shadow-sm p-2 mb-6">
-        <nav className="flex space-x-2 overflow-x-auto pb-1">
+        <nav className="flex space-x-4 overflow-x-auto pb-1 ">
           {tables.map((table) => {
             const tableId = table?.MaBan || table?.id;
             if (!tableId) return null;
@@ -210,10 +210,10 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
               <button
                 key={tableId}
                 onClick={() => setActiveTableId(tableId)}
-                className={`relative py-2.5 px-4 rounded-lg font-semibold text-xs whitespace-nowrap transition-all duration-300 ${
+                className={`!mx-1 relative py-2.5 px-4 rounded-lg font-semibold text-xs whitespace-nowrap transition-all duration-300 ${
                   isActive
-                    ? 'bg-gradient-to-r from-green-700 to-emerald-600 text-white shadow-md shadow-emerald-200 transform scale-105'
-                    : 'bg-gray-50 text-gray-600 hover:bg-emerald-50 hover:text-green-700'
+                    ? 'bg-amber-600 text-white shadow-md shadow-amber-200 transform scale-105'
+                    : 'bg-gray-50 text-gray-600 hover:bg-amber-50 hover:text-amber-700'
                 }`}
               >
                 <div className="flex flex-col items-center space-y-1">
@@ -223,16 +223,16 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                   </div>
                   
                   {orderCount > 0 ? (
-                    <div className={`flex items-center space-x-2 text-xs ${isActive ? 'text-emerald-100' : 'text-green-700'}`}>
+                    <div className={`flex items-center space-x-2 text-xs ${isActive ? 'text-amber-100' : 'text-amber-700'}`}>
                       <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                        isActive ? 'bg-white/20' : 'bg-emerald-100'
+                        isActive ? 'bg-white/20' : 'bg-amber-100'
                       }`}>
                         {orderCount} món
                       </span>
                       <span className="font-semibold text-[10px]">{total.toLocaleString('vi-VN')}đ</span>
                     </div>
                   ) : (
-                    <span className={`text-[10px] ${isActive ? 'text-emerald-100' : 'text-gray-400'}`}>
+                    <span className={`text-[10px] ${isActive ? 'text-amber-100' : 'text-gray-400'}`}>
                       Chưa có món
                     </span>
                   )}
@@ -261,7 +261,7 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                   placeholder="Tìm kiếm món ăn, đồ uống..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all shadow-sm hover:shadow-md"
+                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all shadow-sm hover:shadow-md"
                 />
               </div>
               
@@ -271,7 +271,7 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white font-medium text-gray-700 transition-all shadow-sm hover:shadow-md cursor-pointer"
+                  className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none bg-white font-medium text-gray-700 transition-all shadow-sm hover:shadow-md cursor-pointer"
                 >
                   <option value="">Tất cả danh mục</option>
                   {categories && categories.map((category) => {
@@ -296,8 +296,8 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                     onClick={() => setSelectedCategory(String(category.MaDanhMuc))}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                       selectedCategory === String(category.MaDanhMuc)
-                        ? 'bg-gradient-to-r from-green-700 to-emerald-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-emerald-50 hover:text-green-700'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-amber-50 hover:text-amber-700'
                     }`}
                   >
                     {category.TenDanhMuc}
@@ -316,7 +316,7 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                 const quantity = orderItem ? orderItem.SoLuong : 0;
                 
                 return (
-                  <div key={item.MaMon} className="group bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-gray-100 hover:border-emerald-300 transform hover:-translate-y-2">
+                  <div key={item.MaMon} className="group bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-gray-100 hover:border-amber-300 transform hover:-translate-y-2">
                     {/* Product Image */}
                     <div className="relative h-44 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
                       {item.HinhAnh ? (
@@ -329,14 +329,14 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </>
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-100 via-green-100 to-lime-100">
-                          <span className="text-green-700 text-4xl filter drop-shadow-lg">☕</span>
+                        <div className="w-full h-full flex items-center justify-center bg-amber-100">
+                          <span className="text-amber-700 text-4xl filter drop-shadow-lg">☕</span>
                         </div>
                       )}
                       
                       {/* Quantity Badge */}
                       {quantity > 0 && (
-                        <div className="absolute top-2 right-2 bg-gradient-to-r from-green-700 to-emerald-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold shadow-lg">
+                        <div className="absolute top-2 right-2 bg-amber-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold shadow-lg">
                           <span className="text-sm">{quantity}</span>
                         </div>
                       )}
@@ -349,7 +349,7 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                         <h3 className="font-bold text-base text-gray-900 line-clamp-1 flex-1 pr-2">
                           {item.TenMon}
                         </h3>
-                        <div className="text-green-700 font-bold text-lg whitespace-nowrap">
+                        <div className="text-amber-700 font-bold text-lg whitespace-nowrap">
                           {parseFloat(item.Gia || item.DonGia || 0).toLocaleString('vi-VN')}đ
                         </div>
                       </div>
@@ -366,23 +366,23 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                       {quantity === 0 ? (
                         <button
                           onClick={() => addItemToTable(activeTableId, item)}
-                          className="group w-full bg-gradient-to-r from-green-700 to-emerald-600 hover:from-green-800 hover:to-emerald-700 text-white py-3 px-4 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-105">
+                          className="group w-full bg-amber-600 hover:bg-amber-700 text-white py-3 px-4 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-105">
                           <FiShoppingCart className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
                           Thêm vào bàn
                         </button>
                       ) : (
-                        <div className="flex items-center justify-between bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-2.5 border border-emerald-200">
+                        <div className="flex items-center justify-between bg-amber-50 rounded-lg p-2.5 border border-amber-200">
                           <button
                             onClick={() => updateItemQuantity(activeTableId, item.MaMon, quantity - 1)}
                             className="w-9 h-9 bg-white text-gray-600 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center justify-center shadow-sm border border-gray-200">
                             <FiMinus className="w-4 h-4" />
                           </button>
                           
-                          <span className="text-xl font-bold text-green-700 mx-4 min-w-[2rem] text-center">{quantity}</span>
+                          <span className="text-xl font-bold text-amber-700 mx-4 min-w-[2rem] text-center">{quantity}</span>
                           
                           <button
                             onClick={() => updateItemQuantity(activeTableId, item.MaMon, quantity + 1)}
-                            className="w-9 h-9 bg-gradient-to-r from-green-700 to-emerald-600 text-white rounded-lg hover:from-green-800 hover:to-emerald-700 hover:scale-110 transition-all flex items-center justify-center shadow-md">
+                            className="w-9 h-9 bg-amber-600 text-white rounded-lg hover:bg-amber-700 hover:scale-110 transition-all flex items-center justify-center shadow-md">
                             <FiPlus className="w-4 h-4" />
                           </button>
                         </div>
@@ -399,17 +399,17 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
           <div className="lg:col-span-1">
             <div className="sticky top-20 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
               {/* Cart Header */}
-              <div className="bg-gradient-to-r from-green-700 to-emerald-600 px-4 py-2.5">
+              <div className="bg-amber-600 px-4 py-2.5">
                 <div className="flex items-center justify-between text-white">
                   <div className="flex items-center space-x-2">
                     <FiShoppingCart className="w-4 h-4" />
                     <h3 className="font-semibold text-sm">Giỏ hàng</h3>
                   </div>
-                  <div className="bg-white bg-opacity-20 px-2 py-0.5 rounded text-xs font-medium">
+                  <div className="px-2 py-0.5 rounded text-xs font-medium !mt-2">
                     {getTableOrder(activeTableId).length} món
                   </div>
                 </div>
-                <p className="text-emerald-100 text-xs mt-0.5">{getTableName(activeTableId)}</p>
+                <p className="text-amber-100 text-xs mt-0.5">{getTableName(activeTableId)}</p>
               </div>
 
               {/* Cart Content */}
@@ -435,7 +435,7 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                     {getTableOrder(activeTableId).map((item) => {
                       if (!item?.MaMon) return null;
                       return (
-                        <div key={item.MaMon} className="bg-white rounded-lg p-2 border border-gray-100 hover:border-emerald-400 transition-all">
+                        <div key={item.MaMon} className="bg-white rounded-lg p-2 border border-gray-100 hover:border-amber-400 transition-all">
                           <div className="flex justify-between items-start mb-1.5">
                             <div className="flex-1">
                               <h4 className="font-medium text-sm text-gray-900">{item.TenMon}</h4>
@@ -462,12 +462,12 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                               <span className="w-8 text-center text-sm font-semibold text-gray-900">{item.SoLuong}</span>
                               <button
                                 onClick={() => updateItemQuantity(activeTableId, item.MaMon, item.SoLuong + 1)}
-                                className="w-6 h-6 rounded-md bg-green-700 hover:bg-green-800 flex items-center justify-center"
+                                className="w-6 h-6 rounded-md bg-amber-600 hover:bg-amber-700 flex items-center justify-center"
                               >
                                 <FiPlus className="w-3 h-3 text-white" />
                               </button>
                             </div>
-                            <span className="font-bold text-green-700 text-sm">
+                            <span className="font-bold text-amber-700 text-sm">
                               {((item.SoLuong || 0) * parseFloat(item.DonGia || 0)).toLocaleString('vi-VN')}đ
                             </span>
                           </div>
@@ -486,16 +486,16 @@ const MultiTableMenuSelection = ({ tables, onOrdersChange, initialOrders = {} })
                                 )
                               }));
                             }}
-                            className="w-full mt-1.5 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-gray-50"
+                            className="w-full !mt-3 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 bg-gray-50"
                           />
                         </div>
                       );
                     })}
 
-                    <div className="border-t border-gray-200 pt-2.5 mt-2.5 bg-emerald-50 -mx-3 px-3 py-2 rounded-b-xl">
+                    <div className="border-t border-gray-200 pt-2.5 mt-2.5 bg-amber-50 -mx-3 px-3 py-2 rounded-b-xl">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-700 font-semibold text-sm">Tổng cộng:</span>
-                        <span className="text-green-800 font-bold text-lg">
+                        <span className="text-amber-800 font-bold text-lg">
                           {getTableTotal(activeTableId).toLocaleString('vi-VN')}đ
                         </span>
                       </div>

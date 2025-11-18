@@ -418,17 +418,17 @@ const InventoryManagement = () => {
                         {item.TrangThai}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm space-x-2">
-                      <button onClick={() => handleOpenModal('import', item)} className="text-green-600 hover:text-green-900" title="Nhập kho">
+                    <td className="px-6 py-4 text-[16px] space-x-2">
+                      <button onClick={() => handleOpenModal('import', item)} className="!mr-1 text-green-600 hover:text-green-900" title="Nhập kho">
                         <FiTrendingUp className="inline" />
                       </button>
-                      <button onClick={() => handleOpenModal('export', item)} className="text-orange-600 hover:text-orange-900" title="Xuất kho">
+                      <button onClick={() => handleOpenModal('export', item)} className="!mr-1 text-orange-600 hover:text-orange-900" title="Xuất kho">
                         <FiTrendingDown className="inline" />
                       </button>
-                      <button onClick={() => handleOpenModal('edit', item)} className="text-indigo-600 hover:text-indigo-900" title="Chỉnh sửa">
+                      <button onClick={() => handleOpenModal('edit', item)} className="!mr-1 text-indigo-600 hover:text-indigo-900" title="Chỉnh sửa">
                         <FiEdit2 className="inline" />
                       </button>
-                      <button onClick={() => handleDelete(item)} className="text-red-600 hover:text-red-900" title="Xóa">
+                      <button onClick={() => handleDelete(item)} className="!mr-1 text-red-600 hover:text-red-900" title="Xóa">
                         <FiTrash2 className="inline" />
                       </button>
                     </td>

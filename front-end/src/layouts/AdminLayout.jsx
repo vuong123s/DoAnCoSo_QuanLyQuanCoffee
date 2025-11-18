@@ -12,6 +12,7 @@ import {
   FiChevronDown, FiUser, FiHelpCircle, FiActivity,
   FiTrendingUp, FiClock, FiStar, FiZap, FiImage
 } from 'react-icons/fi';
+import Logo from "../assets/logo1.jpg"
 
 const AdminLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -120,7 +121,7 @@ const AdminLayout = () => {
         { 
           path: '/admin/users', 
           icon: FiUsers, 
-          label: 'Nhân viên', 
+          label: 'Tài khoản', 
           description: 'Quản lý tài khoản',
           color: 'from-cyan-500 to-cyan-600',
           permission: 'MANAGE_USERS' // Admin only
@@ -224,12 +225,7 @@ const AdminLayout = () => {
           <div className="relative z-10">
             <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!sidebarCollapsed && (
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                    <FiCoffee className="w-7 h-7" />
-                  </div>
-                  <h1 className="font-bold !text-[24px]">Coffee Shop</h1>
-                </div>
+                <a href="/" className='flex justify-center'><img src={Logo} className="w-1/2 h-1/2" /></a>
               )}
               
               {sidebarCollapsed && (

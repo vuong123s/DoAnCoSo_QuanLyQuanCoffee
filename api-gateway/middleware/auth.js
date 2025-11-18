@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const serviceRegistry = require('../config/serviceRegistry');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
 
 // Verify JWT token and get user info
 const authenticateToken = async (req, res, next) => {

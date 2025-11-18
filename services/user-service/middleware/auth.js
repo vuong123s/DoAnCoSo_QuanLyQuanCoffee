@@ -89,7 +89,7 @@ const requireRole = (roles) => {
 };
 
 // Check if user is admin (supporting Vietnamese roles)
-const requireAdmin = requireRole(['admin', 'Admin']);
+const requireAdmin = requireRole(['admin', 'Admin', 'Quản lý']);
 
 // Check if user is admin or manager (supporting Vietnamese roles)
 const requireManager = requireRole(['admin', 'manager', 'Admin', 'Quản lý']);

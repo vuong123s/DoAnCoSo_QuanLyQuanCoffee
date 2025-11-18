@@ -258,22 +258,6 @@ const ScheduleManagement = () => {
           <FiCalendar className="inline mr-2" />
           Lịch làm việc
         </button>
-        <button
-          onClick={() => setActiveTab('requests')}
-          className={`pb-3 px-4 font-medium relative ${
-            activeTab === 'requests'
-              ? 'border-b-2 border-indigo-600 text-indigo-600'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <FiCheckCircle className="inline mr-2" />
-          Yêu cầu
-          {pendingRequests.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {pendingRequests.length}
-            </span>
-          )}
-        </button>
       </div>
 
       {/* Lịch làm việc Tab */}
@@ -417,75 +401,6 @@ const ScheduleManagement = () => {
             </div>
           </div>
         </>
-      )}
-
-      {/* Yêu cầu Tab */}
-      {activeTab === 'requests' && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">Yêu cầu từ nhân viên</h2>
-          
-          <div className="space-y-4">
-            {requests.length > 0 ? (
-              requests.map((request) => (
-                <div key={request.MaYeuCau} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="font-medium text-gray-900">{request.HoTen}</span>
-                        <span className="text-sm text-gray-500">({request.ChucVu})</span>
-                        <span className="font-medium text-indigo-600">{request.LoaiYeuCau}</span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(request.TrangThai)}`}>
-                          {request.TrangThai}
-                        </span>
-                      </div>
-                      
-                      <p className="text-sm text-gray-600 mb-1">
-                        <span className="font-medium">Thời gian:</span> {formatDate(request.NgayBatDau)}
-                        {request.NgayKetThuc && ` - ${formatDate(request.NgayKetThuc)}`}
-                        {request.GioBatDau && ` (${formatTime(request.GioBatDau)} - ${formatTime(request.GioKetThuc)})`}
-                      </p>
-                      
-                      <p className="text-sm text-gray-600 mb-2">
-                        <span className="font-medium">Lý do:</span> {request.LyDo}
-                      </p>
-
-                      {request.TenNguoiDuyet && (
-                        <p className="text-sm text-gray-500">
-                          <span className="font-medium">Người duyệt:</span> {request.TenNguoiDuyet} - {formatDate(request.NgayDuyet)}
-                        </p>
-                      )}
-
-                      {request.GhiChuDuyet && (
-                        <p className="text-sm text-gray-600 mt-2">
-                          <span className="font-medium">Phản hồi:</span> {request.GhiChuDuyet}
-                        </p>
-                      )}
-                    </div>
-
-                    {request.TrangThai === 'Chờ duyệt' && (
-                      <div className="flex gap-2 ml-4">
-                        <button
-                          onClick={() => handleApproveRequest(request.MaYeuCau, 'Đã duyệt')}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                        >
-                          Duyệt
-                        </button>
-                        <button
-                          onClick={() => handleApproveRequest(request.MaYeuCau, 'Từ chối')}
-                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                        >
-                          Từ chối
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-gray-500 py-8">Không có yêu cầu nào</p>
-            )}
-          </div>
-        </div>
       )}
 
       {/* Modal tạo lịch */}

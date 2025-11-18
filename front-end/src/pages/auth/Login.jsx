@@ -148,14 +148,7 @@ const Login = () => {
 
         {/* Demo Accounts */}
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Tài khoản demo:</h3>
-          <div className="text-xs text-gray-600 space-y-1">
-            <p><strong>Admin (→ Trang Admin):</strong> admin@coffee.com / admin123</p>
-            <p><strong>Khách hàng (→ Trang chính):</strong> Đăng ký tài khoản mới</p>
-          </div>
-          <div className="mt-2 text-xs text-blue-600">
-            <p>💡 Hệ thống sẽ tự động chuyển hướng dựa trên vai trò của bạn</p>
-          </div>
+          
         </div>
 
         {/* Sign Up Link */}

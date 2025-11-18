@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { tableAPI, areaAPI } from '../../shared/services/api';
 import { FiUsers, FiMapPin, FiClock, FiCheck, FiX, FiCamera, FiPlay } from 'react-icons/fi';
 import toast from 'react-hot-toast';
-import AreaImageGallery from './AreaImageGallery';
+//import AreaImageGallery from './AreaImageGallery';
 import VideoModal from './VideoModal';
 
 const TablesByArea = ({ 
@@ -247,22 +247,13 @@ const TablesByArea = ({
                       setVideoArea(selectedArea);
                       setShowVideo(true);
                     }}
-                    className="bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition-colors"
+                    className="!mx-2 bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition-colors"
                     title="Xem video giới thiệu"
                   >
                     <FiPlay className="w-6 h-6 text-white" />
                   </button>
                 )}
-                <button 
-                  onClick={() => {
-                    setGalleryArea(selectedArea);
-                    setShowGallery(true);
-                  }}
-                  className="bg-white/20 backdrop-blur-sm rounded-full p-3 hover:bg-white/30 transition-colors"
-                  title="Xem thư viện ảnh"
-                >
-                  <FiCamera className="w-6 h-6 text-white" />
-                </button>
+                
               </div>
             </div>
           </div>
@@ -298,16 +289,16 @@ const TablesByArea = ({
                   <span>{table.SoCho} chỗ</span>
                 </div>
                 {table.ViTri && (
-                  <div className="flex items-center justify-center text-xs">
+                  <div className="flex items-center justify-center text-xs pb-5">
                     <FiMapPin className="w-3 h-3 mr-1" />
                     <span className="truncate">{table.ViTri}</span>
                   </div>
                 )}
-                <div className="mt-2">
+                {/* <div className="mt-2">
                   <span className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-current bg-opacity-20">
                     {displayStatus}
                   </span>
-                </div>
+                </div> */}
                 
                 {/* Show next reservation info if available */}
                 {table.next_reservation && (
