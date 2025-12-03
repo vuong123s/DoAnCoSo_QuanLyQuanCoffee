@@ -1,10 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const inventoryController = require('../controllers/inventoryController');
-const { authenticateToken } = require('../middleware/auth');
-
-// Tất cả routes yêu cầu authentication
-router.use(authenticateToken);
+// Note: Authentication is handled by requireStaff middleware in index.js
 
 // GET routes
 router.get('/', inventoryController.getInventory);

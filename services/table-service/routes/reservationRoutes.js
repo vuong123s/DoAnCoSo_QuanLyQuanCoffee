@@ -199,6 +199,9 @@ router.post('/check-conflict', async (req, res) => {
   }
 });
 
+// Get today's reservations
+router.get('/today', getTodayReservations);
+
 // Get all reservations with filters
 router.get('/', getReservations);
 

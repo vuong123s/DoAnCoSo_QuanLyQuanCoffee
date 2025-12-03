@@ -14,6 +14,9 @@ const mediaRoutes = require('./routes/media');
 const analyticsRoutes = require('./routes/analytics');
 const inventoryRoutes = require('./routes/inventory');
 
+// Authentication middleware shortcuts - must be defined before use
+const { authenticateToken, requireStaff, requireAdmin, requireManager } = authMiddleware;
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -62,8 +65,8 @@ app.use('/api/media', mediaRoutes);
 // Analytics routes (phân tích doanh thu)
 app.use('/api/analytics', analyticsRoutes);
 
-// Inventory routes (quản lý kho)
-app.use('/api/inventory', inventoryRoutes);
+// Inventory routes (quản lý kho) - requires staff authentication
+app.use('/api/inventory', ...requireStaff, inventoryRoutes);
 
 // Rate limiting (after health check)
 const limiter = rateLimit({
@@ -128,9 +131,6 @@ const createServiceProxy = (serviceName, port, requireAuth = false) => {
     }
   };
 };
-
-// Authentication middleware shortcuts
-const { authenticateToken, requireStaff, requireAdmin, requireManager } = authMiddleware;
 
 // ======================= PROXY ROUTES =======================
 
@@ -240,9 +240,8 @@ app.use('/api/online-orders', createServiceProxy('Billing Service', 3004));
 console.log('🔧 Setting up Voucher Service proxy...');
 app.use('/api/vouchers', createServiceProxy('Billing Service', 3004));
 
-// Inventory Service (staff access required)
-console.log('🔧 Setting up Inventory Service proxy...');
-app.use('/api/inventory', ...requireStaff, createServiceProxy('Inventory Service', 3007, true));
+// Inventory Service - handled by local routes above (no separate service)
+// Removed proxy route as inventory is handled locally in the gateway
 
 // Schedule & Employee Management (in User Service - authenticated access)
 console.log('🔧 Setting up Schedule & Employee Management proxy...');

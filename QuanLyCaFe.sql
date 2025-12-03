@@ -70,7 +70,7 @@ CREATE TABLE Mon (
     TenMon VARCHAR(100) NOT NULL,
     DonGia DECIMAL(12,2) NOT NULL,
     HinhAnh VARCHAR(255),
-    MoTa VARCHAR(255),
+    MoTa VARCHAR(255),           -- Mô tả chung về món (tùy chọn)
     MaLoai INT,
     TrangThai VARCHAR(20),       -- Còn bán, Hết hàng
     FOREIGN KEY (MaLoai) REFERENCES LoaiMon(MaLoai)
@@ -332,26 +332,26 @@ INSERT INTO LoaiMon (TenLoai, HinhAnh, MoTa) VALUES
 
 -- Thêm món ăn/uống
 INSERT INTO Mon (TenMon, DonGia, HinhAnh, MoTa, MaLoai, TrangThai) VALUES
-('Cà phê đen', 25000, 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400', 'Cà phê đen truyền thống Việt Nam', 1, 'Còn bán'),
-('Cà phê sữa', 30000, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400', 'Cà phê sữa đá thơm ngon', 1, 'Còn bán'),
-('Cappuccino', 45000, 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=400', 'Cà phê Cappuccino Ý nguyên chất', 1, 'Còn bán'),
-('Americano', 35000, 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400', 'Cà phê Americano đậm đà', 1, 'Còn bán'),
-('Latte', 40000, 'https://images.unsplash.com/photo-1561047029-3000c68339ca?w=400', 'Cà phê Latte với bọt sữa mịn', 1, 'Còn bán'),
-('Trà đào', 35000, 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400', 'Trà đào cam sả thơm mát', 2, 'Còn bán'),
-('Trà sữa trân châu', 40000, 'https://images.unsplash.com/photo-1525385133512-2f3bdd039054?w=400', 'Trà sữa trân châu đen ngọt ngào', 2, 'Còn bán'),
-('Trà xanh', 25000, 'https://images.unsplash.com/photo-1627435601361-ec25f5b1d0e5?w=400', 'Trà xanh thanh mát', 2, 'Còn bán'),
-('Nước cam', 25000, 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400', 'Nước cam tươi nguyên chất', 3, 'Còn bán'),
-('Sinh tố bơ', 35000, 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=400', 'Sinh tố bơ béo ngậy', 3, 'Còn bán'),
-('Bánh croissant', 40000, 'https://images.unsplash.com/photo-1555507036-ab794f4afe5a?w=400', 'Bánh croissant bơ thơm giòn', 4, 'Còn bán'),
-('Bánh tiramisu', 55000, 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400', 'Bánh tiramisu Ý chính hiệu', 4, 'Còn bán'),
-('Bánh mì thịt nướng', 35000, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400', 'Bánh mì thịt nướng đặc biệt', 5, 'Còn bán'),
-('Sandwich gà', 45000, 'https://images.unsplash.com/photo-1553909489-cd47e0ef937f?w=400', 'Sandwich gà phô mai', 5, 'Còn bán'),
-('Frappuccino', 50000, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400', 'Đồ uống đá xay cà phê', 6, 'Còn bán'),
-('Chocolate đá xay', 45000, 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400', 'Chocolate đá xay thơm ngon', 6, 'Còn bán'),
-('Mì Ý sốt kem', 65000, 'https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?w=400', 'Mì Ý sốt kem nấm', 7, 'Còn bán'),
-('Cơm chiên hải sản', 70000, 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400', 'Cơm chiên hải sản đặc biệt', 7, 'Còn bán'),
-('Salad Caesar', 55000, 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=400', 'Salad Caesar với gà nướng', 8, 'Còn bán'),
-('Salad trái cây', 45000, 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400', 'Salad trái cây tươi mát', 8, 'Còn bán');
+('Cà phê đen', 25000, 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400', '0.02kg Cà phê hạt Robusta + 0.015kg Đường trắng + 0.2lít Nước', 1, 'Còn bán'),
+('Cà phê sữa', 30000, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400', '0.02kg Cà phê hạt Arabica + 0.015kg Đường trắng + 0.08lít Sữa tươi + 0.2lít Nước', 1, 'Còn bán'),
+('Cappuccino', 45000, 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=400', '0.02kg Cà phê hạt Arabica + 0.015kg Đường trắng + 0.1lít Sữa tươi + 0.01lít Kem tươi', 1, 'Còn bán'),
+('Americano', 35000, 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400', '0.02kg Cà phê hạt Robusta + 0.015kg Đường trắng + 0.25lít Nước', 1, 'Còn bán'),
+('Latte', 40000, 'https://images.unsplash.com/photo-1561047029-3000c68339ca?w=400', '0.02kg Cà phê hạt Arabica + 0.1lít Sữa tươi + 0.015kg Đường trắng', 1, 'Còn bán'),
+('Trà đào', 35000, 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400', '0.01kg Trà đen + 0.1kg Đào + 0.02kg Đường trắng + 0.2lít Nước', 2, 'Còn bán'),
+('Trà sữa trân châu', 40000, 'https://images.unsplash.com/photo-1525385133512-2f3bdd039054?w=400', '0.01kg Trà đen + 0.1lít Sữa tươi + 0.04kg Trân châu + 0.02kg Đường trắng', 2, 'Còn bán'),
+('Trà xanh', 25000, 'https://images.unsplash.com/photo-1627435601361-ec25f5b1d0e5?w=400', '0.01kg Trà xanh + 0.015kg Đường trắng + 0.2lít Nước', 2, 'Còn bán'),
+('Nước cam', 25000, 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400', '0.5kg Cam tươi + 0.02kg Đường trắng', 3, 'Còn bán'),
+('Sinh tố bơ', 35000, 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=400', '0.4kg Bơ + 0.04lít Sữa tươi + 0.02kg Đường trắng + 0.1kg Đá viên', 3, 'Còn bán'),
+('Bánh croissant', 40000, 'https://images.unsplash.com/photo-1555507036-ab794f4afe5a?w=400', '0.08kg Bánh mì + 0.02kg Bơ + 0.01kg Đường trắng', 4, 'Còn bán'),
+('Bánh tiramisu', 55000, 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400', '0.06kg Bánh mì + 0.03lít Kem tươi + 0.01kg Cà phê hạt Arabica + 0.015kg Đường trắng', 4, 'Còn bán'),
+('Bánh mì thịt nướng', 35000, 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400', '1 ổ Bánh mì + 0.07kg Thịt gà + 0.01kg Đường trắng', 5, 'Còn bán'),
+('Sandwich gà', 45000, 'https://images.unsplash.com/photo-1553909489-cd47e0ef937f?w=400', '0.08kg Bánh mì + 0.06kg Thịt gà + 0.02kg Phô mai', 5, 'Còn bán'),
+('Frappuccino', 50000, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400', '0.015kg Cà phê hạt Arabica + 0.04lít Sữa tươi + 0.02kg Đường trắng + 0.12kg Đá viên', 6, 'Còn bán'),
+('Chocolate đá xay', 45000, 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400', '0.025kg Chocolate + 0.04lít Sữa tươi + 0.02kg Đường trắng + 0.12kg Đá viên', 6, 'Còn bán'),
+('Mì Ý sốt kem', 65000, 'https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?w=400', '0.13kg Mì Ý + 0.06lít Kem tươi + 0.04kg Phô mai + 0.02kg Thịt gà', 7, 'Còn bán'),
+('Cơm chiên hải sản', 70000, 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400', '0.2kg Gạo + 0.04kg Thịt gà + 0.03kg Phô mai + 0.02kg Đường trắng', 7, 'Còn bán'),
+('Salad Caesar', 55000, 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=400', '0.1kg Rau xanh + 0.06kg Thịt gà + 0.03kg Phô mai + 0.01kg Đường trắng', 8, 'Còn bán'),
+('Salad trái cây', 45000, 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400', '0.2kg Cam tươi + 0.1kg Bơ + 0.1kg Rau xanh', 8, 'Còn bán');
 
 -- Thêm nguyên liệu kho
 INSERT INTO Kho (TenNL, DonVi, SoLuong, MucCanhBao, DonGiaNhap, NgayNhap, TrangThai) VALUES
@@ -2265,3 +2265,401 @@ CALL SP_DoanhThuTheoNgay(
 
 -- Test với khoảng thời gian tùy chỉnh
 -- CALL SP_DoanhThuTheoNgay('2024-01-01', '2024-01-31');
+
+-- ============================================
+-- HỆ THỐNG TỰ ĐỘNG TRỪ NGUYÊN LIỆU KHO
+-- ============================================
+
+USE QuanLyCafe;
+
+DELIMITER //
+
+-- ============================================
+-- FUNCTION: Parse và trừ nguyên liệu từ mô tả món
+-- ============================================
+-- CREATE FUNCTION TruNguyenLieuTuMoTa(
+--     p_MoTa TEXT,
+--     p_SoLuong INT
+-- )
+-- RETURNS INT
+-- DETERMINISTIC
+-- MODIFIES SQL DATA
+-- BEGIN
+--     DECLARE v_MoTa TEXT;
+--     DECLARE v_PhanTu VARCHAR(500);
+--     DECLARE v_SoLuongTru DECIMAL(10,3);
+--     DECLARE v_DonVi VARCHAR(20);
+--     DECLARE v_TenNL VARCHAR(100);
+--     DECLARE v_Pos INT DEFAULT 1;
+--     DECLARE v_NextPos INT;
+--     DECLARE v_SoNguyenLieuDaTru INT DEFAULT 0;
+--     DECLARE v_SoLuongHienTai DECIMAL(10,2);
+--     DECLARE v_MaNL INT;
+    
+--     -- Nếu mô tả rỗng hoặc NULL thì return
+--     IF p_MoTa IS NULL OR TRIM(p_MoTa) = '' THEN
+--         RETURN 0;
+--     END IF;
+    
+--     SET v_MoTa = TRIM(p_MoTa);
+    
+--     -- Lặp qua từng phần tử được phân tách bởi '+'
+--     WHILE v_Pos <= CHAR_LENGTH(v_MoTa) DO
+--         -- Tìm vị trí dấu '+' tiếp theo
+--         SET v_NextPos = LOCATE('+', v_MoTa, v_Pos);
+        
+--         IF v_NextPos = 0 THEN
+--             -- Đây là phần tử cuối cùng
+--             SET v_PhanTu = TRIM(SUBSTRING(v_MoTa, v_Pos));
+--             SET v_Pos = CHAR_LENGTH(v_MoTa) + 1;
+--         ELSE
+--             -- Lấy phần tử hiện tại
+--             SET v_PhanTu = TRIM(SUBSTRING(v_MoTa, v_Pos, v_NextPos - v_Pos));
+--             SET v_Pos = v_NextPos + 1;
+--         END IF;
+        
+--         -- Bỏ qua nếu phần tử rỗng
+--         IF v_PhanTu = '' THEN
+--             ITERATE;
+--         END IF;
+        
+--         -- Parse phần tử: "0.02kg Cà phê hạt Robusta" hoặc "1 ổ Bánh mì" hoặc "0.2lít Sữa tươi"
+--         -- Tìm số lượng (có thể là số thập phân hoặc số nguyên)
+--         -- Pattern: [số] [đơn vị] [tên nguyên liệu]
+        
+--         -- Xử lý trường hợp "1 ổ Bánh mì" (có khoảng trắng giữa số và đơn vị)
+--         IF v_PhanTu REGEXP '^[0-9]+\\s+ổ' THEN
+--             -- Trường hợp "1 ổ Bánh mì"
+--             SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, ' ', 1) AS DECIMAL(10,3));
+--             SET v_DonVi = 'ổ';
+--             SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('ổ', v_PhanTu) + 1));
+--         -- Xử lý trường hợp "0.02kg Cà phê" hoặc "0.2lít Sữa" (số thập phân + đơn vị)
+--         ELSEIF v_PhanTu REGEXP '^[0-9]+\\.[0-9]+kg' THEN
+--             -- Trường hợp "0.02kg Cà phê hạt Robusta"
+--             SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, 'kg', 1) AS DECIMAL(10,3));
+--             SET v_DonVi = 'kg';
+--             SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('kg', v_PhanTu) + 2));
+--         ELSEIF v_PhanTu REGEXP '^[0-9]+\\.[0-9]+lít' THEN
+--             -- Trường hợp "0.2lít Sữa tươi"
+--             SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, 'lít', 1) AS DECIMAL(10,3));
+--             SET v_DonVi = 'lít';
+--             SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('lít', v_PhanTu) + 3));
+--         -- Xử lý trường hợp "2kg Đường" hoặc "3lít Sữa" (số nguyên + đơn vị)
+--         ELSEIF v_PhanTu REGEXP '^[0-9]+kg' THEN
+--             -- Trường hợp "2kg Đường"
+--             SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, 'kg', 1) AS DECIMAL(10,3));
+--             SET v_DonVi = 'kg';
+--             SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('kg', v_PhanTu) + 2));
+--         ELSEIF v_PhanTu REGEXP '^[0-9]+lít' THEN
+--             -- Trường hợp "3lít Sữa"
+--             SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, 'lít', 1) AS DECIMAL(10,3));
+--             SET v_DonVi = 'lít';
+--             SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('lít', v_PhanTu) + 3));
+--         ELSE
+--             -- Không parse được, bỏ qua
+--             ITERATE;
+--         END IF;
+        
+--         -- Nhân với số lượng món đã bán
+--         SET v_SoLuongTru = v_SoLuongTru * p_SoLuong;
+        
+--         -- Tìm nguyên liệu trong kho
+--         SELECT MaNL, SoLuong INTO v_MaNL, v_SoLuongHienTai
+--         FROM Kho
+--         WHERE TenNL = TRIM(v_TenNL) AND DonVi = v_DonVi
+--         LIMIT 1;
+        
+--         -- Nếu tìm thấy nguyên liệu và số lượng đủ
+--         IF v_MaNL IS NOT NULL AND v_SoLuongHienTai >= v_SoLuongTru THEN
+--             -- Trừ nguyên liệu
+--             UPDATE Kho
+--             SET SoLuong = SoLuong - v_SoLuongTru
+--             WHERE MaNL = v_MaNL;
+            
+--             -- Cập nhật trạng thái nếu số lượng dưới mức cảnh báo
+--             UPDATE Kho
+--             SET TrangThai = CASE 
+--                 WHEN SoLuong <= 0 THEN 'Hết hàng'
+--                 WHEN SoLuong <= MucCanhBao THEN 'Gần hết'
+--                 ELSE 'Còn hàng'
+--             END
+--             WHERE MaNL = v_MaNL;
+            
+--             SET v_SoNguyenLieuDaTru = v_SoNguyenLieuDaTru + 1;
+--         END IF;
+        
+--     END WHILE;
+    
+--     RETURN v_SoNguyenLieuDaTru;
+-- END //
+
+CREATE FUNCTION TruNguyenLieuTuMoTa(
+    p_MoTa TEXT,
+    p_SoLuong INT
+)
+RETURNS INT
+DETERMINISTIC
+MODIFIES SQL DATA
+BEGIN
+    DECLARE v_MoTa TEXT;
+    DECLARE v_PhanTu VARCHAR(500);
+    DECLARE v_SoLuongTru DECIMAL(10,3);
+    DECLARE v_DonVi VARCHAR(20);
+    DECLARE v_TenNL VARCHAR(100);
+    DECLARE v_Pos INT DEFAULT 1;
+    DECLARE v_NextPos INT;
+    DECLARE v_SoNguyenLieuDaTru INT DEFAULT 0;
+    DECLARE v_SoLuongHienTai DECIMAL(10,2);
+    DECLARE v_MaNL INT;
+    DECLARE v_ParseOK BOOLEAN DEFAULT FALSE;
+    
+    -- Nếu mô tả rỗng hoặc NULL thì return
+    IF p_MoTa IS NULL OR TRIM(p_MoTa) = '' THEN
+        RETURN 0;
+    END IF;
+    
+    SET v_MoTa = TRIM(p_MoTa);
+    
+    -- Lặp qua từng phần tử được phân tách bởi '+'
+    parse_loop: WHILE v_Pos <= CHAR_LENGTH(v_MoTa) DO
+        -- Tìm vị trí dấu '+' tiếp theo
+        SET v_NextPos = LOCATE('+', v_MoTa, v_Pos);
+        
+        IF v_NextPos = 0 THEN
+            -- Đây là phần tử cuối cùng
+            SET v_PhanTu = TRIM(SUBSTRING(v_MoTa, v_Pos));
+            SET v_Pos = CHAR_LENGTH(v_MoTa) + 1;
+        ELSE
+            -- Lấy phần tử hiện tại
+            SET v_PhanTu = TRIM(SUBSTRING(v_MoTa, v_Pos, v_NextPos - v_Pos));
+            SET v_Pos = v_NextPos + 1;
+        END IF;
+        
+        -- CÁCH AN TOÀN: Kiểm tra nếu phân tử rỗng thì bỏ qua
+        IF v_PhanTu = '' THEN
+            -- Bỏ qua phần tử rỗng, tiếp tục vòng lặp
+            LEAVE parse_loop;
+        END IF;
+        
+        -- Parse phần tử
+        SET v_ParseOK = FALSE;
+        
+        -- Xử lý trường hợp "1 ổ Bánh mì"
+        IF v_PhanTu REGEXP '^[0-9]+[[:space:]]+ổ' THEN
+            SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, ' ', 1) AS DECIMAL(10,3));
+            SET v_DonVi = 'ổ';
+            SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('ổ', v_PhanTu) + 1));
+            SET v_ParseOK = TRUE;
+        -- Xử lý trường hợp "0.02kg Cà phê"
+        ELSEIF v_PhanTu REGEXP '^[0-9]+\\.[0-9]+kg' THEN
+            SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, 'kg', 1) AS DECIMAL(10,3));
+            SET v_DonVi = 'kg';
+            SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('kg', v_PhanTu) + 2));
+            SET v_ParseOK = TRUE;
+        -- Xử lý trường hợp "0.2lít Sữa"
+        ELSEIF v_PhanTu REGEXP '^[0-9]+\\.[0-9]+lít' THEN
+            SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, 'lít', 1) AS DECIMAL(10,3));
+            SET v_DonVi = 'lít';
+            SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('lít', v_PhanTu) + 3));
+            SET v_ParseOK = TRUE;
+        -- Xử lý trường hợp "2kg Đường"
+        ELSEIF v_PhanTu REGEXP '^[0-9]+kg' THEN
+            SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, 'kg', 1) AS DECIMAL(10,3));
+            SET v_DonVi = 'kg';
+            SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('kg', v_PhanTu) + 2));
+            SET v_ParseOK = TRUE;
+        -- Xử lý trường hợp "3lít Sữa"
+        ELSEIF v_PhanTu REGEXP '^[0-9]+lít' THEN
+            SET v_SoLuongTru = CAST(SUBSTRING_INDEX(v_PhanTu, 'lít', 1) AS DECIMAL(10,3));
+            SET v_DonVi = 'lít';
+            SET v_TenNL = TRIM(SUBSTRING(v_PhanTu, LOCATE('lít', v_PhanTu) + 3));
+            SET v_ParseOK = TRUE;
+        END IF;
+        
+        -- Chỉ xử lý nếu parse thành công
+        IF v_ParseOK THEN
+            -- Nhân với số lượng món đã bán
+            SET v_SoLuongTru = v_SoLuongTru * p_SoLuong;
+            
+            -- Tìm nguyên liệu trong kho
+            SELECT MaNL, SoLuong INTO v_MaNL, v_SoLuongHienTai
+            FROM Kho
+            WHERE TenNL = TRIM(v_TenNL) AND DonVi = v_DonVi
+            LIMIT 1;
+            
+            -- Nếu tìm thấy nguyên liệu và số lượng đủ
+            IF v_MaNL IS NOT NULL AND v_SoLuongHienTai >= v_SoLuongTru THEN
+                -- Trừ nguyên liệu
+                UPDATE Kho
+                SET SoLuong = SoLuong - v_SoLuongTru
+                WHERE MaNL = v_MaNL;
+                
+                -- Cập nhật trạng thái
+                UPDATE Kho
+                SET TrangThai = CASE 
+                    WHEN SoLuong <= 0 THEN 'Hết hàng'
+                    WHEN SoLuong <= MucCanhBao THEN 'Gần hết'
+                    ELSE 'Còn hàng'
+                END
+                WHERE MaNL = v_MaNL;
+                
+                SET v_SoNguyenLieuDaTru = v_SoNguyenLieuDaTru + 1;
+            END IF;
+        END IF;
+        
+        -- Reset các biến cho lần lặp tiếp theo
+        SET v_MaNL = NULL;
+        SET v_SoLuongTru = NULL;
+        SET v_DonVi = NULL;
+        SET v_TenNL = NULL;
+        SET v_ParseOK = FALSE;
+        
+    END WHILE parse_loop;
+    
+    RETURN v_SoNguyenLieuDaTru;
+END //
+
+-- ============================================
+-- PROCEDURE: Trừ nguyên liệu cho đơn hàng tại chỗ
+-- ============================================
+CREATE PROCEDURE TruNguyenLieuChoDonHang(
+    IN p_MaDH INT
+)
+BEGIN
+    DECLARE v_MaMon INT;
+    DECLARE v_SoLuong INT;
+    DECLARE v_MoTa TEXT;
+    DECLARE v_SoNguyenLieuDaTru INT DEFAULT 0;
+    DECLARE done INT DEFAULT FALSE;
+    
+    -- Cursor để lấy tất cả món trong đơn hàng
+    DECLARE cur_mon CURSOR FOR
+        SELECT ct.MaMon, ct.SoLuong, m.MoTa
+        FROM CTDonHang ct
+        INNER JOIN Mon m ON ct.MaMon = m.MaMon
+        WHERE ct.MaDH = p_MaDH;
+    
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    -- Mở cursor
+    OPEN cur_mon;
+    
+    read_loop: LOOP
+        FETCH cur_mon INTO v_MaMon, v_SoLuong, v_MoTa;
+        
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        -- Trừ nguyên liệu cho món này
+        SET v_SoNguyenLieuDaTru = v_SoNguyenLieuDaTru + TruNguyenLieuTuMoTa(v_MoTa, v_SoLuong);
+        
+    END LOOP;
+    
+    CLOSE cur_mon;
+    
+    -- Log kết quả
+    INSERT INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong)
+    VALUES (NOW(), 'TRU_NGUYEN_LIEU_DON_HANG', 
+            CONCAT('Trừ nguyên liệu cho đơn hàng #', p_MaDH, ' - Đã trừ ', v_SoNguyenLieuDaTru, ' loại nguyên liệu'), 
+            v_SoNguyenLieuDaTru);
+END //
+
+-- ============================================
+-- PROCEDURE: Trừ nguyên liệu cho đơn hàng online
+-- ============================================
+CREATE PROCEDURE TruNguyenLieuChoDonHangOnline(
+    IN p_MaDHOnline INT
+)
+BEGIN
+    DECLARE v_MaMon INT;
+    DECLARE v_SoLuong INT;
+    DECLARE v_MoTa TEXT;
+    DECLARE v_SoNguyenLieuDaTru INT DEFAULT 0;
+    DECLARE done INT DEFAULT FALSE;
+    
+    -- Cursor để lấy tất cả món trong đơn hàng online
+    DECLARE cur_mon CURSOR FOR
+        SELECT ct.MaMon, ct.SoLuong, m.MoTa
+        FROM CTDonHangOnline ct
+        INNER JOIN Mon m ON ct.MaMon = m.MaMon
+        WHERE ct.MaDHOnline = p_MaDHOnline;
+    
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    -- Mở cursor
+    OPEN cur_mon;
+    
+    read_loop: LOOP
+        FETCH cur_mon INTO v_MaMon, v_SoLuong, v_MoTa;
+        
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        -- Trừ nguyên liệu cho món này
+        SET v_SoNguyenLieuDaTru = v_SoNguyenLieuDaTru + TruNguyenLieuTuMoTa(v_MoTa, v_SoLuong);
+        
+    END LOOP;
+    
+    CLOSE cur_mon;
+    
+    -- Log kết quả
+    INSERT INTO LogHeThong (ThoiGian, HanhDong, MoTa, SoLuong)
+    VALUES (NOW(), 'TRU_NGUYEN_LIEU_DON_HANG_ONLINE', 
+            CONCAT('Trừ nguyên liệu cho đơn hàng online #', p_MaDHOnline, ' - Đã trừ ', v_SoNguyenLieuDaTru, ' loại nguyên liệu'), 
+            v_SoNguyenLieuDaTru);
+END //
+
+DELIMITER ;
+
+-- ============================================
+-- TRIGGER: Tự động trừ nguyên liệu khi đơn hàng hoàn thành
+-- ============================================
+DELIMITER //
+
+CREATE TRIGGER TG_TruNguyenLieuKhiDonHangHoanThanh
+AFTER UPDATE ON DonHang
+FOR EACH ROW
+BEGIN
+    -- Chỉ thực hiện khi trạng thái chuyển sang 'Hoàn thành'
+    IF NEW.TrangThai = 'Hoàn thành' AND OLD.TrangThai != 'Hoàn thành' THEN
+        CALL TruNguyenLieuChoDonHang(NEW.MaDH);
+    END IF;
+END //
+
+CREATE TRIGGER TG_TruNguyenLieuKhiDonHangOnlineHoanThanh
+AFTER UPDATE ON DonHangOnline
+FOR EACH ROW
+BEGIN
+    -- Chỉ thực hiện khi trạng thái chuyển sang 'Hoàn thành'
+    IF NEW.TrangThai = 'Hoàn thành' AND OLD.TrangThai != 'Hoàn thành' THEN
+        CALL TruNguyenLieuChoDonHangOnline(NEW.MaDHOnline);
+    END IF;
+END //
+
+DELIMITER ;
+
+-- ============================================
+-- EXAMPLES SỬ DỤNG
+-- ============================================
+
+-- Ví dụ 1: Trừ nguyên liệu thủ công cho đơn hàng
+-- CALL TruNguyenLieuChoDonHang(1);
+
+-- Ví dụ 2: Trừ nguyên liệu thủ công cho đơn hàng online
+-- CALL TruNguyenLieuChoDonHangOnline(1);
+
+-- Ví dụ 3: Cập nhật đơn hàng sang 'Hoàn thành' (trigger sẽ tự động trừ nguyên liệu)
+-- UPDATE DonHang SET TrangThai = 'Hoàn thành' WHERE MaDH = 1;
+
+-- Ví dụ 4: Cập nhật đơn hàng online sang 'Hoàn thành' (trigger sẽ tự động trừ nguyên liệu)
+-- UPDATE DonHangOnline SET TrangThai = 'Hoàn thành' WHERE MaDHOnline = 1;
+
+-- Ví dụ 5: Xem log trừ nguyên liệu
+-- SELECT * FROM LogHeThong 
+-- WHERE HanhDong IN ('TRU_NGUYEN_LIEU_DON_HANG', 'TRU_NGUYEN_LIEU_DON_HANG_ONLINE')
+-- ORDER BY ThoiGian DESC LIMIT 10;
+
+-- Ví dụ 6: Kiểm tra số lượng nguyên liệu sau khi trừ
+-- SELECT * FROM Kho ORDER BY TenNL;

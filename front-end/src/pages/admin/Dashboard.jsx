@@ -60,6 +60,7 @@ const Dashboard = () => {
     expiringSoon: [],
     expired: []
   });
+  const [todayReservations, setTodayReservations] = useState([]);
 
   // Helper functions
   const formatCurrency = (amount) => {
@@ -338,6 +339,24 @@ const Dashboard = () => {
           console.warn('Failed to fetch inventory alerts:', err);
         }
         
+        // Fetch today's reservations (from dedicated endpoint)
+        try {
+          const todayRes = await reservationAPI.getTodayReservations();
+          const reservations =
+            todayRes?.data?.data?.reservations ||
+            todayRes?.data?.reservations ||
+            todayRes?.data?.data ||
+            todayRes?.data ||
+            [];
+
+          const todayList = Array.isArray(reservations) ? reservations : [];
+          setTodayReservations(todayList);
+          console.log('📅 Today reservations:', todayList);
+        } catch (err) {
+          console.warn('Failed to fetch today reservations:', err?.message || err);
+          setTodayReservations([]);
+        }
+        
         // Mock recent orders
         setRecentOrders([
           { id: 1, customer: 'Nguyễn Văn A', total: 125000, status: 'completed', time: '10:30' },
@@ -557,6 +576,141 @@ const Dashboard = () => {
         
 
       
+
+      {/* Today's Reservations - Đơn đặt bàn hôm nay */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <div className="p-2 bg-blue-100 rounded-lg mr-3">
+              <FiCalendar className="w-5 h-5 text-blue-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900">Đơn đặt bàn hôm nay</h2>
+          </div>
+          <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+            {todayReservations.length} đơn
+          </span>
+        </div>
+        {todayReservations.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Khách hàng
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Bàn
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Thời gian
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Số người
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Trạng thái
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    SĐT
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {todayReservations.map((reservation) => {
+                  const getStatusColor = (status) => {
+                    switch (status) {
+                      case 'Đã xác nhận':
+                      case 'Hoàn thành':
+                        return 'bg-green-100 text-green-800';
+                      case 'Đã đặt':
+                        return 'bg-yellow-100 text-yellow-800';
+                      case 'Đã hủy':
+                        return 'bg-red-100 text-red-800';
+                      case 'Đang phục vụ':
+                        return 'bg-blue-100 text-blue-800';
+                      default:
+                        return 'bg-gray-100 text-gray-800';
+                    }
+                  };
+
+                  const formatTime = (timeString) => {
+                    if (!timeString) return '-';
+                    if (timeString.includes('T')) {
+                      return new Date(timeString).toLocaleTimeString('vi-VN', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      });
+                    }
+                    return timeString.substring(0, 5);
+                  };
+
+                  const formatDate = (dateString) => {
+                    if (!dateString) return '-';
+                    return new Date(dateString).toLocaleDateString('vi-VN');
+                  };
+
+                  return (
+                    <tr key={reservation.MaDat} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {reservation.TenKhach || reservation.tenKhach || 'N/A'}
+                        </div>
+                        {reservation.EmailKhach && (
+                          <div className="text-xs text-gray-500">{reservation.EmailKhach}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {reservation.ban?.TenBan || reservation.TenBan || `Bàn ${reservation.MaBan || 'N/A'}`}
+                        </div>
+                        {reservation.ban?.khuVuc?.TenKhuVuc && (
+                          <div className="text-xs text-gray-500">
+                            {reservation.ban.khuVuc.TenKhuVuc}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {formatTime(reservation.GioDat)}
+                          {reservation.GioKetThuc && (
+                            <span className="text-gray-500"> - {formatTime(reservation.GioKetThuc)}</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {formatDate(reservation.NgayDat)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <FiUsers className="w-4 h-4 text-gray-400 mr-1" />
+                          <span className="text-sm text-gray-900">{reservation.SoNguoi || 0}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(reservation.TrangThai)}`}>
+                          {reservation.TrangThai || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {reservation.SoDienThoai || reservation.soDienThoai || '-'}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-12 text-gray-500">
+            <div className="text-center">
+              <FiCalendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Không có đơn đặt bàn nào hôm nay</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Inventory Alerts - Cảnh báo kho */}
       <div className="bg-white rounded-lg shadow-sm p-6">

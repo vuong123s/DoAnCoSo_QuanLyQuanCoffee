@@ -35,6 +35,12 @@ const InventoryManagement = () => {
   const fetchInventory = async () => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Vui lòng đăng nhập lại');
+        setLoading(false);
+        return;
+      }
+      
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status', statusFilter);
@@ -42,11 +48,24 @@ const InventoryManagement = () => {
       const response = await fetch(`http://localhost:3000/api/inventory?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (response.status === 401) {
+        toast.error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại');
+        localStorage.removeItem('token');
+        window.location.href = '/auth/login';
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Lỗi khi tải danh sách nguyên liệu');
+      }
+      
       const data = await response.json();
       setInventory(data.items || []);
     } catch (error) {
       console.error('Error fetching inventory:', error);
-      toast.error('Lỗi khi tải danh sách nguyên liệu');
+      toast.error(error.message || 'Lỗi khi tải danh sách nguyên liệu');
     } finally {
       setLoading(false);
     }
@@ -55,26 +74,54 @@ const InventoryManagement = () => {
   const fetchAlerts = async () => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) return;
+      
       const response = await fetch('http://localhost:3000/api/inventory/alerts', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (response.status === 401) {
+        setAlerts(null);
+        return;
+      }
+      
+      if (!response.ok) {
+        setAlerts(null);
+        return;
+      }
+      
       const data = await response.json();
-      setAlerts(data);
+      setAlerts(data || { summary: { lowStockCount: 0, expiringSoonCount: 0, expiredCount: 0 } });
     } catch (error) {
       console.error('Error fetching alerts:', error);
+      setAlerts(null);
     }
   };
 
   const fetchStatistics = async () => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) return;
+      
       const response = await fetch('http://localhost:3000/api/inventory/statistics', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      if (response.status === 401) {
+        setStatistics(null);
+        return;
+      }
+      
+      if (!response.ok) {
+        setStatistics(null);
+        return;
+      }
+      
       const data = await response.json();
-      setStatistics(data);
+      setStatistics(data || { totalItems: 0, stats: { inStock: 0, lowStock: 0, outOfStock: 0 } });
     } catch (error) {
       console.error('Error fetching statistics:', error);
+      setStatistics(null);
     }
   };
 
@@ -265,13 +312,13 @@ const InventoryManagement = () => {
         <p className="text-gray-600 mt-2">Quản lý nguyên liệu và theo dõi tồn kho</p>
       </div>
 
-      {statistics && (
+      {statistics && statistics.stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Tổng nguyên liệu</p>
-                <p className="text-3xl font-bold text-gray-900">{statistics.totalItems}</p>
+                <p className="text-3xl font-bold text-gray-900">{statistics.totalItems || 0}</p>
               </div>
               <FiPackage className="text-4xl text-indigo-600" />
             </div>
@@ -281,7 +328,7 @@ const InventoryManagement = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Còn hàng</p>
-                <p className="text-3xl font-bold text-green-600">{statistics.stats.inStock}</p>
+                <p className="text-3xl font-bold text-green-600">{statistics.stats.inStock || 0}</p>
               </div>
               <FiPackage className="text-4xl text-green-600" />
             </div>
@@ -291,7 +338,7 @@ const InventoryManagement = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Gần hết</p>
-                <p className="text-3xl font-bold text-yellow-600">{statistics.stats.lowStock}</p>
+                <p className="text-3xl font-bold text-yellow-600">{statistics.stats.lowStock || 0}</p>
               </div>
               <FiAlertTriangle className="text-4xl text-yellow-600" />
             </div>
@@ -301,7 +348,7 @@ const InventoryManagement = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Hết hàng</p>
-                <p className="text-3xl font-bold text-red-600">{statistics.stats.outOfStock}</p>
+                <p className="text-3xl font-bold text-red-600">{statistics.stats.outOfStock || 0}</p>
               </div>
               <FiAlertTriangle className="text-4xl text-red-600" />
             </div>
@@ -309,7 +356,7 @@ const InventoryManagement = () => {
         </div>
       )}
 
-      {alerts && (alerts.summary.lowStockCount > 0 || alerts.summary.expiringSoonCount > 0 || alerts.summary.expiredCount > 0) && (
+      {alerts && alerts.summary && (alerts.summary.lowStockCount > 0 || alerts.summary.expiringSoonCount > 0 || alerts.summary.expiredCount > 0) && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center">

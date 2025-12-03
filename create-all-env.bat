@@ -73,24 +73,6 @@ echo. >> services\billing-service\.env
 echo # CORS Configuration >> services\billing-service\.env
 echo CORS_ORIGIN=http://localhost:3000,http://localhost:5173 >> services\billing-service\.env
 
-REM Inventory Service (Port 3007)
-echo PORT=3007 > services\inventory-service\.env
-echo # Database Configuration >> services\inventory-service\.env
-echo DB_HOST=localhost >> services\inventory-service\.env
-echo DB_PORT=3306 >> services\inventory-service\.env
-echo DB_NAME=QuanLyCafe >> services\inventory-service\.env
-echo DB_USER=root >> services\inventory-service\.env
-echo DB_PASSWORD= >> services\inventory-service\.env
-echo. >> services\inventory-service\.env
-echo # Server Configuration >> services\inventory-service\.env
-echo NODE_ENV=development >> services\inventory-service\.env
-echo. >> services\inventory-service\.env
-echo # JWT Configuration >> services\inventory-service\.env
-echo JWT_SECRET=your-jwt-secret-key >> services\inventory-service\.env
-echo. >> services\inventory-service\.env
-echo # CORS Configuration >> services\inventory-service\.env
-echo CORS_ORIGIN=http://localhost:3000,http://localhost:5173 >> services\inventory-service\.env
-
 REM API Gateway (Port 3000)
 echo PORT=3000 > api-gateway\.env
 echo # Database Configuration >> api-gateway\.env
@@ -117,7 +99,6 @@ echo - User Service: Port 3001
 echo - Menu Service: Port 3002  
 echo - Table Service: Port 3003
 echo - Billing Service: Port 3004
-echo - Inventory Service: Port 3007
 echo - API Gateway: Port 3000
 echo.
 echo Database: QuanLyCafe (root user, no password)

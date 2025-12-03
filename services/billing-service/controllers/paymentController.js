@@ -77,7 +77,7 @@ const processOrderPayment = async (req, res) => {
 
     // Update DonHang status
     await donHang.update({
-      TrangThai: 'Đã hoàn thành'
+      TrangThai: 'Hoàn thành'
     }, { transaction });
 
     await transaction.commit();

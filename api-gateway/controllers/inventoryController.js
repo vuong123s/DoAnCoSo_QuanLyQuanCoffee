@@ -255,15 +255,17 @@ exports.getAlerts = async (req, res) => {
       order: [['NgayHetHan', 'DESC']]
     });
     
+    const summary = {
+      lowStockCount: lowStock.length,
+      expiringSoonCount: expiringSoon.length,
+      expiredCount: expired.length
+    };
+    
     res.json({ 
       lowStock,
       expiringSoon,
       expired,
-      summary: {
-        lowStockCount: lowStock.length,
-        expiringSoonCount: expiringSoon.length,
-        expiredCount: expired.length
-      }
+      summary
     });
   } catch (error) {
     console.error('Get alerts error:', error);
@@ -290,15 +292,26 @@ exports.getStatistics = async (req, res) => {
       }
     });
     
+    // Convert statusCounts to proper format
+    const stats = {
+      inStock: 0,
+      lowStock: 0,
+      outOfStock: 0
+    };
+    
+    statusCounts.forEach(item => {
+      const status = item.TrangThai;
+      const count = parseInt(item.dataValues?.count || item.count || 0);
+      if (status === 'Còn hàng') stats.inStock = count;
+      else if (status === 'Gần hết') stats.lowStock = count;
+      else if (status === 'Hết hàng') stats.outOfStock = count;
+    });
+    
     res.json({
       totalItems,
       statusCounts,
       totalValue: totalValue || 0,
-      stats: {
-        inStock: statusCounts.find(s => s.TrangThai === 'Còn hàng')?.dataValues.count || 0,
-        lowStock: statusCounts.find(s => s.TrangThai === 'Gần hết')?.dataValues.count || 0,
-        outOfStock: statusCounts.find(s => s.TrangThai === 'Hết hàng')?.dataValues.count || 0
-      }
+      stats
     });
   } catch (error) {
     console.error('Get statistics error:', error);
